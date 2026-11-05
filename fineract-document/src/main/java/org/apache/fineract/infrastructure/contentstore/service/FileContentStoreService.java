@@ -95,23 +95,24 @@ public class FileContentStoreService implements ContentStoreService {
 
         final var target = Files.exists(getPath(safePath, false)) ? getPath(safePath, false) : getPath(safePath, true);
 
-        try (var in = is) {
-            IOUtils.copy(in, new FileOutputStream(target.toString()));
+        try (var in = is; var out = new FileOutputStream(target.toFile())) {
+            IOUtils.copy(in, out);
         } catch (Exception e) {
             throw new ContentStoreException(e);
         }
 
         final var relativePath = getRelativePath(target);
 
-        try {
-            postUploadContentPolicy
-                    .check(ContentPolicyContext.builder().path(path).inputStream(getInputStream(target)).mimeType(mimeType).build());
+        try (var uploaded = getInputStream(target)) {
+            postUploadContentPolicy.check(ContentPolicyContext.builder().path(path).inputStream(uploaded).mimeType(mimeType).build());
         } catch (ContentPolicyException e) {
             log.warn("Delete file because it didn't comply with the post-upload policy check: {} - {}", target, e.getMessage());
 
-            delete(relativePath.toString());
+            deleteFile(target);
 
             throw e;
+        } catch (IOException e) {
+            throw new ContentStoreException(e);
         }
 
         return relativePath.toString();
@@ -123,9 +124,16 @@ public class FileContentStoreService implements ContentStoreService {
 
         final var safePath = pathSanitizer.sanitize(path);
 
-        try {
-            final var target = getPath(safePath, false);
+        deleteFile(getPath(safePath, false));
+    }
 
+    @Override
+    public ContentStoreType getType() {
+        return ContentStoreType.FILE_SYSTEM;
+    }
+
+    private void deleteFile(Path target) {
+        try {
             final boolean deleted = Files.deleteIfExists(target);
 
             if (!hasFiles(target.getParent())) {
@@ -134,26 +142,20 @@ public class FileContentStoreService implements ContentStoreService {
 
             if (!deleted) {
                 // no need to throw an Error, what's a caller going to do about it, so simply log a warning
-                log.warn("Unable to delete file {}", safePath);
+                log.warn("Unable to delete file {}", getRelativePath(target));
             }
         } catch (Exception e) {
             throw new ContentStoreException(e);
         }
     }
 
-    @Override
-    public ContentStoreType getType() {
-        return ContentStoreType.FILE_SYSTEM;
-    }
-
     private Path getPath(String path, boolean randomize) {
-        Path p;
+        final var root = getRootPath();
+
+        var p = confineToRoot(root, root.resolve(path));
 
         if (randomize) {
-            var tail = Path.of(path);
-            var file = tail.getFileName();
-
-            p = getRootPath().resolve(tail.getParent()).resolve(pathRandomizer.randomize()).resolve(file);
+            p = confineToRoot(root, p.getParent().resolve(pathRandomizer.randomize()).resolve(p.getFileName()));
 
             try {
                 if (Files.notExists(p.getParent())) {
@@ -162,11 +164,19 @@ public class FileContentStoreService implements ContentStoreService {
             } catch (Exception e) {
                 throw new ContentStoreException(e);
             }
-        } else {
-            p = getRootPath().resolve(path);
         }
 
         return p;
+    }
+
+    private Path confineToRoot(Path root, Path candidate) {
+        final var normalized = candidate.toAbsolutePath().normalize();
+
+        if (normalized.equals(root) || !normalized.startsWith(root)) {
+            throw new ContentPolicyException(String.format("Path is outside of the content store root: %s", root.relativize(normalized)));
+        }
+
+        return normalized;
     }
 
     private Path getRelativePath(Path fullPath) {
@@ -175,7 +185,7 @@ public class FileContentStoreService implements ContentStoreService {
 
     private Path getRootPath() {
         return Path.of(properties.getContent().getFilesystem().getRootFolder(),
-                ThreadLocalContextUtil.getTenant().getName().replaceAll(" ", "").trim());
+                ThreadLocalContextUtil.getTenant().getName().replaceAll(" ", "").trim()).toAbsolutePath().normalize();
     }
 
     private InputStream getInputStream(Path path) {

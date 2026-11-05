@@ -30,14 +30,29 @@ import org.springframework.stereotype.Component;
 @Component
 public class TraversalContentPolicy implements ContentPolicy {
 
-    private final Pattern overwriteSiblingsPattern = Pattern.compile(".*((\\.)?\\./+)+(/+)?.*");
+    private static final Pattern UNSAFE_CHARACTERS = Pattern.compile("[\\p{Cntrl}\\u0085\\u2028\\u2029]");
+    private static final Pattern SEGMENT_SEPARATOR = Pattern.compile("[/\\\\]+");
 
     private final FineractProperties properties;
 
     @Override
     public void check(ContentPolicyContext ctx) {
-        if (overwriteSiblingsPattern.matcher(ctx.getPath()).matches()) {
-            throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", ctx.getPath()));
+        final var path = ctx.getPath();
+
+        if (path == null) {
+            throw new ContentPolicyException("Path missing");
+        }
+
+        if (UNSAFE_CHARACTERS.matcher(path).find()) {
+            final var printablePath = UNSAFE_CHARACTERS.matcher(path).replaceAll("?");
+
+            throw new ContentPolicyException(String.format("Path contains control or line separator characters: %s", printablePath));
+        }
+
+        for (final var segment : SEGMENT_SEPARATOR.split(path)) {
+            if (".".equals(segment) || "..".equals(segment)) {
+                throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", path));
+            }
         }
     }
 }

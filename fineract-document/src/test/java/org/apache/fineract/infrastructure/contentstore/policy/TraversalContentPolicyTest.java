@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.contentstore.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -59,5 +60,38 @@ class TraversalContentPolicyTest {
 
             assertThat(exception.getMessage()).startsWith("Trying to overwrite a sibling file:");
         });
+    }
+
+    @Test
+    void pathTraversalWithBackslashes() {
+        var paths = List.of("documents\\..\\..\\other\\x.pdf", "documents/clients/1/..\\..\\..\\x.pdf", ".\\x.pdf");
+
+        paths.forEach(path -> assertThrows(ContentPolicyException.class,
+                () -> traversalContentPolicy.check(ContentPolicyContext.builder().path(path).mimeType("application/pdf").build())));
+    }
+
+    @Test
+    void controlAndLineSeparatorCharacters() {
+        var paths = List.of("documents/clients/1/x\r/../../../../other/documents/clients/1/contract.pdf",
+                "documents/clients/1/x\n/../../../../other/contract.pdf", "documents/clients/1/x\u0085/../../../../other/contract.pdf",
+                "documents/clients/1/x\u2028/../../../../other/contract.pdf",
+                "documents/clients/1/x\u2029/../../../../other/contract.pdf", "documents/clients/1/x\u0000/contract.pdf",
+                "documents/clients/1/x\u007f/contract.pdf", "documents/clients/1/x\tcontract.pdf");
+
+        paths.forEach(path -> {
+            var exception = assertThrows(ContentPolicyException.class,
+                    () -> traversalContentPolicy.check(ContentPolicyContext.builder().path(path).mimeType("application/pdf").build()));
+
+            assertThat(exception.getMessage()).startsWith("Path contains control or line separator characters:");
+        });
+    }
+
+    @Test
+    void validPaths() {
+        var paths = List.of("documents/clients/1/contract.pdf", "images/staff/1/PwVhJDLHyxUppiby/michael.vorburger-crepes.jpg",
+                "documents/clients/1/my..report.pdf", "documents/clients/1/.hidden.pdf");
+
+        paths.forEach(path -> assertDoesNotThrow(
+                () -> traversalContentPolicy.check(ContentPolicyContext.builder().path(path).mimeType("application/pdf").build())));
     }
 }

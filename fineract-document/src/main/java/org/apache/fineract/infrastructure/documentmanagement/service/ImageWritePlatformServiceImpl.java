@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.contentstore.detector.ContentDetectorContext;
 import org.apache.fineract.infrastructure.contentstore.detector.ContentDetectorManager;
@@ -152,6 +153,6 @@ public class ImageWritePlatformServiceImpl implements ImageWritePlatformService 
         requireNonNull(fileName);
         requireNonNull(delimiter);
 
-        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), fileName);
+        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), FilenameUtils.getName(fileName));
     }
 }
