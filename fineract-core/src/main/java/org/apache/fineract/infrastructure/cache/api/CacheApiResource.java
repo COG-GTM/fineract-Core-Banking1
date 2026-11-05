@@ -28,6 +28,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
@@ -36,6 +37,7 @@ import org.apache.fineract.infrastructure.cache.data.CacheData;
 import org.apache.fineract.infrastructure.cache.data.CacheSwitchRequest;
 import org.apache.fineract.infrastructure.cache.data.CacheSwitchResponse;
 import org.apache.fineract.infrastructure.cache.service.RuntimeDelegatingCacheManager;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +57,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CacheApiResource {
 
+    private final PlatformSecurityContext context;
     @Qualifier("runtimeDelegatingCacheManager")
     private final RuntimeDelegatingCacheManager cacheService;
     private final CommandPipeline commandPipeline;
@@ -68,12 +71,14 @@ public class CacheApiResource {
             caches
             """)
     public Collection<CacheData> retrieveAll() {
+        context.authenticatedUser().validateHasReadPermission("CACHE");
         return cacheService.retrieveAll();
     }
 
     @PUT
     @Operation(summary = "Switch Cache", description = "Switches the cache to chosen one.")
     public CacheSwitchResponse switchCache(@Valid CacheSwitchRequest request) {
+        context.authenticatedUser().validateHasPermissionTo("UPDATE_CACHE", List.of("ALL_FUNCTIONS_WRITE", "UPDATE_CACHE"));
         final var command = new CacheSwitchCommand();
 
         command.setPayload(request);
