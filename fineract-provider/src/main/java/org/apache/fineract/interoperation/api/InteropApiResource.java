@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.interoperation.api;
 
+import static org.apache.fineract.interoperation.util.InteropUtil.ENTITY_NAME_IDENTIFIER;
 import static org.apache.fineract.interoperation.util.InteropUtil.ENTITY_NAME_QUOTE;
 import static org.apache.fineract.interoperation.util.InteropUtil.ENTITY_NAME_REQUEST;
 
@@ -70,6 +71,9 @@ import org.apache.fineract.interoperation.data.InteropTransferResponseData;
 import org.apache.fineract.interoperation.domain.InteropIdentifierType;
 import org.apache.fineract.interoperation.domain.InteropTransferActionType;
 import org.apache.fineract.interoperation.service.InteropService;
+import org.apache.fineract.portfolio.client.api.ClientApiConstants;
+import org.apache.fineract.portfolio.savings.SavingsApiConstants;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/interoperation") // api/v1/
@@ -102,6 +106,8 @@ public class InteropApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = InteropAccountData.class)))
     public String getAccountDetails(@PathParam("accountId") @Parameter(description = "accountId") String accountId,
             @Context UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+
         InteropAccountData result = interopService.getAccountDetails(accountId);
         ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
@@ -120,6 +126,8 @@ public class InteropApiResource {
             @QueryParam("fromBookingDateTime") @Parameter(description = "fromBookingDateTime") String fromBookingDateTime,
             @QueryParam("toBookingDateTime") @Parameter(description = "toBookingDateTime") String toBookingDateTime,
             @Context UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+
         LocalDateTime transactionsFrom = fromBookingDateTime == null ? null
                 : LocalDateTime.parse(fromBookingDateTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         LocalDateTime transactionsTo = toBookingDateTime == null ? null
@@ -139,6 +147,8 @@ public class InteropApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = InteropIdentifiersResponseData.class)))
     public String getAccountIdentifiers(@PathParam("accountId") @Parameter(description = "accountId") String accountId,
             @Context UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(ENTITY_NAME_IDENTIFIER);
+
         InteropIdentifiersResponseData result = interopService.getAccountIdentifiers(accountId);
         ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
@@ -153,6 +163,8 @@ public class InteropApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = InteropIdentifierAccountResponseData.class)))
     public String getAccountByIdentifier(@PathParam("idType") @Parameter(description = "idType") InteropIdentifierType idType,
             @PathParam("idValue") @Parameter(description = "idValue") String idValue, @Context UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(ENTITY_NAME_IDENTIFIER);
+
         InteropIdentifierAccountResponseData result = interopService.getAccountByIdentifier(idType, idValue, null);
         ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
@@ -168,6 +180,8 @@ public class InteropApiResource {
     public String getAccountByIdentifier(@PathParam("idType") @Parameter(description = "idType") InteropIdentifierType idType,
             @PathParam("idValue") @Parameter(description = "idValue") String idValue,
             @PathParam("subIdOrType") @Parameter(description = "subIdOrType") String subIdOrType, @Context UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(ENTITY_NAME_IDENTIFIER);
+
         InteropIdentifierAccountResponseData result = interopService.getAccountByIdentifier(idType, idValue, subIdOrType);
         ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
@@ -369,6 +383,10 @@ public class InteropApiResource {
     @Operation(summary = "Query KYC by Account Id", description = "")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = InteropKycResponseData.class)))
     public String getClientKyc(@PathParam("accountId") @Parameter(description = "accountId") String accountId, @Context UriInfo uriInfo) {
+        AppUser user = context.authenticatedUser();
+        user.validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+        user.validateHasReadPermission(ClientApiConstants.CLIENT_RESOURCE_NAME);
+
         InteropKycResponseData result = interopService.getKyc(accountId);
         ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 

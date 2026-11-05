@@ -32,8 +32,10 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.fineract.client.models.PostUsersRequest;
 import org.apache.fineract.infrastructure.core.service.MathUtil;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.Utils;
@@ -43,12 +45,15 @@ import org.apache.fineract.integrationtests.common.charges.ChargesHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsAccountHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsProductHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsStatusChecker;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
 import org.apache.fineract.interoperation.domain.InteropActionState;
 import org.apache.fineract.interoperation.domain.InteropIdentifierType;
 import org.apache.fineract.interoperation.domain.InteropTransactionRole;
 import org.apache.fineract.interoperation.util.InteropUtil;
 import org.apache.fineract.portfolio.charge.domain.ChargeTimeType;
 import org.apache.fineract.portfolio.savings.SavingsApiConstants;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -121,6 +126,43 @@ public class InteropTest {
         testRequests();
         testQuotes();
         testTransfers();
+    }
+
+    @Test
+    public void testAccountReadEndpointsRequirePermissions() {
+        createClient();
+        createSavingsProduct();
+        openSavingsAccount();
+
+        String idValue = UUID.randomUUID().toString();
+        Assertions.assertEquals(interopHelper.getAccountExternalId(), interopHelper.postParty(InteropIdentifierType.MSISDN, idValue));
+
+        String password = UserHelper.SIMPLE_USER_PASSWORD;
+        PostUsersRequest userRequest = UserHelper.buildUserRequest(responseSpec, requestSpec, password);
+        Assertions.assertNotNull(UserHelper.createUser(requestSpec, responseSpec, userRequest).getResourceId());
+        RequestSpecification unprivilegedSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        unprivilegedSpec.header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(userRequest.getUsername(), password));
+
+        String accountUrl = "/fineract-provider/api/v1/interoperation/accounts/" + interopHelper.getAccountExternalId();
+        String partiesUrl = "/fineract-provider/api/v1/interoperation/parties/" + InteropIdentifierType.MSISDN + '/' + idValue;
+        List<String> urls = List.of(accountUrl, accountUrl + "/transactions", accountUrl + "/identifiers", accountUrl + "/kyc",
+                partiesUrl);
+
+        for (String url : urls) {
+            Utils.performServerGet(unprivilegedSpec, responseForbiddenErrorSpec, url + '?' + Utils.TENANT_IDENTIFIER, null);
+        }
+
+        RolesHelper.addPermissionsToRole(requestSpec, responseSpec, userRequest.getRoles().get(0).intValue(),
+                Map.of("READ_SAVINGSACCOUNT", true, "READ_CLIENT", true, "READ_INTERID", true));
+
+        for (String url : urls) {
+            ResponseSpecification allowed = url.endsWith("/kyc")
+                    // the test client has no gender/address, so KYC data may legitimately be not found
+                    ? new ResponseSpecBuilder().expectStatusCode(Matchers.anyOf(Matchers.is(200), Matchers.is(404))).build()
+                    : responseSpec;
+            Utils.performServerGet(unprivilegedSpec, allowed, url + '?' + Utils.TENANT_IDENTIFIER, null);
+        }
     }
 
     private void createClient() {
