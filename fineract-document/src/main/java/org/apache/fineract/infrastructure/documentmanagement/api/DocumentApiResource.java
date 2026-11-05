@@ -61,6 +61,7 @@ import org.apache.fineract.infrastructure.documentmanagement.data.DocumentDelete
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentDeleteResponse;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentUpdateRequest;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentUpdateResponse;
+import org.apache.fineract.infrastructure.documentmanagement.domain.DocumentEntityType;
 import org.apache.fineract.infrastructure.documentmanagement.service.DocumentReadPlatformService;
 import org.apache.fineract.util.StreamResponseUtil;
 import org.glassfish.jersey.media.multipart.FormDataBodyPart;
@@ -82,6 +83,9 @@ import org.springframework.stereotype.Component;
         - savings: URL pattern as savings
         - client identifiers: URL pattern as client_identifiers
         - groups: URL pattern as groups
+        - bulk imports: URL pattern as import
+
+        Requests for any other entity type are rejected with HTTP 400.
         """)
 @RequiredArgsConstructor
 public class DocumentApiResource {
@@ -103,6 +107,7 @@ public class DocumentApiResource {
             """)
     public List<DocumentData> retrieveAllDocuments(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId) {
+        DocumentEntityType.validate(entityType);
 
         return documentReadPlatformService.retrieveAllDocuments(entityType, entityId);
     }
@@ -121,6 +126,7 @@ public class DocumentApiResource {
     public DocumentData getDocument(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        DocumentEntityType.validate(entityType);
 
         return documentReadPlatformService.retrieveDocument(entityType, entityId, documentId);
     }
@@ -141,6 +147,7 @@ public class DocumentApiResource {
     public Response downloadFile(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        DocumentEntityType.validate(entityType);
 
         final var content = documentReadPlatformService.retrieveDocumentContent(entityType, entityId, documentId);
 
@@ -174,6 +181,7 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataBodyPart filePart,
             @FormDataParam(DOCUMENT_API_PARAM_NAME) final String name,
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
+        DocumentEntityType.validate(entityType);
 
         fileUploadValidator.validate(fileSize, is, fileDetails, filePart);
 
@@ -214,6 +222,7 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataBodyPart filePart,
             @FormDataParam(DOCUMENT_API_PARAM_NAME) final String name,
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
+        DocumentEntityType.validate(entityType);
 
         final var command = new DocumentUpdateCommand();
 
@@ -241,6 +250,7 @@ public class DocumentApiResource {
     public DocumentDeleteResponse deleteDocument(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        DocumentEntityType.validate(entityType);
 
         final var command = new DocumentDeleteCommand();
 
