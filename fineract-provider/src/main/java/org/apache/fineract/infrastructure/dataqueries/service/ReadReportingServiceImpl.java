@@ -20,14 +20,10 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import jakarta.ws.rs.core.StreamingOutput;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -40,11 +36,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.data.ReportData;
 import org.apache.fineract.infrastructure.dataqueries.data.ReportParameterData;
@@ -76,7 +70,6 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     private final GenericDataService genericDataService;
     private final SqlInjectionPreventerService sqlInjectionPreventerService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-    private final FineractProperties fineractProperties;
 
     @Override
     public StreamingOutput retrieveReportCSV(final String name, final String type, final Map<String, String> queryParams,
@@ -228,71 +221,64 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     }
 
     @Override
-    public String retrieveReportPDF(final String reportName, final String type, final Map<String, String> queryParams,
+    public StreamingOutput retrieveReportPDF(final String reportName, final String type, final Map<String, String> queryParams,
             final boolean isSelfServiceUserReport) {
-
-        final String fileLocation = fineractProperties.getContent().getFilesystem().getRootFolder() + File.separator + "";
-        if (!new File(fileLocation).isDirectory()) {
-            new File(fileLocation).mkdirs();
-        }
-
-        final String genaratePdf = fileLocation + File.separator + reportName + ".pdf";
-
+        final GenericResultsetData result;
         try {
-            final GenericResultsetData result = retrieveGenericResultset(reportName, type, queryParams, isSelfServiceUserReport);
-
-            final List<ResultsetColumnHeaderData> columnHeaders = result.getColumnHeaders();
-            final List<ResultsetRowData> data = result.getData();
-            List<Object> row;
-
-            log.debug("NO. of Columns: {}", columnHeaders.size());
-            final Integer chSize = columnHeaders.size();
-
-            final Document document = new Document(PageSize.B0.rotate());
-
-            // Validate filename characters and use Path.of() for safe handling
-            if (!reportName.matches("^[a-zA-Z0-9_.-]+$")) {
-                throw new IllegalArgumentException("Invalid report name format");
-            }
-            Path validatedPath = Paths.get(fileLocation, reportName + ".pdf").normalize();
-            if (!validatedPath.startsWith(Paths.get(fileLocation))) {
-                throw new IllegalArgumentException("Path traversal attempt detected");
-            }
-            PdfWriter.getInstance(document, new FileOutputStream(validatedPath.toString()));
-            document.open();
-
-            final PdfPTable table = new PdfPTable(chSize);
-            table.setWidthPercentage(100);
-
-            for (int i = 0; i < chSize; i++) {
-
-                table.addCell(columnHeaders.get(i).getColumnName());
-
-            }
-            table.completeRow();
-
-            Integer rSize;
-            JdbcJavaType currColType;
-            String currVal;
-            log.debug("NO. of Rows: {}", data.size());
-            for (ResultsetRowData element : data) {
-                row = element.getRow();
-                rSize = row.size();
-                for (int j = 0; j < rSize; j++) {
-                    currVal = (String) row.get(j);
-                    if (currVal != null) {
-                        table.addCell(currVal);
-                    }
-                }
-            }
-            table.completeRow();
-            document.add(table);
-            document.close();
-            return genaratePdf;
+            result = retrieveGenericResultset(reportName, type, queryParams, isSelfServiceUserReport);
         } catch (final Exception e) {
             log.error("error.msg.reporting.error:", e);
             throw ErrorHandler.getMappable(e);
         }
+        return out -> {
+            try {
+                generatePdf(result, out);
+            } catch (final Exception e) {
+                log.error("error.msg.reporting.error:", e);
+                throw ErrorHandler.getMappable(e);
+            }
+        };
+    }
+
+    private void generatePdf(final GenericResultsetData result, final OutputStream out) {
+        final List<ResultsetColumnHeaderData> columnHeaders = result.getColumnHeaders();
+        final List<ResultsetRowData> data = result.getData();
+        List<Object> row;
+
+        log.debug("NO. of Columns: {}", columnHeaders.size());
+        final Integer chSize = columnHeaders.size();
+
+        final Document document = new Document(PageSize.B0.rotate());
+        final PdfWriter writer = PdfWriter.getInstance(document, out);
+        writer.setCloseStream(false);
+        document.open();
+
+        final PdfPTable table = new PdfPTable(chSize);
+        table.setWidthPercentage(100);
+
+        for (int i = 0; i < chSize; i++) {
+
+            table.addCell(columnHeaders.get(i).getColumnName());
+
+        }
+        table.completeRow();
+
+        Integer rSize;
+        String currVal;
+        log.debug("NO. of Rows: {}", data.size());
+        for (ResultsetRowData element : data) {
+            row = element.getRow();
+            rSize = row.size();
+            for (int j = 0; j < rSize; j++) {
+                currVal = (String) row.get(j);
+                if (currVal != null) {
+                    table.addCell(currVal);
+                }
+            }
+        }
+        table.completeRow();
+        document.add(table);
+        document.close();
     }
 
     @Override

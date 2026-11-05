@@ -40,7 +40,7 @@ public interface ReadReportingService {
 
     // TODO Move the following x3 methods into the (new; FINERACT-1173) DatatableReportingProcessService?
 
-    String retrieveReportPDF(String name, String type, Map<String, String> extractedQueryParams, boolean isSelfServiceUserReport);
+    StreamingOutput retrieveReportPDF(String name, String type, Map<String, String> extractedQueryParams, boolean isSelfServiceUserReport);
 
     StreamingOutput retrieveReportCSV(String name, String type, Map<String, String> extractedQueryParams, boolean isSelfServiceUserReport);
 
