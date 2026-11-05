@@ -28,6 +28,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
@@ -79,7 +80,7 @@ public class CacheApiResource {
     @PUT
     @Operation(summary = "Switch Cache", description = "Switches the cache to chosen one.")
     public CacheSwitchResponse switchCache(@Valid CacheSwitchRequest request) {
-        context.authenticatedUser().validateHasUpdatePermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        context.authenticatedUser().validateHasPermissionTo("UPDATE_CACHE", List.of("ALL_FUNCTIONS_WRITE", "UPDATE_CACHE"));
 
         final var command = new CacheSwitchCommand();
 
