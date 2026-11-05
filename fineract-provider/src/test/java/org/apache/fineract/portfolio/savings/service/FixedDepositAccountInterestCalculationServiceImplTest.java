@@ -19,10 +19,13 @@
 package org.apache.fineract.portfolio.savings.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Duration;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.organisation.monetary.domain.MoneyHelper;
 import org.apache.fineract.portfolio.savings.data.DepositAccountDataValidator;
@@ -62,8 +65,8 @@ public class FixedDepositAccountInterestCalculationServiceImplTest {
     public void testCalculateInterestInternal1() {
 
         // Calculate interest
-        BigDecimal expectedInterest = new BigDecimal("10509.4533691406250000"); // Expected interest calculated based
-                                                                                // on provided values
+        // Expected interest calculated based on provided values, rounded to the MathContext precision
+        BigDecimal expectedInterest = new BigDecimal("10509.45336920000");
         BigDecimal calculatedInterest = service.calculateInterestInternal(BigDecimal.valueOf(10000), BigDecimal.valueOf(5), 12L, 3L);
 
         // Verify the result
@@ -80,6 +83,14 @@ public class FixedDepositAccountInterestCalculationServiceImplTest {
 
         // Verify the result
         assertEquals(expectedInterest, calculatedInterest);
+    }
+
+    @Test
+    public void testCalculateInterestInternalKeepsPrecisionBoundedForLargeExponent() {
+        BigDecimal calculatedInterest = assertTimeout(Duration.ofSeconds(5),
+                () -> service.calculateInterestInternal(BigDecimal.ONE, BigDecimal.valueOf(10), 100_000_000L, 1L));
+
+        assertTrue(calculatedInterest.precision() <= 12, "precision should be bounded by the MathContext");
     }
 
 }
