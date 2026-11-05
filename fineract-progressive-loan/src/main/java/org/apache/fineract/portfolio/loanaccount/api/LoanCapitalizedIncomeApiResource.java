@@ -76,6 +76,7 @@ public class LoanCapitalizedIncomeApiResource {
     public LoanCapitalizedIncomeData fetchLoanCapitalizedIncomeData(
             @PathParam("loanId") @Parameter(description = "loanId") final Long loanId) {
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateLoanWithinOfficeHierarchy(loanId);
 
         return capitalizedIncomeBalanceReadService.fetchLoanCapitalizedIncomeData(loanId);
     }
@@ -92,6 +93,7 @@ public class LoanCapitalizedIncomeApiResource {
 
         final ExternalId externalId = ExternalIdFactory.produce(loanExternalId);
         final Long resolvedLoanId = loanReadPlatformService.getResolvedLoanId(externalId);
+        validateLoanWithinOfficeHierarchy(resolvedLoanId);
 
         return this.capitalizedIncomeBalanceReadService.fetchLoanCapitalizedIncomeData(resolvedLoanId);
     }
@@ -104,6 +106,7 @@ public class LoanCapitalizedIncomeApiResource {
     public List<CapitalizedIncomeDetails> fetchCapitalizedIncomeDetails(
             @PathParam("loanId") @Parameter(description = "loanId") final Long loanId) {
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateLoanWithinOfficeHierarchy(loanId);
 
         return capitalizedIncomeBalanceReadService.fetchLoanCapitalizedIncomeDetails(loanId);
     }
@@ -119,6 +122,7 @@ public class LoanCapitalizedIncomeApiResource {
 
         final ExternalId externalId = ExternalIdFactory.produce(loanExternalId);
         final Long resolvedLoanId = loanReadPlatformService.getResolvedLoanId(externalId);
+        validateLoanWithinOfficeHierarchy(resolvedLoanId);
 
         return this.capitalizedIncomeBalanceReadService.fetchLoanCapitalizedIncomeDetails(resolvedLoanId);
     }
@@ -202,6 +206,7 @@ public class LoanCapitalizedIncomeApiResource {
         final ExternalId loanTransactionExternalId = ExternalIdFactory.produce(loanTransactionExternalIdStr);
 
         final Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        validateLoanWithinOfficeHierarchy(resolvedLoanId);
         final Long resolvedLoanTransactionId = loanReadPlatformService.getResolvedLoanTransactionId(loanTransactionId,
                 loanTransactionExternalId);
 
@@ -210,5 +215,9 @@ public class LoanCapitalizedIncomeApiResource {
 
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return toApiJsonSerializer.serialize(settings, loanAmortizationAllocationData, RESPONSE_DATA_PARAMETERS);
+    }
+
+    private void validateLoanWithinOfficeHierarchy(final Long loanId) {
+        loanReadPlatformService.retrieveOne(loanId);
     }
 }
