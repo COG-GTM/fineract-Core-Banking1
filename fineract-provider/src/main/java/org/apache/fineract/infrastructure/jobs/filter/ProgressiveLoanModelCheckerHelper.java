@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.batch.domain.BatchRequest;
+import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletRequestWrapper;
 import org.apache.fineract.portfolio.loanaccount.domain.GLIMAccountInfoRepository;
@@ -54,6 +56,7 @@ public class ProgressiveLoanModelCheckerHelper implements InitializingBean {
     private final LoanRepository loanRepository;
 
     private final LoanRescheduleRequestRepository loanRescheduleRequestRepository;
+    private final FineractProperties fineractProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final List<HttpMethod> HTTP_METHODS = List.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE);
@@ -91,14 +94,14 @@ public class ProgressiveLoanModelCheckerHelper implements InitializingBean {
         return LOAN_PATH_PATTERN.matcher(pathInfo).matches() && pathInfo.contains("/v1/rescheduleloans/");
     }
 
-    public boolean isOnApiList(BodyCachingHttpServletRequestWrapper request) throws IOException {
+    public boolean isOnApiList(HttpServletRequest request) throws IOException {
         String pathInfo = request.getPathInfo();
         String method = request.getMethod();
         if (StringUtils.isBlank(pathInfo)) {
             return false;
         }
         if (isBatchApi(pathInfo)) {
-            return isBatchApiMatching(request);
+            return isBatchApiMatching(CachedRequestBodySupport.cachedRequest(request));
         } else {
             return isApiMatching(method, pathInfo);
         }
@@ -135,7 +138,11 @@ public class ProgressiveLoanModelCheckerHelper implements InitializingBean {
     }
 
     private boolean isBatchApi(String pathInfo) {
-        return pathInfo.startsWith("/v1/batches");
+        return CachedRequestBodySupport.isBatchApi(pathInfo);
+    }
+
+    public long getCachedRequestBodySizeLimit() {
+        return CachedRequestBodySupport.maxBodySize(fineractProperties);
     }
 
     private boolean isGlim(String pathInfo) {
@@ -152,10 +159,10 @@ public class ProgressiveLoanModelCheckerHelper implements InitializingBean {
         }
     }
 
-    public List<Long> calculateRelevantLoanIds(BodyCachingHttpServletRequestWrapper request) throws IOException {
+    public List<Long> calculateRelevantLoanIds(HttpServletRequest request) throws IOException {
         String pathInfo = request.getPathInfo();
         if (isBatchApi(pathInfo)) {
-            return getLoanIdsFromBatchApi(request);
+            return getLoanIdsFromBatchApi(CachedRequestBodySupport.cachedRequest(request));
         } else {
             return getLoanIdsFromApi(pathInfo);
         }
