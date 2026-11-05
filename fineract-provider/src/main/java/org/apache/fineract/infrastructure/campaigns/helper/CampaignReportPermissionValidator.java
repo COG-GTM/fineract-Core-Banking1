@@ -21,24 +21,30 @@ package org.apache.fineract.infrastructure.campaigns.helper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Ensures the user creating, updating or previewing a campaign may run the report named in its paramValue, the same
- * way /runreports checks READ_&lt;report&gt;.
+ * Ensures the report named in a campaign's paramValue is an SMS/Email campaign report and that the user creating,
+ * updating or previewing the campaign may run it, the same way /runreports checks READ_&lt;report&gt;.
  */
 @Component
 @RequiredArgsConstructor
 public class CampaignReportPermissionValidator {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Set<String> CAMPAIGN_REPORT_TYPES = Set.of("sms", "email");
 
     private final PlatformSecurityContext context;
+    private final JdbcTemplate jdbcTemplate;
 
     public void validateReportPermission(final String paramValueJson) {
         if (StringUtils.isBlank(paramValueJson)) {
@@ -48,11 +54,11 @@ public class CampaignReportPermissionValidator {
         try {
             final JsonNode paramValue = OBJECT_MAPPER.readTree(paramValueJson);
             if (paramValue == null || !paramValue.isObject()) {
-                throw invalidParamValue();
+                throw invalidParamValue(null);
             }
             reportNameNode = paramValue.get("reportName");
         } catch (final JsonProcessingException e) {
-            throw invalidParamValue();
+            throw invalidParamValue(e);
         }
         if (reportNameNode == null || reportNameNode.isNull()) {
             return;
@@ -61,9 +67,21 @@ public class CampaignReportPermissionValidator {
         if (this.context.authenticatedUser().hasNotPermissionForReport(reportName)) {
             throw new NoAuthorizationException("Not authorised to run report: " + reportName);
         }
+        validateCampaignReportType(reportName);
     }
 
-    private static GeneralPlatformDomainRuleException invalidParamValue() {
-        return new GeneralPlatformDomainRuleException("error.msg.campaign.paramValue.invalid", "paramValue must be a JSON object");
+    private void validateCampaignReportType(final String reportName) {
+        final List<String> reportTypes = this.jdbcTemplate.queryForList("SELECT report_type FROM stretchy_report WHERE report_name = ?",
+                String.class, reportName);
+        final boolean allowed = !reportTypes.isEmpty() && reportTypes.stream()
+                .allMatch(reportType -> reportType != null && CAMPAIGN_REPORT_TYPES.contains(reportType.toLowerCase(Locale.ROOT)));
+        if (!allowed) {
+            throw new GeneralPlatformDomainRuleException("error.msg.campaign.report.type.not.allowed",
+                    "Only SMS or Email reports can be used by campaigns", reportName);
+        }
+    }
+
+    private static GeneralPlatformDomainRuleException invalidParamValue(final Throwable cause) {
+        return new GeneralPlatformDomainRuleException("error.msg.campaign.paramValue.invalid", "paramValue must be a JSON object", cause);
     }
 }

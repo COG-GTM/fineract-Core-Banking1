@@ -19,20 +19,27 @@
 package org.apache.fineract.infrastructure.campaigns.helper;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.util.List;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class CampaignReportPermissionValidatorTest {
 
     private AppUser user;
+    private JdbcTemplate jdbcTemplate;
     private CampaignReportPermissionValidator validator;
 
     @BeforeEach
@@ -40,12 +47,14 @@ class CampaignReportPermissionValidatorTest {
         final PlatformSecurityContext context = mock(PlatformSecurityContext.class);
         user = mock(AppUser.class);
         when(context.authenticatedUser()).thenReturn(user);
-        validator = new CampaignReportPermissionValidator(context);
+        jdbcTemplate = mock(JdbcTemplate.class);
+        validator = new CampaignReportPermissionValidator(context, jdbcTemplate);
     }
 
     @Test
     void allowsReportUserIsPermittedToRun() {
         when(user.hasNotPermissionForReport("Active Clients")).thenReturn(false);
+        mockReportType("Active Clients", "SMS");
         assertDoesNotThrow(() -> validator.validateReportPermission("{\"reportName\":\"Active Clients\",\"officeId\":\"1\"}"));
     }
 
@@ -57,8 +66,22 @@ class CampaignReportPermissionValidatorTest {
     }
 
     @Test
+    void rejectsPermittedReportThatIsNotACampaignReport() {
+        when(user.hasNotPermissionForReport("Client Listing")).thenReturn(false);
+        mockReportType("Client Listing", "Table");
+        assertThrows(GeneralPlatformDomainRuleException.class,
+                () -> validator.validateReportPermission("{\"reportName\":\"Client Listing\",\"officeId\":\"1\"}"));
+    }
+
+    @Test
     void rejectsMalformedParamValue() {
-        assertThrows(GeneralPlatformDomainRuleException.class, () -> validator.validateReportPermission("not json"));
+        GeneralPlatformDomainRuleException exception = assertThrows(GeneralPlatformDomainRuleException.class,
+                () -> validator.validateReportPermission("not json"));
+        assertInstanceOf(JsonProcessingException.class, exception.getCause());
         assertThrows(GeneralPlatformDomainRuleException.class, () -> validator.validateReportPermission("[\"reportName\"]"));
+    }
+
+    private void mockReportType(final String reportName, final String reportType) {
+        when(jdbcTemplate.queryForList(anyString(), eq(String.class), eq(reportName))).thenReturn(List.of(reportType));
     }
 }
