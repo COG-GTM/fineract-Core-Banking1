@@ -30,6 +30,7 @@ import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.collateral.data.CollateralData;
 import org.apache.fineract.portfolio.collateral.exception.CollateralNotFoundException;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
+import org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -40,6 +41,17 @@ public class CollateralReadPlatformServiceImpl implements CollateralReadPlatform
     private final PlatformSecurityContext context;
     private final JdbcTemplate jdbcTemplate;
     private final LoanRepositoryWrapper loanRepositoryWrapper;
+
+    private static final String LOAN_OFFICE_JOINS = " from m_loan l" //
+            + " left join m_client c on c.id = l.client_id" //
+            + " left join m_group g on g.id = l.group_id" //
+            + " join m_office o on (o.id = c.office_id or o.id = g.office_id)" //
+            + " left join m_office transferToOffice on transferToOffice.id = c.transfer_to_office_id";
+    private static final String OFFICE_HIERARCHY_PREDICATE = "(o.hierarchy like ? or transferToOffice.hierarchy like ?)";
+    private static final String LOAN_IN_OFFICE_HIERARCHY_SQL = "select count(*)" + LOAN_OFFICE_JOINS + " where l.id = ? and "
+            + OFFICE_HIERARCHY_PREDICATE;
+    private static final String COLLATERAL_LOAN_IN_OFFICE_HIERARCHY_CONDITION = " and exists (select 1" + LOAN_OFFICE_JOINS
+            + " where l.id = lc.loan_id and " + OFFICE_HIERARCHY_PREDICATE + ")";
 
     private static final class CollateralMapper implements RowMapper<CollateralData> {
 
@@ -82,32 +94,46 @@ public class CollateralReadPlatformServiceImpl implements CollateralReadPlatform
 
     @Override
     public List<CollateralData> retrieveCollaterals(final Long loanId) {
-        this.context.authenticatedUser();
-
+        final String hierarchySearchString = userOfficeHierarchySearchString();
         final CollateralMapper rm = new CollateralMapper();
 
-        final String sql = "select " + rm.schema() + " where lc.loan_id=? order by id ASC";
+        final String sql = "select " + rm.schema() + " where lc.loan_id=?" + COLLATERAL_LOAN_IN_OFFICE_HIERARCHY_CONDITION
+                + " order by lc.id ASC";
 
-        return this.jdbcTemplate.query(sql, rm, new Object[] { loanId }); // NOSONAR
+        return this.jdbcTemplate.query(sql, rm, loanId, hierarchySearchString, hierarchySearchString); // NOSONAR
     }
 
     @Override
     public CollateralData retrieveCollateral(final Long loanId, final Long collateralId) {
+        final String hierarchySearchString = userOfficeHierarchySearchString();
         try {
             final CollateralMapper rm = new CollateralMapper();
-            String sql = "select " + rm.schema();
-            sql += " where lc.loan_id=? and lc.id = ?";
-            return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { loanId, collateralId }); // NOSONAR
+            final String sql = "select " + rm.schema() + " where lc.loan_id=? and lc.id = ?"
+                    + COLLATERAL_LOAN_IN_OFFICE_HIERARCHY_CONDITION;
+            return this.jdbcTemplate.queryForObject(sql, rm, loanId, collateralId, hierarchySearchString, hierarchySearchString); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
             throw new CollateralNotFoundException(loanId, collateralId, e);
         }
-
     }
 
     @Override
     public List<CollateralData> retrieveCollateralsForValidLoan(final Long loanId) {
         this.loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
+        if (!isLoanInUserOfficeHierarchy(loanId)) {
+            throw new LoanNotFoundException(loanId);
+        }
         return retrieveCollaterals(loanId);
+    }
+
+    private boolean isLoanInUserOfficeHierarchy(final Long loanId) {
+        final String hierarchySearchString = userOfficeHierarchySearchString();
+        final Integer count = this.jdbcTemplate.queryForObject(LOAN_IN_OFFICE_HIERARCHY_SQL, Integer.class, loanId, hierarchySearchString,
+                hierarchySearchString);
+        return count != null && count > 0;
+    }
+
+    private String userOfficeHierarchySearchString() {
+        return this.context.authenticatedUser().getOffice().getHierarchy() + "%";
     }
 
 }
