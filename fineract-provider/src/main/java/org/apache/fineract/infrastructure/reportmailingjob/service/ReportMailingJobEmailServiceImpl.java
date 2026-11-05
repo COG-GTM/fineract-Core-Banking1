@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 public class ReportMailingJobEmailServiceImpl implements ReportMailingJobEmailService {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReportMailingJobEmailServiceImpl.class);
+    private static final int SMTPS_PORT = 465;
     private final ReportMailingJobConfigurationReadPlatformService reportMailingJobConfigurationReadPlatformService;
 
     /**
@@ -88,12 +89,19 @@ public class ReportMailingJobEmailServiceImpl implements ReportMailingJobEmailSe
     /**
      * @return Properties object containing JavaMail properties
      **/
-    private Properties getJavaMailProperties(Collection<ReportMailingJobConfigurationData> reportMailingJobConfigurationDataCollection) {
+    Properties getJavaMailProperties(Collection<ReportMailingJobConfigurationData> reportMailingJobConfigurationDataCollection) {
         Properties properties = new Properties();
 
         properties.setProperty("mail.smtp.auth", "true");
-        properties.setProperty("mail.smtp.starttls.enable", "true");
-        properties.setProperty("mail.smtp.ssl.trust", this.getGmailSmtpServer(reportMailingJobConfigurationDataCollection));
+        // certificates are validated against the JVM truststore and must match the configured host
+        properties.setProperty("mail.smtp.ssl.checkserveridentity", "true");
+
+        if (Integer.valueOf(SMTPS_PORT).equals(this.getGmailSmtpPort(reportMailingJobConfigurationDataCollection))) {
+            properties.setProperty("mail.smtp.ssl.enable", "true");
+        } else {
+            properties.setProperty("mail.smtp.starttls.enable", "true");
+            properties.setProperty("mail.smtp.starttls.required", "true");
+        }
 
         return properties;
     }
