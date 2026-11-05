@@ -206,7 +206,9 @@ public class DefaultCommandAuditor implements CommandAuditor {
     }
 
     private void write(Command<?> command) throws IOException {
-        var file = Path.of(properties.getFileDeadLetterQueuePath(), command.getCreatedAt().toEpochMilli() + "-" + UUID.randomUUID() + ".json").toFile();
+        var file = Path
+                .of(properties.getFileDeadLetterQueuePath(), command.getCreatedAt().toEpochMilli() + "-" + UUID.randomUUID() + ".json")
+                .toFile();
         FileUtils.write(file, objectMapper.writeValueAsString(command), UTF_8);
     }
 }

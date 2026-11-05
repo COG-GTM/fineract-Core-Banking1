@@ -23,7 +23,6 @@ import org.apache.fineract.command.core.Command;
 public class CommandAuditException extends RuntimeException {
 
     public CommandAuditException(Command<?> command, Throwable cause) {
-        super("Unable to write audit record for " + (command != null ? command.getClass().getSimpleName() : "UNKNOWN") + " command",
-                cause);
+        super("Unable to write audit record for " + (command != null ? command.getClass().getSimpleName() : "UNKNOWN") + " command", cause);
     }
 }

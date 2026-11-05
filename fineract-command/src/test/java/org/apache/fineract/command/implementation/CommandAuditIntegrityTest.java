@@ -114,8 +114,7 @@ class CommandAuditIntegrityTest {
         var auditor = auditor(properties);
         var command = new Command<String>();
 
-        var e = assertThrows(CommandAuditException.class,
-                () -> auditor.processingFallback(command, new RuntimeException("insert failed")));
+        var e = assertThrows(CommandAuditException.class, () -> auditor.processingFallback(command, new RuntimeException("insert failed")));
 
         assertEquals("insert failed", e.getCause().getMessage());
         assertEquals("insert failed", command.getError());
