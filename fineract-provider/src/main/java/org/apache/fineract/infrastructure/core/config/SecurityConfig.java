@@ -144,9 +144,9 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/authentication")).permitAll()
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.PUT, "/api/*/instance-mode")).permitAll()
                     // businessdate
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/businessdate/*"))
+                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/businessdate/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_BUSINESS_DATE")
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/businessdate"))
+                    .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/businessdate/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_BUSINESS_DATE")
                     // external
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/externalevents/configuration"))
