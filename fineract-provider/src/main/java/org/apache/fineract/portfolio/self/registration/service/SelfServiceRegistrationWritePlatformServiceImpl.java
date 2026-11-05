@@ -129,7 +129,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         baseDataValidator.reset().parameter(SelfServiceApiConstants.emailParamName).value(email).notNull().notBlank()
                 .notExceedingLengthOf(100);
 
-        boolean isEmailAuthenticationMode = authenticationMode.equalsIgnoreCase(SelfServiceApiConstants.emailModeParamName);
+        boolean isEmailAuthenticationMode = SelfServiceApiConstants.emailModeParamName.equalsIgnoreCase(authenticationMode);
         String mobileNumber = null;
         if (!isEmailAuthenticationMode) {
             mobileNumber = this.fromApiJsonHelper.extractStringNamed(SelfServiceApiConstants.mobileNumberParamName, element);
@@ -138,10 +138,20 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         }
         validateForDuplicateUsername(username);
 
-        throwExceptionIfValidationError(dataValidationErrors, accountNumber, firstName, lastName, mobileNumber, isEmailAuthenticationMode);
+        throwExceptionIfValidationError(dataValidationErrors, accountNumber, firstName, lastName, mobileNumber, email,
+                isEmailAuthenticationMode);
+
+        Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
+        validateClientHasNoSelfServiceUser(client);
+
+        // Deliver the token only to contact details already stored on the client record
+        if (isEmailAuthenticationMode) {
+            email = client.getEmailAddress();
+        } else {
+            mobileNumber = client.getMobileNo();
+        }
 
         String authenticationToken = randomAuthorizationTokenGeneration();
-        Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
         SelfServiceRegistration selfServiceRegistration = SelfServiceRegistration.instance(client, accountNumber, firstName, lastName,
                 mobileNumber, email, authenticationToken, username, password);
         this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
@@ -157,6 +167,13 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                     .append(" already exists.");
             throw new PlatformDataIntegrityException("error.msg.user.duplicate.username", defaultMessageBuilder.toString(),
                     SelfServiceApiConstants.usernameParamName, username);
+        }
+    }
+
+    private void validateClientHasNoSelfServiceUser(Client client) {
+        if (this.selfServiceRegistrationReadPlatformService.isClientMappedToSelfServiceUser(client.getId())) {
+            throw new PlatformDataIntegrityException("error.msg.self.service.user.already.exists.for.client",
+                    "A self service user already exists for this client.");
         }
     }
 
@@ -201,12 +218,12 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     private void throwExceptionIfValidationError(final List<ApiParameterError> dataValidationErrors, String accountNumber, String firstName,
-            String lastName, String mobileNumber, boolean isEmailAuthenticationMode) {
+            String lastName, String mobileNumber, String email, boolean isEmailAuthenticationMode) {
         if (!dataValidationErrors.isEmpty()) {
             throw new PlatformApiDataValidationException(dataValidationErrors);
         }
         boolean isClientExist = this.selfServiceRegistrationReadPlatformService.isClientExist(accountNumber, firstName, lastName,
-                mobileNumber, isEmailAuthenticationMode);
+                mobileNumber, email, isEmailAuthenticationMode);
         if (!isClientExist) {
             throw new ClientNotFoundException();
         }
@@ -249,6 +266,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             }
             username = selfServiceRegistration.getUsername();
             Client client = selfServiceRegistration.getClient();
+            validateClientHasNoSelfServiceUser(client);
             final boolean passwordNeverExpire = true;
             final boolean isSelfServiceUser = true;
             final Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
