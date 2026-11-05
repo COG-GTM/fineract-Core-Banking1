@@ -38,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.portfolio.client.exception.ClientNotFoundException;
 import org.apache.fineract.spm.data.ScorecardData;
 import org.apache.fineract.spm.domain.Scorecard;
 import org.apache.fineract.spm.domain.Survey;
@@ -55,6 +56,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ScorecardApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "SCORECARD";
+    private static final String CREATE_SCORECARD_PERMISSION = "CREATE_SCORECARD";
+
     private final PlatformSecurityContext securityContext;
     private final SpmService spmService;
     private final ScorecardService scorecardService;
@@ -70,7 +74,7 @@ public class ScorecardApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = Scorecard.class)))) })
     public List<ScorecardData> findBySurvey(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         this.spmService.findById(surveyId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardBySurvey(surveyId);
     }
@@ -86,8 +90,9 @@ public class ScorecardApiResource {
     public void createScorecard(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @Parameter(description = "scorecardData") final ScorecardData scorecardData) {
         final AppUser appUser = this.securityContext.authenticatedUser();
+        appUser.validateHasPermissionTo(CREATE_SCORECARD_PERMISSION);
         final Survey survey = this.spmService.findById(surveyId);
-        final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(scorecardData.getClientId());
+        final Client client = findClientInUserOfficeHierarchy(scorecardData.getClientId());
         this.scorecardService.createScorecard(ScorecardMapper.map(scorecardData, survey, appUser, client));
     }
 
@@ -98,9 +103,9 @@ public class ScorecardApiResource {
     @Transactional
     public List<ScorecardData> findBySurveyAndClient(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @PathParam("clientId") @Parameter(description = "Enter clientId") final Long clientId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         this.spmService.findById(surveyId);
-        this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        findClientInUserOfficeHierarchy(clientId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardBySurveyAndClient(surveyId, clientId);
 
     }
@@ -111,8 +116,16 @@ public class ScorecardApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Transactional
     public List<ScorecardData> findByClient(@PathParam("clientId") final Long clientId) {
-        this.securityContext.authenticatedUser();
-        this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        findClientInUserOfficeHierarchy(clientId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardByClient(clientId);
+    }
+
+    private Client findClientInUserOfficeHierarchy(final Long clientId) {
+        if (clientId == null) {
+            throw new ClientNotFoundException(clientId);
+        }
+        final String hierarchySearchString = this.securityContext.officeHierarchy() + "%";
+        return this.clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientId, hierarchySearchString);
     }
 }

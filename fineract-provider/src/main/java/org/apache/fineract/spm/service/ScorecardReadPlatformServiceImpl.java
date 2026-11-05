@@ -106,8 +106,13 @@ public class ScorecardReadPlatformServiceImpl implements ScorecardReadPlatformSe
     public Collection<ScorecardData> retrieveScorecardBySurvey(Long surveyId) {
         this.context.authenticatedUser();
         ScorecardMapper scm = new ScorecardMapper();
-        String sql = "select " + scm.schema() + " where sc.survey_id = ? " + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { surveyId }); // NOSONAR
+        final String hierarchySearchString = this.context.officeHierarchy() + "%";
+        String sql = "select " + scm.schema() + " join m_client c ON c.id = sc.client_id " + " join m_office o ON o.id = c.office_id "
+                + " left join m_office transferToOffice ON transferToOffice.id = c.transfer_to_office_id "
+                + " where sc.survey_id = ? and (o.hierarchy like ? or transferToOffice.hierarchy like ?) "
+                + " group by sc.survey_id, sc.client_id, sc.id ";
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
+                new Object[] { surveyId, hierarchySearchString, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
