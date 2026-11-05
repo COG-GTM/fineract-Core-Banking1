@@ -31,12 +31,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.resilience4j.core.functions.Either;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.core.UriInfo;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.fineract.batch.command.CommandStrategy;
 import org.apache.fineract.batch.command.CommandStrategyProvider;
@@ -231,6 +233,50 @@ class BatchApiServiceImplTest {
         assertEquals(200, result.get(0).getStatusCode());
         assertTrue(result.get(0).getBody().contains("Success"));
         Mockito.verifyNoInteractions(entityManager);
+    }
+
+    @Test
+    void testPreprocessorReceivesChildRequestWithResolvedReference() {
+        BatchRequestPreprocessor preprocessor = mock(BatchRequestPreprocessor.class);
+        List<String> preprocessedUrls = new ArrayList<>();
+        when(preprocessor.preprocess(any())).thenAnswer(invocation -> {
+            BatchRequest batchRequest = invocation.getArgument(0);
+            preprocessedUrls.add(batchRequest.getRelativeUrl());
+            return batchRequest.getRelativeUrl().startsWith("loans/123/") ? Either.left(new IllegalStateException("locked"))
+                    : Either.right(batchRequest);
+        });
+        batchApiService = new BatchApiServiceImpl(strategyProvider, resolutionHelper, errorHandler, List.of(), List.of(preprocessor),
+                retryConfigurationAssembler);
+        batchApiService.setTransactionManager(transactionManager);
+        batchApiService.setEntityManager(entityManager);
+
+        BatchRequest getLoan = new BatchRequest();
+        getLoan.setRequestId(1L);
+        getLoan.setMethod("GET");
+        getLoan.setRelativeUrl("loans/123");
+        BatchRequest repayment = new BatchRequest();
+        repayment.setRequestId(2L);
+        repayment.setMethod("POST");
+        repayment.setReference(1L);
+        repayment.setRelativeUrl("loans/$.id/transactions?command=repayment");
+        repayment.setBody("{\"transactionAmount\": 10}");
+        BatchResponse loanResponse = new BatchResponse().setRequestId(1L).setStatusCode(200).setBody("{\"id\": 123}");
+
+        ErrorInfo errorInfo = mock(ErrorInfo.class);
+        when(errorInfo.getMessage()).thenReturn("Loan is locked");
+        when(errorInfo.getStatusCode()).thenReturn(409);
+        when(errorHandler.handle(any())).thenReturn(errorInfo);
+        when(strategyProvider.getCommandStrategy(any())).thenReturn(commandStrategy);
+        when(commandStrategy.execute(any(), any())).thenReturn(loanResponse);
+        when(transactionManager.getTransaction(any()))
+                .thenReturn(new DefaultTransactionStatus("txn_name", null, true, true, false, false, false, null));
+
+        List<BatchResponse> result = batchApiService.handleBatchRequestsWithEnclosingTransaction(List.of(getLoan, repayment), uriInfo);
+
+        assertEquals(List.of("loans/123", "loans/123/transactions?command=repayment"), preprocessedUrls);
+        verify(commandStrategy, times(1)).execute(any(), any());
+        assertEquals(409, result.get(result.size() - 1).getStatusCode());
+        assertEquals(2L, result.get(result.size() - 1).getRequestId());
     }
 
     @ParameterizedTest
