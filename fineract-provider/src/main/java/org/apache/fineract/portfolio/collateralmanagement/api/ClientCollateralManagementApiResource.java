@@ -100,6 +100,10 @@ public class ClientCollateralManagementApiResource {
     @Operation(summary = "Get Client Collateral Template", description = "Get Client Collateral Template")
     public List<LoanCollateralTemplateData> getClientCollateralTemplate(
             @PathParam("clientId") @Parameter(description = "clientId") final Long clientId) {
+
+        this.context.authenticatedUser()
+                .validateHasReadPermission(CollateralManagementJsonInputParams.CLIENT_COLLATERAL_PRODUCT_READ_PERMISSION.getValue());
+
         return this.clientCollateralManagementReadPlatformService.getLoanCollateralTemplate(clientId);
     }
 
