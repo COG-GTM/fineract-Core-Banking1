@@ -67,7 +67,10 @@ public final class ProcessorHelper {
     private final boolean insecureHttpClient = Boolean.getBoolean("fineract.insecureHttpClient");
     private final SSLContext insecureSSLContext;
 
-    public ProcessorHelper() throws KeyManagementException, NoSuchAlgorithmException {
+    private final WebHookUrlValidator urlValidator;
+
+    public ProcessorHelper(final WebHookUrlValidator urlValidator) throws KeyManagementException, NoSuchAlgorithmException {
+        this.urlValidator = urlValidator;
         if (insecureHttpClient) {
             insecureSSLContext = createInsecureSSLContext();
         } else {
@@ -76,7 +79,7 @@ public final class ProcessorHelper {
     }
 
     private OkHttpClient createClient() {
-        var okBuilder = new OkHttpClient.Builder();
+        var okBuilder = new OkHttpClient.Builder().dns(urlValidator.dns()).followRedirects(false).followSslRedirects(false);
         if (insecureHttpClient) {
             configureInsecureClient(okBuilder);
         }
@@ -115,7 +118,7 @@ public final class ProcessorHelper {
     public WebHookService createWebHookService(final String url) {
         final OkHttpClient client = createClient();
         final Retrofit.Builder retrofitBuilder = new Retrofit.Builder();
-        retrofitBuilder.baseUrl(url);
+        retrofitBuilder.baseUrl(urlValidator.validate(url));
         retrofitBuilder.client(client);
         retrofitBuilder.addConverterFactory(GsonConverterFactory.create());
         final Retrofit retrofit = retrofitBuilder.build();

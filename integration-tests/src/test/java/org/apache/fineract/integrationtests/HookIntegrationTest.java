@@ -63,7 +63,7 @@ public class HookIntegrationTest {
         // Subject to https://echo-webhook.herokuapp.com being up
         // See http://www.jamesward.com/2014/06/11/testing-webhooks-was-a-pain-so-i-fixed-the-glitch
         final String uniqueId = UUID.randomUUID().toString();
-        final String payloadURL = "http://echo-webhook.herokuapp.com:80/" + uniqueId + "/";
+        final String payloadURL = "https://echo-webhook.herokuapp.com/" + uniqueId + "/";
         final Integer hookId = this.hookHelper.createHook(payloadURL);
         Assertions.assertNotNull(hookId);
         final Integer createdOfficeID = this.officeHelper.createOffice("01 January 2012");
@@ -97,8 +97,8 @@ public class HookIntegrationTest {
 
     @Test
     public void createUpdateAndDeleteHook() {
-        final String payloadURL = "http://echo-webhook.herokuapp.com:80/Z7RXoCBdLSFMDrpn/";
-        final String updateURL = "http://localhost";
+        final String payloadURL = "https://echo-webhook.herokuapp.com/Z7RXoCBdLSFMDrpn/";
+        final String updateURL = "https://echo-webhook.herokuapp.com/Z7RXoCBdLSFMDrpn/updated/";
 
         Long hookId = this.hookHelper.createHook(payloadURL).longValue();
         Assertions.assertNotNull(hookId);
@@ -110,5 +110,26 @@ public class HookIntegrationTest {
         this.hookHelper.deleteHook(hookId);
         this.hookHelper.verifyDeleteHook(hookId);
         LOG.info("---------------------SUCCESSFULLY DELETED AND VERIFIED HOOK------------------------- {}", hookId);
+    }
+
+    @Test
+    public void shouldRejectHookUrlsTargetingInternalAddresses() {
+        final ResponseSpecification badRequest = new ResponseSpecBuilder().expectStatusCode(400).build();
+        final HookHelper rejectingHookHelper = new HookHelper(this.requestSpec, badRequest);
+        for (final String url : new String[] { "http://127.0.0.1:8080/", "https://127.0.0.1:8443/",
+                "http://169.254.169.254/latest/meta-data/", "https://169.254.169.254/latest/meta-data/", "https://10.0.0.12:9200/",
+                "https://localhost/" }) {
+            rejectingHookHelper.createHook(url);
+        }
+    }
+
+    @Test
+    public void shouldRejectHookUpdateToInternalAddress() {
+        final String payloadURL = "https://echo-webhook.herokuapp.com/Z7RXoCBdLSFMDrpn/";
+        final Long hookId = this.hookHelper.createHook(payloadURL).longValue();
+        final ResponseSpecification badRequest = new ResponseSpecBuilder().expectStatusCode(400).build();
+        new HookHelper(this.requestSpec, badRequest).updateHook("https://169.254.169.254/latest/meta-data/", hookId);
+        this.hookHelper.verifyUpdateHook(payloadURL, hookId);
+        this.hookHelper.deleteHook(hookId);
     }
 }
