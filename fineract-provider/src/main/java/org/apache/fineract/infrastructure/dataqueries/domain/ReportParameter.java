@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.dataqueries.domain;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import org.apache.fineract.infrastructure.core.domain.AbstractPersistableCustom;
@@ -26,11 +27,18 @@ import org.apache.fineract.infrastructure.core.domain.AbstractPersistableCustom;
 @Table(name = "stretchy_parameter")
 public class ReportParameter extends AbstractPersistableCustom<Long> {
 
+    @Column(name = "parameter_variable", insertable = false, updatable = false)
+    private String parameterVariable;
+
     protected ReportParameter() {
         //
     }
 
     public boolean hasIdOf(final Long id) {
         return getId().equals(id);
+    }
+
+    public String getParameterVariable() {
+        return this.parameterVariable;
     }
 }

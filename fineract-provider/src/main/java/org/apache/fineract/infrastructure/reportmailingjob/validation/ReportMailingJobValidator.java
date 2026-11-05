@@ -41,6 +41,9 @@ import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
 import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.dataqueries.domain.Report;
+import org.apache.fineract.infrastructure.dataqueries.domain.ReportParameter;
+import org.apache.fineract.infrastructure.dataqueries.domain.ReportParameterUsage;
 import org.apache.fineract.infrastructure.reportmailingjob.ReportMailingJobConstants;
 import org.apache.fineract.infrastructure.reportmailingjob.data.ReportMailingJobEmailAttachmentFileFormat;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +55,9 @@ public class ReportMailingJobValidator {
     private final FromJsonHelper fromJsonHelper;
     private static final String EMAIL_REGEX = "^[\\w!#$%&’*+/=?`{|}~^-]+(?:\\.[\\w!#$%&’*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
     private static final Pattern EMAIL_PATTERN = Pattern.compile(EMAIL_REGEX);
+    private static final String REPORT_PARAM_PREFIX = "R_";
+    private static final Set<String> ALLOWED_NON_REPORT_PARAMS = Set.of("output-type", "exportCSV", "exportPDF", "exportJSON", "pretty",
+            "locale", "dateFormat");
 
     @Autowired
     public ReportMailingJobValidator(final FromJsonHelper fromJsonHelper) {
@@ -314,6 +320,66 @@ public class ReportMailingJobValidator {
         }
 
         return stretchyReportParamHashMap;
+    }
+
+    /**
+     * validate that the stretchy report param json string only contains parameters declared for the given report
+     *
+     * @param stretchyReportParamMap
+     *            -- json string to be validated
+     * @param stretchyReport
+     *            -- the report the parameters will be passed to
+     **/
+    public void validateStretchyReportParamMapForReport(final String stretchyReportParamMap, final Report stretchyReport) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder dataValidatorBuilder = new DataValidatorBuilder(dataValidationErrors)
+                .resource(StringUtils.lowerCase(ReportMailingJobConstants.REPORT_MAILING_JOB_RESOURCE_NAME));
+        final Map<String, String> paramMap = validateStretchyReportParamMap(stretchyReportParamMap);
+
+        if (paramMap == null) {
+            dataValidatorBuilder.reset().parameter(ReportMailingJobConstants.STRETCHY_REPORT_PARAM_MAP_PARAM_NAME)
+                    .failWithCode("invalid.json");
+        } else {
+            for (String undeclaredParam : findUndeclaredStretchyReportParams(paramMap, stretchyReport)) {
+                dataValidatorBuilder.reset().parameter(ReportMailingJobConstants.STRETCHY_REPORT_PARAM_MAP_PARAM_NAME)
+                        .value(undeclaredParam).failWithCode("parameter.not.declared.for.report", undeclaredParam);
+            }
+        }
+
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+    }
+
+    /**
+     * find the keys of the stretchy report param map that are neither declared parameters of the report (R_ prefixed)
+     * nor allowed output options
+     *
+     * @return list of keys that are not allowed for the report
+     **/
+    public List<String> findUndeclaredStretchyReportParams(final Map<String, String> stretchyReportParamMap, final Report stretchyReport) {
+        final Set<String> declaredVariables = new HashSet<>();
+
+        if (stretchyReport != null && stretchyReport.getReportParameterUsages() != null) {
+            for (ReportParameterUsage usage : stretchyReport.getReportParameterUsages()) {
+                if (StringUtils.isNotBlank(usage.getReportParameterName())) {
+                    declaredVariables.add(usage.getReportParameterName());
+                }
+                final ReportParameter parameter = usage.getParameter();
+                if (parameter != null && StringUtils.isNotBlank(parameter.getParameterVariable())) {
+                    declaredVariables.add(parameter.getParameterVariable());
+                }
+            }
+        }
+
+        final List<String> undeclaredParams = new ArrayList<>();
+        for (String key : stretchyReportParamMap.keySet()) {
+            final boolean allowed = key != null && (ALLOWED_NON_REPORT_PARAMS.contains(key)
+                    || (key.startsWith(REPORT_PARAM_PREFIX) && declaredVariables.contains(key.substring(REPORT_PARAM_PREFIX.length()))));
+            if (!allowed) {
+                undeclaredParams.add(key);
+            }
+        }
+
+        return undeclaredParams;
     }
 
     /**
