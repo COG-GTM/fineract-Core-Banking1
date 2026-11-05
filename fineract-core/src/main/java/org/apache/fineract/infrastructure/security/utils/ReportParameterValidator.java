@@ -36,8 +36,7 @@ public final class ReportParameterValidator {
 
     private static final Pattern PARAMETER_NAME = Pattern.compile("^[A-Za-z0-9_]{1,100}$");
     private static final Pattern SIMPLE_VALUE = Pattern.compile("^-?[A-Za-z0-9_.:,]+(?:[-/][A-Za-z0-9_.:,]+)*$");
-    private static final Pattern DATE_TIME_VALUE = Pattern
-            .compile("^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?$");
+    private static final Pattern DATE_TIME_VALUE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?$");
     private static final String LITERAL = "'[^'\"`\\\\\\p{Cntrl}]*'";
     private static final Pattern QUOTED_LITERAL_LIST = Pattern.compile("^" + LITERAL + "(?: *, *" + LITERAL + ")*$");
 
@@ -57,12 +56,12 @@ public final class ReportParameterValidator {
 
     public static void validate(final String name, final String value) {
         if (!isValidName(name)) {
-            throw new PlatformApiDataValidationException("validation.msg.report.parameter.name.invalid", "Invalid report parameter name",
-                    "R_" + LogParameterEscapeUtil.escapeLogParameter(String.valueOf(name)));
+            final String parameter = "R_" + LogParameterEscapeUtil.escapeLogParameter(String.valueOf(name));
+            throw new PlatformApiDataValidationException("validation.msg.report.parameter.name.invalid", "Invalid name", parameter);
         }
         if (!isValidValue(value)) {
-            throw new PlatformApiDataValidationException("validation.msg.report.parameter.value.invalid",
-                    "Invalid value for report parameter R_" + name, "R_" + name);
+            final String parameter = "R_" + name;
+            throw new PlatformApiDataValidationException("validation.msg.report.parameter.value.invalid", "Invalid value", parameter);
         }
     }
 }

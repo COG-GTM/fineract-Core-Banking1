@@ -150,8 +150,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
             final Matcher keyMatcher = PLACEHOLDER_PATTERN.matcher(entry.getKey());
             if (!keyMatcher.matches()) {
-                throw new PlatformApiDataValidationException("validation.msg.report.parameter.name.invalid",
-                        "Invalid report parameter name", "reportParameter");
+                throw new PlatformApiDataValidationException("validation.msg.report.parameter.name.invalid", "Invalid name", "parameter");
             }
             ReportParameterValidator.validate(keyMatcher.group(1), entry.getValue());
             placeholderValues.put(entry.getKey(), entry.getValue());
@@ -252,9 +251,8 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
     @Override
     public List<String> retrieveReportNamesUsingParameter(final String parameterName, final boolean selfServiceReportsOnly) {
-        String sql = "SELECT DISTINCT r.report_name FROM stretchy_report r"
-                + " JOIN stretchy_report_parameter rp ON rp.report_id = r.id"
-                + " JOIN stretchy_parameter p ON p.id = rp.parameter_id WHERE p.parameter_name = ?";
+        String sql = "SELECT DISTINCT r.report_name FROM stretchy_report r JOIN stretchy_report_parameter rp ON rp.report_id = r.id";
+        sql += " JOIN stretchy_parameter p ON p.id = rp.parameter_id WHERE p.parameter_name = ?";
         if (selfServiceReportsOnly) {
             sql += " AND r.self_service_user_report = ?";
             return this.jdbcTemplate.queryForList(sql, String.class, parameterName, true);

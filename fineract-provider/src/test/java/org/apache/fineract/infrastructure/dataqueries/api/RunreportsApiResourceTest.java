@@ -74,10 +74,9 @@ class RunreportsApiResourceTest {
 
     @Test
     void parameterLookupAllowedWhenUserCanRunAnAttachedReport() {
-        when(readReportingService.retrieveReportNamesUsingParameter("loanOfficerIdSelectAll", false))
-                .thenReturn(List.of("Active Loans", "Client Listing"));
-        when(user.hasNotPermissionForReport("Active Loans")).thenReturn(true);
-        when(user.hasNotPermissionForReport("Client Listing")).thenReturn(false);
+        when(readReportingService.retrieveReportNamesUsingParameter("loanOfficerIdSelectAll", false)).thenReturn(List.of("A", "B"));
+        when(user.hasNotPermissionForReport("A")).thenReturn(true);
+        when(user.hasNotPermissionForReport("B")).thenReturn(false);
 
         resource.runReport("loanOfficerIdSelectAll", uriInfo, false);
 
@@ -90,8 +89,7 @@ class RunreportsApiResourceTest {
         when(readReportingService.retrieveReportNamesUsingParameter(anyString(), eq(true))).thenReturn(List.of());
 
         assertThatThrownBy(() -> resource.runReport("FullParameterList", uriInfo, true)).isInstanceOf(NoAuthorizationException.class);
-        assertThatThrownBy(() -> resource.runReport("loanOfficerIdSelectAll", uriInfo, true))
-                .isInstanceOf(NoAuthorizationException.class);
+        assertThatThrownBy(() -> resource.runReport("loanOfficerIdSelectAll", uriInfo, true)).isInstanceOf(NoAuthorizationException.class);
         verify(processService, never()).processRequest(anyString(), any());
     }
 

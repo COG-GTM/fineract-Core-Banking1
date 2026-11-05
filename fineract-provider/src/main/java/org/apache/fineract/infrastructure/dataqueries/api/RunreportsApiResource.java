@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.api.ApiParameterHelper;
 import org.apache.fineract.infrastructure.core.exception.PlatformServiceUnavailableException;
@@ -152,8 +153,7 @@ public class RunreportsApiResource {
         return reportingProcessService.processRequest(reportName, queryParams);
     }
 
-    private void checkUserPermissionForReport(final String reportName, final boolean parameterType,
-            final boolean isSelfServiceUserReport) {
+    private void checkUserPermissionForReport(final String reportName, final boolean parameterType, final boolean selfService) {
         final AppUser currentUser = this.context.authenticatedUser();
         if (!parameterType) {
             if (currentUser.hasNotPermissionForReport(reportName)) {
@@ -164,14 +164,14 @@ public class RunreportsApiResource {
 
         // Special parameters (report/parameter listings) filter their own results by the current user and are only
         // available to staff users.
-        if (!isSelfServiceUserReport && readExtraDataAndReportingService.isSpecialParameter(reportName)) {
+        if (!selfService && readExtraDataAndReportingService.isSpecialParameter(reportName)) {
             return;
         }
 
         // Parameter (dropdown listbox) values can only be retrieved for parameters attached to a report the user is
         // allowed to run; self service users are restricted to self service reports.
-        final boolean permitted = readExtraDataAndReportingService.retrieveReportNamesUsingParameter(reportName, isSelfServiceUserReport)
-                .stream().anyMatch(report -> !currentUser.hasNotPermissionForReport(report));
+        final List<String> reports = readExtraDataAndReportingService.retrieveReportNamesUsingParameter(reportName, selfService);
+        final boolean permitted = reports.stream().anyMatch(report -> !currentUser.hasNotPermissionForReport(report));
         if (!permitted) {
             throw new NoAuthorizationException("Not authorised to run report parameter: " + reportName);
         }

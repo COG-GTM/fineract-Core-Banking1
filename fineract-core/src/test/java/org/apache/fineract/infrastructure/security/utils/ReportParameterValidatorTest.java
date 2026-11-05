@@ -28,18 +28,17 @@ import org.junit.jupiter.params.provider.ValueSource;
 class ReportParameterValidatorTest {
 
     @ParameterizedTest
-    @ValueSource(strings = { "", "1", "-1", "-10", "0", "2013-04-16", "2013-04-16 10:15:30", "2013-04-16T10:15", "USD", "1,2,3",
-            "1.5", "00010001", "Fund", "'Active Loans'", "'Active Loans', 'Client Listing'", "'Pr\u00e9stamos activos'" })
+    @ValueSource(strings = { "", "1", "-1", "-10", "0", "2013-04-16", "2013-04-16 10:15:30", "2013-04-16T10:15", "USD", "1,2,3", "1.5",
+            "00010001", "Fund", "'Active Loans'", "'Active Loans', 'Client Listing'", "'Pr\u00e9stamos activos'" })
     void acceptsLegitimateValues(String value) {
         assertThat(ReportParameterValidator.isValidValue(value)).isTrue();
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "0) union all (select username, password from m_appuser",
-            "0 union all select username, password from m_appuser",
-            "0 or exists(select 1 from m_appuser)", "1 or 1=1", "1;drop table m_appuser", "1--", "1-- ", "1/**/or/**/1=1", "1-",
-            "1/", "' or '1'='1", "'a' or 'b'", "'a''", "'a\\'", "'a\"'", "1 #", "(select 1)", "${currentUserId}", "1\n", "a b",
-            "'a'||'b'", "'a';select 1" })
+            "0 union all select username, password from m_appuser", "0 or exists(select 1 from m_appuser)", "1 or 1=1",
+            "1;drop table m_appuser", "1--", "1-- ", "1/**/or/**/1=1", "1-", "1/", "' or '1'='1", "'a' or 'b'", "'a''", "'a\\'", "'a\"'",
+            "1 #", "(select 1)", "${currentUserId}", "1\n", "a b", "'a'||'b'", "'a';select 1" })
     void rejectsInjectionAttempts(String value) {
         assertThat(ReportParameterValidator.isValidValue(value)).isFalse();
         assertThatThrownBy(() -> ReportParameterValidator.validate("officeId", value))
