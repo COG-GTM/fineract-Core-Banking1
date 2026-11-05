@@ -61,6 +61,7 @@ import org.apache.fineract.portfolio.charge.data.ChargeData;
 import org.apache.fineract.portfolio.charge.service.ChargeReadPlatformService;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountChargeData;
 import org.apache.fineract.portfolio.savings.service.SavingsAccountChargeReadPlatformService;
+import org.apache.fineract.portfolio.savings.service.SavingsAccountReadPlatformService;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/savingsaccounts/{savingsAccountId}/charges")
@@ -74,6 +75,7 @@ public class SavingsAccountChargesApiResource {
     private final PlatformSecurityContext context;
     private final ChargeReadPlatformService chargeReadPlatformService;
     private final SavingsAccountChargeReadPlatformService savingsAccountChargeReadPlatformService;
+    private final SavingsAccountReadPlatformService savingsAccountReadPlatformService;
     private final DefaultToApiJsonSerializer<SavingsAccountChargeData> toApiJsonSerializer;
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
@@ -97,6 +99,7 @@ public class SavingsAccountChargesApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(SAVINGS_ACCOUNT_CHARGE_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsAccountId);
 
         if (!(is(chargeStatus, "all") || is(chargeStatus, "active") || is(chargeStatus, "inactive"))) {
             throw new UnrecognizedQueryParamException("status", chargeStatus, new Object[] { "all", "active", "inactive" });
@@ -123,6 +126,7 @@ public class SavingsAccountChargesApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(SAVINGS_ACCOUNT_CHARGE_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsAccountId);
 
         final Collection<ChargeData> chargeOptions = this.chargeReadPlatformService
                 .retrieveSavingsAccountApplicableCharges(savingsAccountId);
@@ -147,6 +151,7 @@ public class SavingsAccountChargesApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(SAVINGS_ACCOUNT_CHARGE_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsAccountId);
 
         final SavingsAccountChargeData savingsAccountCharge = this.savingsAccountChargeReadPlatformService
                 .retrieveSavingsAccountChargeDetails(savingsAccountChargeId, savingsAccountId);

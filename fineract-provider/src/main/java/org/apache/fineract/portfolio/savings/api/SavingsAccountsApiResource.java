@@ -473,7 +473,7 @@ public class SavingsAccountsApiResource {
         }
 
         ExternalId accountExternalId = ExternalIdFactory.produce(externalId);
-        accountId = getResolvedAccountId(accountId, accountExternalId);
+        accountId = getResolvedAccountIdForRead(accountId, accountExternalId);
         final SavingsAccountData savingsAccount = savingsAccountReadPlatformService.retrieveOne(accountId);
 
         return populateTemplateAndAssociations(accountId, savingsAccount, staffInSelectedOfficeOnly, chargeStatus, uriInfo);
@@ -597,6 +597,18 @@ public class SavingsAccountsApiResource {
             if (resolvedAccountId == null) {
                 throw new SavingsAccountNotFoundException(resolvedAccountId);
             }
+        }
+        return resolvedAccountId;
+    }
+
+    private Long getResolvedAccountIdForRead(Long accountId, ExternalId accountExternalId) {
+        if (accountId != null) {
+            return accountId;
+        }
+        accountExternalId.throwExceptionIfEmpty();
+        final Long resolvedAccountId = savingsAccountReadPlatformService.retrieveAccountIdByExternalId(accountExternalId);
+        if (resolvedAccountId == null || !savingsAccountReadPlatformService.isAccountInUserOfficeHierarchy(resolvedAccountId)) {
+            throw new SavingsAccountNotFoundException(accountExternalId.getValue());
         }
         return resolvedAccountId;
     }

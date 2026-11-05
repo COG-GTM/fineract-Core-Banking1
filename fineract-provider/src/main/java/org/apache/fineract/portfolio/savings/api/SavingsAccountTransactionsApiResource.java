@@ -90,6 +90,7 @@ public class SavingsAccountTransactionsApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsId);
 
         // FIXME - KW - for now just send back generic default information for
         // both deposit/withdrawal templates
@@ -111,6 +112,7 @@ public class SavingsAccountTransactionsApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsId);
         SavingsAccountTransactionData transactionData = this.savingsAccountReadPlatformService.retrieveSavingsTransaction(savingsId,
                 transactionId, DepositAccountType.SAVINGS_DEPOSIT);
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
@@ -144,6 +146,7 @@ public class SavingsAccountTransactionsApiResource {
             @QueryParam("sortOrder") @Parameter(description = "sort direction") final Sort.Direction sortOrder,
             @QueryParam("locale") @Parameter(description = "locale") final String localeString,
             @QueryParam("dateFormat") @Parameter(description = "date format", example = "yyyy-MM-dd") String dateFormat) {
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsId);
         final Locale locale = localeString == null ? null : JsonParserHelper.localeFromString(localeString);
         TransactionSearchRequest searchParameters = new TransactionSearchRequest().accountId(savingsId)
                 .fromDate(fromDate, dateFormat, locale).toDate(toDate, dateFormat, locale)
@@ -162,6 +165,7 @@ public class SavingsAccountTransactionsApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = List.class)))
     public String advancedQuery(@PathParam("savingsId") @Parameter(description = "savingsId") final Long savingsId,
             PagedLocalRequest<AdvancedQueryRequest> queryRequest, @Context final UriInfo uriInfo) {
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsId);
         final Page<JsonObject> result = transactionsSearchService.queryAdvanced(savingsId, queryRequest);
         return this.toApiJsonSerializer.serialize(result);
     }
