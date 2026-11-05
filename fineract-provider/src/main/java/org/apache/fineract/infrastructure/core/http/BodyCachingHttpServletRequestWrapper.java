@@ -41,6 +41,7 @@ public class BodyCachingHttpServletRequestWrapper extends HttpServletRequestWrap
     private final byte[] cachedBody;
     private ByteArrayInputStream inputStream;
 
+    @SuppressFBWarnings(value = "CT_CONSTRUCTOR_THROW")
     public BodyCachingHttpServletRequestWrapper(HttpServletRequest request) throws IOException {
         this(request, DEFAULT_MAX_BODY_SIZE);
     }
