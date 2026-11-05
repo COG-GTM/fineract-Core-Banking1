@@ -112,6 +112,15 @@ class TwoFactorServiceImplTest {
         assertThrows(OTPTokenInvalidException.class, () -> twoFactorService.createAccessTokenFromOTP(userWithId(1L), null));
     }
 
+    @Test
+    void otpComparisonIsAsciiCaseInsensitiveOnly() {
+        ThreadLocalContextUtil.setTenant(TENANT_A);
+        otpRequestRepository.addOTPRequest(userWithId(1L), OTPRequest.create("PASS12", 300, false, null));
+
+        assertThrows(OTPTokenInvalidException.class, () -> twoFactorService.createAccessTokenFromOTP(userWithId(1L), "PAß12"));
+        assertNotNull(twoFactorService.createAccessTokenFromOTP(userWithId(1L), "pass12"));
+    }
+
     private static AppUser userWithId(Long id) {
         AppUser user = mock(AppUser.class);
         lenient().when(user.getId()).thenReturn(id);

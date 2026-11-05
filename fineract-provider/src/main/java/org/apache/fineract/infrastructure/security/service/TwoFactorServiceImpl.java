@@ -23,7 +23,6 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.domain.EmailDetail;
@@ -215,8 +214,17 @@ public class TwoFactorServiceImpl implements TwoFactorService {
         if (expected == null || provided == null) {
             return false;
         }
-        return MessageDigest.isEqual(expected.toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8),
-                provided.toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
+        return MessageDigest.isEqual(asciiUpperCase(expected), asciiUpperCase(provided));
+    }
+
+    private static byte[] asciiUpperCase(final String value) {
+        final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] >= 'a' && bytes[i] <= 'z') {
+                bytes[i] = (byte) (bytes[i] - ('a' - 'A'));
+            }
+        }
+        return bytes;
     }
 
     private OTPRequest generateNewToken(final OTPDeliveryMethod deliveryMethod, final boolean extendedAccessToken) {
