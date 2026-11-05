@@ -38,6 +38,11 @@ public interface ReadReportingService {
 
     Collection<ReportParameterData> getAllowedParameters();
 
+    /**
+     * Names of the reports that use the given parameter directly or as the parent of one of their parameters.
+     */
+    Collection<String> retrieveReportNamesUsingParameter(String parameterName, boolean selfServiceReportsOnly);
+
     // TODO Move the following x3 methods into the (new; FINERACT-1173) DatatableReportingProcessService?
 
     String retrieveReportPDF(String name, String type, Map<String, String> extractedQueryParams, boolean isSelfServiceUserReport);
