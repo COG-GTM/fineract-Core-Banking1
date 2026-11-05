@@ -155,8 +155,7 @@ class SelfServiceRegistrationWritePlatformServiceImplTest {
         when(selfServiceRegistrationRepository.getRequestByIdAndAuthenticationToken(5L, "1234")).thenReturn(registration);
         when(selfServiceRegistrationReadPlatformService.isClientMappedToSelfServiceUser(1L)).thenReturn(true);
 
-        assertThrows(PlatformDataIntegrityException.class,
-                () -> service.createUser("{\"requestId\":5,\"authenticationToken\":\"1234\"}"));
+        assertThrows(PlatformDataIntegrityException.class, () -> service.createUser("{\"requestId\":5,\"authenticationToken\":\"1234\"}"));
 
         verify(userDomainService, never()).create(any(), any());
     }
