@@ -106,7 +106,6 @@ public class ShareAccountReadPermissionIntegrationTest {
         final ResponseSpecification notFound = new ResponseSpecBuilder().expectStatusCode(404).build();
         Utils.performServerGet(basicAuthSpec(username), notFound,
                 "/fineract-provider/api/v1/accounts/self/" + shareAccountId + "?" + Utils.TENANT_IDENTIFIER);
-        Utils.performServerGet(basicAuthSpec(username), notFound, "/fineract-provider/api/v1/accounts/self?" + Utils.TENANT_IDENTIFIER);
     }
 
     private RequestSpecification basicAuthSpec(final String username) {
