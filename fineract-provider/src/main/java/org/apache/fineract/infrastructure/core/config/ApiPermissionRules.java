@@ -164,8 +164,7 @@ public final class ApiPermissionRules {
             // working days
             rule(HttpMethod.GET, "/api/*/workingdays", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKING_DAYS", "READ_WORKINGDAYS"),
             rule(HttpMethod.GET, "/api/*/workingdays/template", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKING_DAYS", "READ_WORKINGDAYS"),
-            rule(HttpMethod.PUT, "/api/*/workingdays", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_WORKING_DAYS", "UPDATE_WORKINGDAYS")
-    );
+            rule(HttpMethod.PUT, "/api/*/workingdays", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_WORKING_DAYS", "UPDATE_WORKINGDAYS"));
 
     private ApiPermissionRules() {}
 
