@@ -233,8 +233,24 @@ class DatatableUtilTest {
         assertTrue(sqlCaptor.getValue().endsWith(" order by \"id\" DESC"), sqlCaptor.getValue());
     }
 
+    @Test
+    void testRetrieveDataTableGenericResultSetOrdersByQuotedColumnWithSpaces() {
+        List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
+        headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        when(sqlGenerator.escape(anyString())).thenAnswer(invocation -> "`" + invocation.getArgument(0) + "`");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
+        when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
+
+        underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "test_datatable", APP_TABLE_ID, "`Date of Birth` desc, id", null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(genericDataService).fillResultsetRowData(sqlCaptor.capture(), any(), any(Object[].class));
+        assertTrue(sqlCaptor.getValue().endsWith(" order by `Date of Birth` DESC, `id`"), sqlCaptor.getValue());
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = { "(select sleep(5))", "id, (select 1)", "id desc limit 1", "unknown_column", "id sideways" })
+    @ValueSource(strings = { "(select sleep(5))", "id, (select 1)", "id desc limit 1", "unknown_column", "id sideways",
+            "`id` desc, `(select 1)`" })
     void testRetrieveDataTableGenericResultSetRejectsUnsupportedOrder(String order) {
         when(sqlGenerator.escape(anyString())).thenAnswer(invocation -> "\"" + invocation.getArgument(0) + "\"");
         when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(createMultiRowHeaders());

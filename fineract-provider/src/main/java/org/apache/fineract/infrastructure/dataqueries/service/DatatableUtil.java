@@ -26,7 +26,8 @@ import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiCon
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -57,7 +58,9 @@ import org.springframework.stereotype.Service;
 public class DatatableUtil {
 
     private static final String APPLICATION_TABLE_NAME = "application_table_name";
-    private static final Set<String> SORT_ORDER_VALUES = Set.of("ASC", "DESC");
+    private static final Pattern ORDER_TERM = Pattern.compile("^\\s*(?:`([^`]+)`|([^\\s`]+))(?:\\s+(asc|desc))?\\s*$",
+            Pattern.CASE_INSENSITIVE);
+    private static final String ORDER_TERM_SEPARATOR = ",(?=(?:[^`]*`[^`]*`)*[^`]*$)";
 
     private final SearchUtil searchUtil;
     private final JdbcTemplate jdbcTemplate;
@@ -253,20 +256,30 @@ public class DatatableUtil {
 
     private String resolveDatatableOrder(final String order, final List<ResultsetColumnHeaderData> columnHeaders) {
         final List<String> resolved = new ArrayList<>();
-        for (String term : order.split(",")) {
-            final String[] parts = term.trim().split("\\s+");
-            final String column = columnHeaders.stream().map(ResultsetColumnHeaderData::getColumnName)
-                    .filter(name -> name.equalsIgnoreCase(parts[0])).findFirst().orElse(null);
-            final boolean validDirection = parts.length == 1
-                    || (parts.length == 2 && SORT_ORDER_VALUES.contains(parts[1].toUpperCase(Locale.ROOT)));
-            if (column == null || !validDirection) {
+        for (String term : order.split(ORDER_TERM_SEPARATOR)) {
+            final Matcher matcher = ORDER_TERM.matcher(term);
+            String column = null;
+            if (matcher.matches()) {
+                column = findColumnName(columnHeaders, matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
+            }
+            if (column == null) {
                 throw new PlatformApiDataValidationException(
                         List.of(ApiParameterError.parameterErrorWithValue("validation.msg.datatable.order.value.is.not.supported",
                                 "The order value must be a datatable column optionally followed by ASC or DESC", "order", order)));
             }
-            resolved.add(sqlGenerator.escape(column) + (parts.length == 2 ? " " + parts[1].toUpperCase(Locale.ROOT) : ""));
+            final String direction = matcher.group(3);
+            resolved.add(sqlGenerator.escape(column) + (direction == null ? "" : " " + direction.toUpperCase(Locale.ROOT)));
         }
         return String.join(", ", resolved);
+    }
+
+    private static String findColumnName(final List<ResultsetColumnHeaderData> columnHeaders, final String requested) {
+        for (ResultsetColumnHeaderData header : columnHeaders) {
+            if (header.getColumnName().equalsIgnoreCase(requested)) {
+                return header.getColumnName();
+            }
+        }
+        return null;
     }
 
     private boolean isRegisteredDataTable(final String datatable) {
