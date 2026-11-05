@@ -24,7 +24,6 @@ import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.account.service.AccountNumberGenerator;
 import org.apache.fineract.portfolio.accounts.constants.AccountsApiConstants;
 import org.apache.fineract.portfolio.accounts.service.AccountsCommandsService;
@@ -83,8 +82,8 @@ public class ShareAccountsConfiguration {
     @Bean
     @ConditionalOnMissingBean(ShareAccountDividendReadPlatformService.class)
     public ShareAccountDividendReadPlatformService shareAccountDividendReadPlatformService(JdbcTemplate jdbcTemplate,
-            ColumnValidator columnValidator, PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator) {
-        return new ShareAccountDividendReadPlatformServiceImpl(jdbcTemplate, columnValidator, paginationHelper, sqlGenerator);
+            PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator) {
+        return new ShareAccountDividendReadPlatformServiceImpl(jdbcTemplate, paginationHelper, sqlGenerator);
 
     }
 
