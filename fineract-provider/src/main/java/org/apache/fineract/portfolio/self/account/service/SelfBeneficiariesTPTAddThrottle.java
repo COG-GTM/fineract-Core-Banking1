@@ -49,8 +49,7 @@ public class SelfBeneficiariesTPTAddThrottle {
     private Instant nextSweep = Instant.MIN;
 
     public SelfBeneficiariesTPTAddThrottle() {
-        this(DEFAULT_MAX_FAILED_ATTEMPTS, DEFAULT_FAILED_ATTEMPTS_WINDOW, DEFAULT_MAX_ATTEMPTS, DEFAULT_ATTEMPTS_WINDOW,
-                Clock.systemUTC());
+        this(DEFAULT_MAX_FAILED_ATTEMPTS, DEFAULT_FAILED_ATTEMPTS_WINDOW, DEFAULT_MAX_ATTEMPTS, DEFAULT_ATTEMPTS_WINDOW, Clock.systemUTC());
     }
 
     public SelfBeneficiariesTPTAddThrottle(final int maxFailedAttempts, final Duration failedAttemptsWindow, final int maxAttempts,
