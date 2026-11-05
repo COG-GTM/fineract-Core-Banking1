@@ -279,8 +279,8 @@ public class DatatableUtil {
 
     private static String findColumnName(final String name, final List<ResultsetColumnHeaderData> columnHeaders) {
         String unquoted = name;
-        if (unquoted.length() >= 2 && ((unquoted.startsWith("`") && unquoted.endsWith("`"))
-                || (unquoted.startsWith("\"") && unquoted.endsWith("\"")))) {
+        if (unquoted.length() >= 2
+                && ((unquoted.startsWith("`") && unquoted.endsWith("`")) || (unquoted.startsWith("\"") && unquoted.endsWith("\"")))) {
             unquoted = unquoted.substring(1, unquoted.length() - 1);
         }
         if (unquoted.isEmpty()) {
