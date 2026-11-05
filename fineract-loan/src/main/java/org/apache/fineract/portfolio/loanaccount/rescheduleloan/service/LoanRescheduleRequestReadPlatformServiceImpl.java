@@ -18,8 +18,6 @@
  */
 package org.apache.fineract.portfolio.loanaccount.rescheduleloan.service;
 
-import static org.apache.commons.collections4.CollectionUtils.isNotEmpty;
-
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -27,10 +25,12 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.codes.data.CodeValueData;
 import org.apache.fineract.infrastructure.codes.service.CodeValueReadPlatformService;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.loanaccount.data.LoanTermVariationsData;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.rescheduleloan.RescheduleLoansApiConstants;
@@ -38,7 +38,9 @@ import org.apache.fineract.portfolio.loanaccount.rescheduleloan.data.LoanResched
 import org.apache.fineract.portfolio.loanaccount.rescheduleloan.data.LoanRescheduleRequestEnumerations;
 import org.apache.fineract.portfolio.loanaccount.rescheduleloan.data.LoanRescheduleRequestStatusEnumData;
 import org.apache.fineract.portfolio.loanaccount.rescheduleloan.data.LoanRescheduleRequestTimelineData;
+import org.apache.fineract.portfolio.loanaccount.rescheduleloan.exception.LoanRescheduleRequestNotFoundException;
 import org.apache.fineract.portfolio.loanproduct.service.LoanEnumerations;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,13 +54,38 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
     private final LoanRepositoryWrapper loanRepositoryWrapper;
     private static final LoanRescheduleRequestRowMapper LOAN_RESCHEDULE_REQUEST_ROW_MAPPER = new LoanRescheduleRequestRowMapper();
     private final CodeValueReadPlatformService codeValueReadPlatformService;
+    private final PlatformSecurityContext context;
+
+    // Loan office is the client's office, the group's office, or the office a client is being transferred to.
+    private static final String OFFICE_HIERARCHY_FILTER = "(co.hierarchy like ? or gro.hierarchy like ? or tto.hierarchy like ?)";
 
     @Autowired
     public LoanRescheduleRequestReadPlatformServiceImpl(final JdbcTemplate jdbcTemplate, LoanRepositoryWrapper loanRepositoryWrapper,
-            final CodeValueReadPlatformService codeValueReadPlatformService) {
+            final CodeValueReadPlatformService codeValueReadPlatformService, final PlatformSecurityContext context) {
         this.jdbcTemplate = jdbcTemplate;
         this.loanRepositoryWrapper = loanRepositoryWrapper;
         this.codeValueReadPlatformService = codeValueReadPlatformService;
+        this.context = context;
+    }
+
+    private static final String REQUEST_ACCESS_CHECK_SQL = "select count(*) from m_loan_reschedule_request lr "
+            + "join m_loan ml on ml.id = lr.loan_id " + "left join m_client mc on mc.id = ml.client_id "
+            + "left join m_group mg on mg.id = ml.group_id " + "left join m_office co on co.id = mc.office_id "
+            + "left join m_office gro on gro.id = mg.office_id " + "left join m_office tto on tto.id = mc.transfer_to_office_id "
+            + "where lr.id = ? and " + OFFICE_HIERARCHY_FILTER;
+
+    private Object[] officeHierarchyParams() {
+        final AppUser currentUser = this.context.getAuthenticatedUserIfPresent();
+        final String hierarchy = Optional.ofNullable(currentUser).map(appUser -> appUser.getOffice().getHierarchy()).orElse(".");
+        final String hierarchySearchString = hierarchy + "%";
+        return new Object[] { hierarchySearchString, hierarchySearchString, hierarchySearchString };
+    }
+
+    private static Object[] concat(final Object[] first, final Object... second) {
+        final Object[] result = new Object[first.length + second.length];
+        System.arraycopy(first, 0, result, 0, first.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
     }
 
     private static final class LoanRescheduleRequestRowMapper implements RowMapper<LoanRescheduleRequestData> {
@@ -108,6 +135,10 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
             sqlBuilder.append("left join m_appuser rbu on rbu.id = lr.rejected_by_user_id ");
             sqlBuilder.append("left join m_loan ml on ml.id = lr.loan_id ");
             sqlBuilder.append("left join m_client mc on mc.id = ml.client_id ");
+            sqlBuilder.append("left join m_group mg on mg.id = ml.group_id ");
+            sqlBuilder.append("left join m_office co on co.id = mc.office_id ");
+            sqlBuilder.append("left join m_office gro on gro.id = mg.office_id ");
+            sqlBuilder.append("left join m_office tto on tto.id = mc.transfer_to_office_id ");
             sqlBuilder.append("join m_loan_reschedule_request_term_variations_mapping rrtvm on lr.id = rrtvm.loan_reschedule_request_id ");
             sqlBuilder.append("join m_loan_term_variations tv on tv.id = rrtvm.loan_term_variations_id and tv.parent_id is null");
 
@@ -198,6 +229,10 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
             sqlBuilder.append("from m_loan_reschedule_request lrr ");
             sqlBuilder.append("left join m_loan loan on loan.id = lrr.loan_id ");
             sqlBuilder.append("left join m_client client on client.id = loan.client_id ");
+            sqlBuilder.append("left join m_group mg on mg.id = loan.group_id ");
+            sqlBuilder.append("left join m_office co on co.id = client.office_id ");
+            sqlBuilder.append("left join m_office gro on gro.id = mg.office_id ");
+            sqlBuilder.append("left join m_office tto on tto.id = client.transfer_to_office_id ");
             sqlBuilder.append("left join m_code_value cv on cv.id = lrr.reschedule_reason_cv_id ");
             return sqlBuilder.toString();
         }
@@ -223,30 +258,50 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
     @Override
     public List<LoanRescheduleRequestData> readLoanRescheduleRequests(Long loanId) {
         this.loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
-        final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.loan_id = ?";
+        final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.loan_id = ? and " + OFFICE_HIERARCHY_FILTER;
 
-        return this.jdbcTemplate.query(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER, loanId); // NOSONAR
+        return this.jdbcTemplate.query(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER, concat(new Object[] { loanId }, officeHierarchyParams())); // NOSONAR
     }
 
     @Override
     public LoanRescheduleRequestData readLoanRescheduleRequest(Long requestId) {
 
         try {
-            final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.id = ?";
+            final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.id = ? and " + OFFICE_HIERARCHY_FILTER;
 
-            return this.jdbcTemplate.queryForObject(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER, requestId); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER,
+                    concat(new Object[] { requestId }, officeHierarchyParams())); // NOSONAR
         }
 
         catch (final EmptyResultDataAccessException e) {
+            if (!isLoanRescheduleRequestAccessible(requestId)) {
+                throw new LoanRescheduleRequestNotFoundException(requestId, e);
+            }
+            // Accessible request without term variations (excluded by the mapper's inner join)
             return null;
         }
     }
 
     @Override
+    public void validateLoanRescheduleRequestAccess(final Long requestId) {
+        if (!isLoanRescheduleRequestAccessible(requestId)) {
+            throw new LoanRescheduleRequestNotFoundException(requestId);
+        }
+    }
+
+    private boolean isLoanRescheduleRequestAccessible(final Long requestId) {
+        final Integer count = this.jdbcTemplate.queryForObject(REQUEST_ACCESS_CHECK_SQL, Integer.class,
+                concat(new Object[] { requestId }, officeHierarchyParams())); // NOSONAR
+        return count != null && count > 0;
+    }
+
+    @Override
     public List<LoanRescheduleRequestData> readLoanRescheduleRequests(Long loanId, Integer statusEnum) {
         this.loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
-        final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.loan_id = ?" + " and lr.status_enum = ?";
-        return this.jdbcTemplate.query(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER, loanId, statusEnum); // NOSONAR
+        final String sql = "select " + LOAN_RESCHEDULE_REQUEST_ROW_MAPPER.schema() + " where lr.loan_id = ?" + " and lr.status_enum = ?"
+                + " and " + OFFICE_HIERARCHY_FILTER;
+        return this.jdbcTemplate.query(sql, LOAN_RESCHEDULE_REQUEST_ROW_MAPPER,
+                concat(new Object[] { loanId, statusEnum }, officeHierarchyParams())); // NOSONAR
     }
 
     @Override
@@ -279,6 +334,9 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
         List<String> extraFilters = new ArrayList<>();
         List<Object> extraParams = new ArrayList<>();
 
+        extraFilters.add(OFFICE_HIERARCHY_FILTER);
+        extraParams.addAll(List.of(officeHierarchyParams()));
+
         if (!StringUtils.isEmpty(command) && !command.equalsIgnoreCase(RescheduleLoansApiConstants.allCommandParamName)) {
             int statusParam = 100;
             if (command.equalsIgnoreCase(RescheduleLoansApiConstants.approveCommandParamName)) {
@@ -296,9 +354,7 @@ public class LoanRescheduleRequestReadPlatformServiceImpl implements LoanResched
             extraParams.add(loanId);
         }
 
-        if (isNotEmpty(extraFilters)) {
-            sql += " where " + String.join(" AND ", extraFilters);
-        }
+        sql += " where " + String.join(" AND ", extraFilters);
         return jdbcTemplate.query(sql, loanRescheduleRequestRowMapperForBulkApproval, extraParams.toArray()); // NOSONAR
     }
 }

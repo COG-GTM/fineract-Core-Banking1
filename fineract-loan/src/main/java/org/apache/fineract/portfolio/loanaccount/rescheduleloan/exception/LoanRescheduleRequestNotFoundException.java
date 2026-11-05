@@ -19,6 +19,7 @@
 package org.apache.fineract.portfolio.loanaccount.rescheduleloan.exception;
 
 import org.apache.fineract.infrastructure.core.exception.AbstractPlatformResourceNotFoundException;
+import org.springframework.dao.EmptyResultDataAccessException;
 
 /**
  * A {@link RuntimeException} thrown when loan reschedule request resources are not found.
@@ -35,6 +36,11 @@ public class LoanRescheduleRequestNotFoundException extends AbstractPlatformReso
     public LoanRescheduleRequestNotFoundException(final Long requestId) {
         super("error.msg.loan.reschedule.request.id.invalid", "Loan reschedule request with identifier " + requestId + " does not exist",
                 requestId);
+    }
+
+    public LoanRescheduleRequestNotFoundException(final Long requestId, final EmptyResultDataAccessException e) {
+        super("error.msg.loan.reschedule.request.id.invalid", "Loan reschedule request with identifier " + requestId + " does not exist",
+                requestId, e);
     }
 
 }

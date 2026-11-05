@@ -100,6 +100,7 @@ public class RescheduleLoansApiResource {
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
         if (compareIgnoreCase(command, "previewLoanReschedule")) {
+            this.loanRescheduleRequestReadPlatformService.validateLoanRescheduleRequestAccess(scheduleId);
             final LoanScheduleModel loanRescheduleModel = this.loanReschedulePreviewPlatformService.previewLoanReschedule(scheduleId);
 
             return this.loanRescheduleToApiJsonSerializer.serialize(settings, loanRescheduleModel.toData(), new HashSet<String>());
