@@ -62,11 +62,11 @@ public class DepositAccountOnHoldTransactionReadPlatformServiceImpl implements D
 
         if (searchParameters.hasOrderBy()) {
             sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+            this.columnValidator.validateOrderBy(searchParameters.getOrderBy());
 
             if (searchParameters.hasSortOrder()) {
                 sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                this.columnValidator.validateSortOrder(searchParameters.getSortOrder());
             }
         }
 
