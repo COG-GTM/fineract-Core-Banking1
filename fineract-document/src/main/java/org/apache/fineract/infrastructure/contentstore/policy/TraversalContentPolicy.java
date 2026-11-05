@@ -49,10 +49,8 @@ public class TraversalContentPolicy implements ContentPolicy {
             throw new ContentPolicyException(String.format("Path contains control or line separator characters: %s", printablePath));
         }
 
-        for (final var segment : SEGMENT_SEPARATOR.split(path)) {
-            if (".".equals(segment) || "..".equals(segment)) {
-                throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", path));
-            }
+        if (SEGMENT_SEPARATOR.splitAsStream(path).anyMatch(segment -> ".".equals(segment) || "..".equals(segment))) {
+            throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", path));
         }
     }
 }
