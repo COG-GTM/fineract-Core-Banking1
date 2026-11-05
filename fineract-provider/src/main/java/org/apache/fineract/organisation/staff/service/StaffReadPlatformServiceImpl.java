@@ -93,7 +93,7 @@ public class StaffReadPlatformServiceImpl implements StaffReadPlatformService {
                 sqlBuilder.append("and s.is_loan_officer is true ");
             }
 
-            sqlBuilder.append("where o.id = ? ");
+            sqlBuilder.append("where o.id = ? and o.hierarchy like ? ");
 
             return sqlBuilder.toString();
         }
@@ -246,9 +246,13 @@ public class StaffReadPlatformServiceImpl implements StaffReadPlatformService {
     @Override
     public List<StaffData> retrieveAllStaffInOfficeAndItsParentOfficeHierarchy(final Long officeId, final boolean loanOfficersOnly) {
 
+        // adding the Authorization criteria so that a user cannot list the
+        // staff of an office that is outside his office or its sub offices.
+        final String hierarchy = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
+
         String sql = "select " + STAFF_IN_OFFICE_HIERARCHY_MAPPER.schema(loanOfficersOnly);
         sql = sql + " order by s.lastname";
-        return this.jdbcTemplate.query(sql, STAFF_IN_OFFICE_HIERARCHY_MAPPER, officeId); // NOSONAR
+        return this.jdbcTemplate.query(sql, STAFF_IN_OFFICE_HIERARCHY_MAPPER, officeId, hierarchy); // NOSONAR
     }
 
     @Override
