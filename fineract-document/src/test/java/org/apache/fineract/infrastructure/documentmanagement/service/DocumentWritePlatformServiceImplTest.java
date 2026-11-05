@@ -103,8 +103,7 @@ class DocumentWritePlatformServiceImplTest {
                 .setLocation("documents/clients/1/a");
         when(documentRepository.findByIdAndParentEntityTypeAndParentEntityId(987L, "clients", 1L)).thenReturn(Optional.of(doc));
 
-        final var response = underTest
-                .deleteDocument(DocumentDeleteRequest.builder().id(987L).entityType("clients").entityId(1L).build());
+        final var response = underTest.deleteDocument(DocumentDeleteRequest.builder().id(987L).entityType("clients").entityId(1L).build());
 
         assertEquals(987L, response.getResourceId());
         verify(storeService).delete("documents/clients/1/a");
@@ -149,9 +148,8 @@ class DocumentWritePlatformServiceImplTest {
     void createRejectsEntityOutsideUserOffice() {
         doThrow(new NoAuthorizationException("denied")).when(parentEntityAccessValidator).validate("clients", 4711L);
 
-        assertThrows(NoAuthorizationException.class,
-                () -> underTest.createDocument(DocumentCreateRequest.builder().entityType("clients").entityId(4711L).fileName("id.pdf")
-                        .type("application/pdf").stream(new ByteArrayInputStream(new byte[] { 1 })).build()));
+        assertThrows(NoAuthorizationException.class, () -> underTest.createDocument(DocumentCreateRequest.builder().entityType("clients")
+                .entityId(4711L).fileName("id.pdf").type("application/pdf").stream(new ByteArrayInputStream(new byte[] { 1 })).build()));
 
         verify(storeService, never()).upload(anyString(), any(InputStream.class), anyString());
         verify(documentRepository, never()).save(any());

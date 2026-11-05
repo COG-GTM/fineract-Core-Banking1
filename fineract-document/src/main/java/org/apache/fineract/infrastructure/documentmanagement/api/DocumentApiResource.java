@@ -106,7 +106,6 @@ public class DocumentApiResource {
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId) {
         requireOfficeScopedEntityType(entityType, entityId);
 
-
         return documentReadPlatformService.retrieveAllDocuments(entityType, entityId);
     }
 
@@ -125,7 +124,6 @@ public class DocumentApiResource {
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
         requireOfficeScopedEntityType(entityType, entityId);
-
 
         return documentReadPlatformService.retrieveDocument(entityType, entityId, documentId);
     }
@@ -147,7 +145,6 @@ public class DocumentApiResource {
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
         requireOfficeScopedEntityType(entityType, entityId);
-
 
         final var content = documentReadPlatformService.retrieveDocumentContent(entityType, entityId, documentId);
 
@@ -182,7 +179,6 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_NAME) final String name,
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
         requireOfficeScopedEntityType(entityType, entityId);
-
 
         fileUploadValidator.validate(fileSize, is, fileDetails, filePart);
 
@@ -225,7 +221,6 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
         requireOfficeScopedEntityType(entityType, entityId);
 
-
         final var command = new DocumentUpdateCommand();
 
         final var request = DocumentUpdateRequest.builder().id(documentId).entityId(entityId).entityType(entityType).name(name)
@@ -253,7 +248,6 @@ public class DocumentApiResource {
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
         requireOfficeScopedEntityType(entityType, entityId);
-
 
         final var command = new DocumentDeleteCommand();
 

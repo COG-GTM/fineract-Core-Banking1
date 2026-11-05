@@ -43,8 +43,7 @@ public class DocumentParentEntityAccessValidator {
     static final Map<String, String> OFFICE_HIERARCHY_QUERIES = Map.of( //
             "clients", "select o.hierarchy from m_client c" + CLIENT_OFFICES + " where c.id = ?", //
             "client_identifiers",
-            "select o.hierarchy from m_client_identifier ci join m_client c on c.id = ci.client_id" + CLIENT_OFFICES
-                    + " where ci.id = ?", //
+            "select o.hierarchy from m_client_identifier ci join m_client c on c.id = ci.client_id" + CLIENT_OFFICES + " where ci.id = ?", //
             "staff", "select o.hierarchy from m_staff s join m_office o on o.id = s.office_id where s.id = ?", //
             "groups", "select o.hierarchy from m_group g join m_office o on o.id = g.office_id where g.id = ?", //
             "loans",

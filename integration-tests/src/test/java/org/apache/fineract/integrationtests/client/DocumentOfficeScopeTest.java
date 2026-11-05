@@ -20,6 +20,7 @@ package org.apache.fineract.integrationtests.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.time.LocalDate;
@@ -75,8 +76,8 @@ class DocumentOfficeScopeTest extends IntegrationTest {
     @Test
     @Order(1)
     void userCanManageDocumentsOfOwnOffice() {
-        assertThat(ok(officeBUser.documents.retrieveAllDocuments("clients", officeBClientId))).extracting(DocumentData::getId)
-                .contains(officeBDocumentId);
+        final List<DocumentData> documents = ok(officeBUser.documents.retrieveAllDocuments("clients", officeBClientId));
+        assertTrue(documents.stream().anyMatch(document -> officeBDocumentId.equals(document.getId())));
         assertThat(ok(officeBUser.documents.getDocument("clients", officeBClientId, officeBDocumentId)).getId())
                 .isEqualTo(officeBDocumentId);
         okR(officeBUser.documents.downloadFile("clients", officeBClientId, officeBDocumentId)).body().close();
