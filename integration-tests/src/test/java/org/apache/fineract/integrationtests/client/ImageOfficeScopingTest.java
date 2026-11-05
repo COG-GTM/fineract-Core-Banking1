@@ -74,8 +74,7 @@ public class ImageOfficeScopingTest {
 
         roleId = RolesHelper.createRole(adminSpec, okSpec);
         Map<String, Boolean> permissions = new HashMap<>();
-        for (String code : List.of("READ_DOCUMENT", "CREATE_CLIENTIMAGE", "UPDATE_CLIENTIMAGE", "DELETE_CLIENTIMAGE", "CREATE_STAFFIMAGE",
-                "UPDATE_STAFFIMAGE", "DELETE_STAFFIMAGE")) {
+        for (String code : List.of("READ_DOCUMENT", "CREATE_CLIENTIMAGE", "DELETE_CLIENTIMAGE", "CREATE_STAFFIMAGE", "DELETE_STAFFIMAGE")) {
             permissions.put(code, true);
         }
         RolesHelper.addPermissionsToRole(adminSpec, okSpec, roleId, permissions);
@@ -100,23 +99,27 @@ public class ImageOfficeScopingTest {
     }
 
     private void assertOfficeScoping(String url) {
-        upload(adminSpec, url, ORIGINAL_IMAGE).statusCode(200);
+        replace(adminSpec, url, ORIGINAL_IMAGE).statusCode(200);
 
         RequestSpecification officeBUser = userSpec(officeB);
         given(officeBUser).accept("text/plain").get(url).then().statusCode(404);
-        upload(officeBUser, url, REPLACEMENT_IMAGE).statusCode(404);
+        create(officeBUser, url, REPLACEMENT_IMAGE).statusCode(404);
         given(officeBUser).delete(url).then().statusCode(404);
 
         // the image is untouched and remains readable for users of the owning office
         RequestSpecification officeAUser = userSpec(officeA);
         given(officeAUser).accept("text/plain").get(url).then().statusCode(200).body(equalTo(ORIGINAL_IMAGE));
-        upload(officeAUser, url, REPLACEMENT_IMAGE).statusCode(200);
+        create(officeAUser, url, REPLACEMENT_IMAGE).statusCode(200);
         given(adminSpec).accept("text/plain").get(url).then().statusCode(200).body(equalTo(REPLACEMENT_IMAGE));
         given(officeAUser).delete(url).then().statusCode(200);
     }
 
-    private ValidatableResponse upload(RequestSpecification spec, String url, String dataUrl) {
+    private ValidatableResponse replace(RequestSpecification spec, String url, String dataUrl) {
         return given(spec).contentType(ContentType.TEXT).body(dataUrl).put(url).then();
+    }
+
+    private ValidatableResponse create(RequestSpecification spec, String url, String dataUrl) {
+        return given(spec).contentType(ContentType.TEXT).body(dataUrl).post(url).then();
     }
 
     private RequestSpecification userSpec(Integer officeId) {
