@@ -165,9 +165,21 @@ class DocumentWritePlatformServiceImplTest {
         verify(storeService, never()).delete(EXISTING_LOCATION);
     }
 
+    @Test
+    void rollbackKeepsExistingObjectThatRenameOverwrote() {
+        final var occupiedLocation = renameInsideTransaction(TransactionSynchronization.STATUS_ROLLED_BACK,
+                "documents/clients/17/passport.pdf");
+
+        verify(storeService, never()).delete(occupiedLocation);
+        verify(storeService, never()).delete(EXISTING_LOCATION);
+    }
+
     private String renameInsideTransaction(int status) {
+        return renameInsideTransaction(status, "documents/clients/17/QrStUvWxYzAbCdEf/passport.pdf");
+    }
+
+    private String renameInsideTransaction(int status, String newLocation) {
         final InputStream stream = new ByteArrayInputStream(new byte[] { 1 });
-        final var newLocation = "documents/clients/17/QrStUvWxYzAbCdEf/passport.pdf";
         when(storeService.getDelimiter()).thenReturn("/");
         when(storeService.upload("documents/clients/17/passport.pdf", stream, "application/pdf")).thenReturn(newLocation);
 

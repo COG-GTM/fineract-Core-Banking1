@@ -121,12 +121,14 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
                             && StringUtils.equals(FilenameUtils.getName(previousLocation), FilenameUtils.getName(path))) {
                         doc.setLocation(storeService.upload(previousLocation, request.getStream(), request.getType()));
                     } else {
-                        path = storeService.upload(path, request.getStream(), request.getType());
+                        final var requestedPath = path;
+                        path = storeService.upload(requestedPath, request.getStream(), request.getType());
                         doc.setLocation(path);
                         doc.setFileName(FilenameUtils.getName(path));
 
                         if (StringUtils.isNotEmpty(previousLocation) && !StringUtils.equals(previousLocation, path)) {
-                            deleteReplacedContent(previousLocation, path);
+                            // the store returns the requested path unchanged only when it overwrote an existing object
+                            deleteReplacedContent(previousLocation, StringUtils.equals(requestedPath, path) ? null : path);
                         }
                     }
                 }
@@ -185,7 +187,11 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
 
             @Override
             public void afterCompletion(final int status) {
-                deleteQuietly(status == STATUS_COMMITTED ? previousLocation : newLocation);
+                if (status == STATUS_COMMITTED) {
+                    deleteQuietly(previousLocation);
+                } else if (newLocation != null) {
+                    deleteQuietly(newLocation);
+                }
             }
         });
     }
