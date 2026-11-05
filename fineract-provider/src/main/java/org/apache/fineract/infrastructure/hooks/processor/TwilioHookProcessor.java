@@ -98,13 +98,14 @@ public class TwilioHookProcessor implements HookProcessor {
         JsonObject json = null;
         @SuppressWarnings("unchecked")
         final HashMap<String, Object> map = new ObjectMapper().readValue(payload, HashMap.class);
-        map.put("BASE_URI", System.getProperty("baseUrl"));
+        final String baseUri = System.getProperty("baseUrl");
+        map.put("BASE_URI", baseUri);
         if (map.containsKey("clientId")) {
             final Long clientId = Long.valueOf(Integer.toString((int) map.get("clientId")));
             final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
             final String mobileNo = client.mobileNo();
             if (mobileNo != null && !mobileNo.isEmpty()) {
-                final String compiledMessage = this.templateMergeService.compile(hook.getUgdTemplate(), map).replace("<p>", "")
+                final String compiledMessage = this.templateMergeService.compile(hook.getUgdTemplate(), map, baseUri).replace("<p>", "")
                         .replace("</p>", "");
                 final Map<String, String> jsonMap = new HashMap<>();
                 jsonMap.put("mobileNo", mobileNo);

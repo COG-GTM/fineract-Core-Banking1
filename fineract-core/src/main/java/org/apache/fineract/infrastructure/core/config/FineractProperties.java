@@ -362,6 +362,7 @@ public class FineractProperties {
 
         private boolean regexWhitelistEnabled;
         private List<String> regexWhitelist;
+        private String baseUri;
         private boolean mimeWhitelistEnabled;
         private List<String> mimeWhitelist;
         private Integer defaultBufferSize;
@@ -436,6 +437,7 @@ public class FineractProperties {
 
         private boolean regexWhitelistEnabled;
         private List<String> regexWhitelist;
+        private String baseUri;
     }
 
     @Getter
