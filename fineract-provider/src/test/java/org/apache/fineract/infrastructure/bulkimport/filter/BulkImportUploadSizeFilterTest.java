@@ -21,10 +21,14 @@ package org.apache.fineract.infrastructure.bulkimport.filter;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.InputStream;
+import java.io.OutputStream;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
+import org.apache.fineract.infrastructure.core.exception.PlatformPayloadTooLargeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -83,6 +87,26 @@ class BulkImportUploadSizeFilterTest {
         underTest.doFilter(request, new MockHttpServletResponse(), chain);
 
         assertNotNull(chain.getRequest());
+    }
+
+    @Test
+    void capsBodyOfUploadWithoutContentLength() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/fineract-provider/api/v1/clients/uploadtemplate") {
+
+            @Override
+            public long getContentLengthLong() {
+                return -1;
+            }
+        };
+        request.setContentType("multipart/form-data; boundary=xyz");
+        request.setContent(new byte[(int) (MAX_FILE_SIZE + BulkImportUploadSizeFilter.MULTIPART_OVERHEAD_BYTES + 1)]);
+        MockFilterChain chain = new MockFilterChain();
+
+        underTest.doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertNotNull(chain.getRequest());
+        InputStream body = chain.getRequest().getInputStream();
+        assertThrows(PlatformPayloadTooLargeException.class, () -> body.transferTo(OutputStream.nullOutputStream()));
     }
 
     private static MockHttpServletRequest uploadRequest(String uri) {
