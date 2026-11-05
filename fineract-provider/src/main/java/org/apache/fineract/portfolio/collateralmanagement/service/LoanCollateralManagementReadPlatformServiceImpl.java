@@ -59,6 +59,10 @@ public class LoanCollateralManagementReadPlatformServiceImpl implements LoanColl
         this.context.authenticatedUser();
         LoanCollateralManagement loanCollateralManagement = this.loanCollateralManagementRepository.findById(collateralId)
                 .orElseThrow(() -> new LoanCollateralManagementNotFoundException(collateralId));
+        final Loan loan = loanCollateralManagement.getLoanData();
+        if (loan != null) {
+            this.context.validateAccessRights(loan.getOffice().getHierarchy());
+        }
         final CollateralManagementDomain collateralManagementDomain = loanCollateralManagement.getClientCollateralManagement()
                 .getCollaterals();
         BigDecimal quantity = loanCollateralManagement.getQuantity();
