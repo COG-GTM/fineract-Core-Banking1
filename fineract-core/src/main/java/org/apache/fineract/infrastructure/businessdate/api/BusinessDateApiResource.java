@@ -39,6 +39,7 @@ import org.apache.fineract.infrastructure.businessdate.data.api.BusinessDateUpda
 import org.apache.fineract.infrastructure.businessdate.data.api.BusinessDateUpdateResponse;
 import org.apache.fineract.infrastructure.businessdate.mapper.BusinessDateMapper;
 import org.apache.fineract.infrastructure.businessdate.service.BusinessDateReadPlatformService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.stereotype.Component;
 
 @RequiredArgsConstructor
@@ -47,15 +48,20 @@ import org.springframework.stereotype.Component;
 @Tag(name = "Business Date Management", description = "Business date management enables you to set up, fetch and adjust organisation business dates")
 public class BusinessDateApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "BUSINESS_DATE";
+    private static final String UPDATE_PERMISSION = "UPDATE_BUSINESS_DATE";
+
     private final BusinessDateReadPlatformService readPlatformService;
     private final CommandPipeline commandPipeline;
     private final BusinessDateMapper businessDateMapper;
+    private final PlatformSecurityContext context;
 
     @GET
     @Consumes({ MediaType.TEXT_HTML, MediaType.APPLICATION_JSON })
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(summary = "List all business dates", description = "")
     public List<BusinessDateResponse> getBusinessDates() {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return businessDateMapper.mapFetchResponse(this.readPlatformService.findAll());
     }
 
@@ -65,6 +71,7 @@ public class BusinessDateApiResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(summary = "Retrieve a specific Business date", description = "")
     public BusinessDateResponse getBusinessDate(@PathParam("type") @Parameter(description = "type") final String type) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return businessDateMapper.mapFetchResponse(this.readPlatformService.findByType(type));
     }
 
@@ -73,6 +80,7 @@ public class BusinessDateApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Update Business Date", description = "")
     public BusinessDateUpdateResponse updateBusinessDate(@Valid BusinessDateUpdateRequest request) {
+        context.authenticatedUser().validateHasPermissionTo(UPDATE_PERMISSION, List.of("ALL_FUNCTIONS_WRITE", UPDATE_PERMISSION));
 
         final BusinessDateUpdateCommand command = new BusinessDateUpdateCommand();
 
