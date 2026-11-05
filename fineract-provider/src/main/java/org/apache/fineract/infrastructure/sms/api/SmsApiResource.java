@@ -83,6 +83,7 @@ public class SmsApiResource {
     @GET
     @Path("{resourceId}")
     public SmsData retrieveOne(@PathParam("resourceId") final Long resourceId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return readPlatformService.retrieveOne(resourceId);
     }
 
