@@ -27,6 +27,7 @@ import org.apache.fineract.infrastructure.security.service.PlatformSecurityConte
 import org.apache.fineract.portfolio.client.data.ClientData;
 import org.apache.fineract.portfolio.self.device.domain.DeviceRegistrationData;
 import org.apache.fineract.portfolio.self.device.exception.DeviceRegistrationNotFoundException;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +36,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DeviceRegistrationReadPlatformServiceImpl implements DeviceRegistrationReadPlatformService {
+
+    private static final String OWNED_BY_APPUSER = " cdr.client_id in (select umap.client_id from m_selfservice_user_client_mapping umap"
+            + " where umap.appuser_id = ?) ";
 
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
@@ -77,19 +81,19 @@ public class DeviceRegistrationReadPlatformServiceImpl implements DeviceRegistra
 
     @Override
     public Collection<DeviceRegistrationData> retrieveAllDeviceRegiistrations() {
-        this.context.authenticatedUser();
+        final AppUser user = this.context.authenticatedUser();
         DeviceRegistrationDataMapper drm = new DeviceRegistrationDataMapper();
-        String sql = "select " + drm.schema();
-        return this.jdbcTemplate.query(sql, drm); // NOSONAR
+        String sql = "select " + drm.schema() + " where " + OWNED_BY_APPUSER;
+        return this.jdbcTemplate.query(sql, drm, user.getId()); // NOSONAR
     }
 
     @Override
     public DeviceRegistrationData retrieveDeviceRegiistration(Long id) {
         try {
-            this.context.authenticatedUser();
+            final AppUser user = this.context.authenticatedUser();
             DeviceRegistrationDataMapper drm = new DeviceRegistrationDataMapper();
-            String sql = "select " + drm.schema() + " where cdr.id = ? ";
-            return this.jdbcTemplate.queryForObject(sql, drm, id); // NOSONAR
+            String sql = "select " + drm.schema() + " where cdr.id = ? and " + OWNED_BY_APPUSER;
+            return this.jdbcTemplate.queryForObject(sql, drm, id, user.getId()); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
             throw new DeviceRegistrationNotFoundException(id, e);
         }
@@ -98,10 +102,10 @@ public class DeviceRegistrationReadPlatformServiceImpl implements DeviceRegistra
     @Override
     public DeviceRegistrationData retrieveDeviceRegiistrationByClientId(Long clientId) {
         try {
-            this.context.authenticatedUser();
+            final AppUser user = this.context.authenticatedUser();
             DeviceRegistrationDataMapper drm = new DeviceRegistrationDataMapper();
-            String sql = "select " + drm.schema() + " where c.id = ? ";
-            return this.jdbcTemplate.queryForObject(sql, drm, clientId); // NOSONAR
+            String sql = "select " + drm.schema() + " where c.id = ? and " + OWNED_BY_APPUSER;
+            return this.jdbcTemplate.queryForObject(sql, drm, clientId, user.getId()); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
             throw new DeviceRegistrationNotFoundException(clientId, "client", e);
         }

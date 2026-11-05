@@ -27,8 +27,11 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.portfolio.self.client.service.AppuserClientMapperReadService;
 import org.apache.fineract.portfolio.self.device.domain.DeviceRegistration;
 import org.apache.fineract.portfolio.self.device.domain.DeviceRegistrationRepositoryWrapper;
+import org.apache.fineract.portfolio.self.device.exception.DeviceRegistrationNotFoundException;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.jpa.JpaSystemException;
@@ -41,19 +44,22 @@ public class DeviceRegistrationWritePlatformServiceImpl implements DeviceRegistr
     private final DeviceRegistrationRepositoryWrapper deviceRegistrationRepository;
     private final ClientRepositoryWrapper clientRepositoryWrapper;
     private final PlatformSecurityContext context;
+    private final AppuserClientMapperReadService appuserClientMapperReadService;
 
     @Autowired
     public DeviceRegistrationWritePlatformServiceImpl(final DeviceRegistrationRepositoryWrapper deviceRegistrationRepository,
-            final ClientRepositoryWrapper clientRepositoryWrapper, final PlatformSecurityContext context) {
+            final ClientRepositoryWrapper clientRepositoryWrapper, final PlatformSecurityContext context,
+            final AppuserClientMapperReadService appuserClientMapperReadService) {
         this.deviceRegistrationRepository = deviceRegistrationRepository;
         this.clientRepositoryWrapper = clientRepositoryWrapper;
         this.context = context;
+        this.appuserClientMapperReadService = appuserClientMapperReadService;
     }
 
     @Transactional
     @Override
     public DeviceRegistration registerDevice(Long clientId, String registrationId) {
-        this.context.authenticatedUser();
+        this.appuserClientMapperReadService.validateAppuserClientsMapping(clientId);
         Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
         try {
             DeviceRegistration deviceRegistration = DeviceRegistration.instance(client, registrationId);
@@ -86,9 +92,11 @@ public class DeviceRegistrationWritePlatformServiceImpl implements DeviceRegistr
                 "Unknown data integrity issue with resource: " + realCause.getMessage());
     }
 
+    @Transactional
     @Override
     public DeviceRegistration updateDeviceRegistration(Long id, Long clientId, String registrationId) {
-        DeviceRegistration deviceRegistration = this.deviceRegistrationRepository.findOneWithNotFoundDetection(id);
+        DeviceRegistration deviceRegistration = findOwnedDeviceRegistration(id);
+        this.appuserClientMapperReadService.validateAppuserClientsMapping(clientId);
         Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
         deviceRegistration.setClient(client);
         deviceRegistration.setRegistrationId(registrationId);
@@ -96,10 +104,21 @@ public class DeviceRegistrationWritePlatformServiceImpl implements DeviceRegistr
         return deviceRegistration;
     }
 
+    @Transactional
     @Override
     public void deleteDeviceRegistration(Long id) {
-        DeviceRegistration deviceRegistration = this.deviceRegistrationRepository.findOneWithNotFoundDetection(id);
+        DeviceRegistration deviceRegistration = findOwnedDeviceRegistration(id);
         this.deviceRegistrationRepository.delete(deviceRegistration);
+    }
+
+    private DeviceRegistration findOwnedDeviceRegistration(final Long id) {
+        final AppUser user = this.context.authenticatedUser();
+        final DeviceRegistration deviceRegistration = this.deviceRegistrationRepository.findOneWithNotFoundDetection(id);
+        final Long clientId = deviceRegistration.getClient() == null ? null : deviceRegistration.getClient().getId();
+        if (clientId == null || !Boolean.TRUE.equals(this.appuserClientMapperReadService.isClientMappedToUser(clientId, user.getId()))) {
+            throw new DeviceRegistrationNotFoundException(id);
+        }
+        return deviceRegistration;
     }
 
 }
