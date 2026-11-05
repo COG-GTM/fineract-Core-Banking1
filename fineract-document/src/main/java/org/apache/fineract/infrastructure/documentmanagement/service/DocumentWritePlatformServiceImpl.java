@@ -38,6 +38,7 @@ import org.apache.fineract.infrastructure.documentmanagement.data.DocumentDelete
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentUpdateRequest;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentUpdateResponse;
 import org.apache.fineract.infrastructure.documentmanagement.domain.Document;
+import org.apache.fineract.infrastructure.documentmanagement.domain.DocumentEntityType;
 import org.apache.fineract.infrastructure.documentmanagement.domain.DocumentRepository;
 import org.apache.fineract.infrastructure.documentmanagement.exception.DocumentNotFoundException;
 import org.apache.fineract.infrastructure.documentmanagement.mapping.DocumentMapper;
@@ -63,8 +64,10 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     @Transactional
     @Override
     public DocumentCreateResponse createDocument(@Valid final DocumentCreateRequest request) {
+        requireNonNull(request, "Request parameter required");
+        DocumentEntityType.validate(request.getEntityType());
+
         try {
-            requireNonNull(request, "Request parameter required");
             requireNonNull(request.getFileName(), "File name parameter required");
             requireNonNull(request.getStream(), "Document content required");
 
@@ -93,8 +96,10 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     @Transactional
     @Override
     public DocumentUpdateResponse updateDocument(@Valid final DocumentUpdateRequest request) {
+        requireNonNull(request, "Request parameter required");
+        DocumentEntityType.validate(request.getEntityType());
+
         try {
-            requireNonNull(request, "Request parameter required");
 
             String path = null;
 
@@ -146,6 +151,9 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     @Transactional
     @Override
     public DocumentDeleteResponse deleteDocument(@Valid final DocumentDeleteRequest request) {
+        requireNonNull(request, "Request parameter required");
+        DocumentEntityType.validate(request.getEntityType());
+
         try {
             final var doc = this.documentRepository.findById(request.getId())
                     .orElseThrow(() -> new DocumentNotFoundException(request.getEntityType(), request.getEntityId(), request.getId()));
