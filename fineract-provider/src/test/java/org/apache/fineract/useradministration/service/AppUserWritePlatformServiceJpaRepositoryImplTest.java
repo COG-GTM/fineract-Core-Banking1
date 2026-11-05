@@ -24,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -121,6 +120,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     @Test
     void changeUserPasswordThrowsWhenPasswordPreviouslyUsed() {
+        givenCallerInOffice(OWN_BRANCH_HIERARCHY);
         givenUserInOffice(OWN_BRANCH_HIERARCHY);
         when(user.getId()).thenReturn(USER_ID);
         when(user.getEncodedPassword(command, platformPasswordEncoder)).thenReturn("encoded");
@@ -138,9 +138,9 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     @Test
     void changeUserPasswordSavesPreviousPasswordWhenAllowed() {
-        Office office = mock(Office.class);
+        givenCallerInOffice(OWN_BRANCH_HIERARCHY);
+        Office office = givenUserInOffice(OWN_BRANCH_HIERARCHY);
         when(office.getId()).thenReturn(7L);
-        when(user.getOffice()).thenReturn(office);
         when(user.getId()).thenReturn(USER_ID);
         when(user.getPassword()).thenReturn("currentEncoded");
         when(user.getEncodedPassword(command, platformPasswordEncoder)).thenReturn("newEncoded");
@@ -183,13 +183,27 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     @Test
     void changeUserPasswordOutsideCallerHierarchyIsRejected() {
-        givenUserInOffice(OTHER_BRANCH_HIERARCHY);
-        denyAccessTo(OTHER_BRANCH_HIERARCHY);
+        givenCallerInOffice(OWN_BRANCH_HIERARCHY);
+        givenUserInOffice(HEAD_OFFICE_HIERARCHY);
 
         assertThrows(NoAuthorizationException.class, () -> underTest.changeUserPassword(USER_ID, command));
 
         verify(user, never()).changePassword(any(JsonCommand.class), any(PlatformPasswordEncoder.class));
         verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void changeOwnPasswordDoesNotRequireFullyAuthenticatedContext() {
+        givenCallerInOffice(OWN_BRANCH_HIERARCHY);
+        Office office = givenUserInOffice(OWN_BRANCH_HIERARCHY);
+        when(office.getId()).thenReturn(7L);
+        when(user.changePassword(command, platformPasswordEncoder)).thenReturn(Map.of("password", "new"));
+
+        underTest.changeUserPassword(USER_ID, command);
+
+        verify(context, never()).validateAccessRights(anyString());
+        verify(user).updatePasswordResetRequired(false);
+        verify(appUserRepository).saveAndFlush(user);
     }
 
     @Test
@@ -234,6 +248,12 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         when(office.getHierarchy()).thenReturn(hierarchy);
         when(user.getOffice()).thenReturn(office);
         return office;
+    }
+
+    private void givenCallerInOffice(final String hierarchy) {
+        Office office = mock(Office.class);
+        when(office.getHierarchy()).thenReturn(hierarchy);
+        when(authenticatedUser.getOffice()).thenReturn(office);
     }
 
     private void denyAccessTo(final String hierarchy) {
