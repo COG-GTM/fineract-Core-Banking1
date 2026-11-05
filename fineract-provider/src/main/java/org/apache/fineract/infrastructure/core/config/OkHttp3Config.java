@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -40,6 +41,7 @@ public class OkHttp3Config {
 
     private final FineractProperties fineractProperties;
 
+    @Primary
     @Bean
     public OkHttpClient okHttpClient() throws Exception {
         var okBuilder = new OkHttpClient.Builder()//

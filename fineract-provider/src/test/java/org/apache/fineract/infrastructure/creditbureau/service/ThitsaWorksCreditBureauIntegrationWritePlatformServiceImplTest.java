@@ -19,12 +19,16 @@
 package org.apache.fineract.infrastructure.creditbureau.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -42,6 +46,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import okhttp3.Call;
@@ -93,6 +98,9 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImplTest {
 
     @Mock
     private CreditBureauTokenCommandFromApiJsonDeserializer fromApiJsonDeserializer;
+
+    @Mock
+    private CreditBureauUrlValidator urlValidator;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -592,6 +600,52 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImplTest {
         assertNull(result.getCreditScore());
         assertNull(result.getOpenAccounts());
         assertNull(result.getClosedAccounts());
+    }
+
+    @Test
+    public void okHttpRejectsUrlNotAllowedByValidatorTest() throws IOException {
+        when(urlValidator.findViolation("http://169.254.169.254/latest/meta-data/")).thenReturn(Optional.of("url.scheme.not.https"));
+        mockOkHttpCall(request -> createOkhttpResponse(request, 200, "{}"));
+
+        PlatformDataIntegrityException raisedException = assertThrows(PlatformDataIntegrityException.class,
+                () -> underTest.okHttpConnectionMethod("testUser", "testPassword", "subscriptionKey", "subscriptionId",
+                        "http://169.254.169.254/latest/meta-data/", "AccessToken", null, null, 0L, "nrcId", "NRC"));
+
+        assertEquals("error.msg.creditbureau.url.scheme.not.https", raisedException.getGlobalisationMessageCode());
+        verify(okHttpClient, never()).newCall(any());
+    }
+
+    @Test
+    public void okHttpErrorDoesNotReflectResponseBodyTest() throws IOException {
+        mockOkHttpCall(request -> createOkhttpResponse(request, 500, "internal-service-secret-banner"));
+
+        PlatformDataIntegrityException raisedException = assertThrows(PlatformDataIntegrityException.class,
+                () -> underTest.okHttpConnectionMethod("testUser", "testPassword", "subscriptionKey", "subscriptionId",
+                        "https://nrc.test.url.com", "AccessToken", null, null, 0L, "nrcId", "NRC"));
+
+        assertEquals("HTTP Response Code: 500", raisedException.getGlobalisationMessageCode());
+        assertFalse(raisedException.getDefaultUserMessage().contains("internal-service-secret-banner"));
+    }
+
+    @Test
+    public void getCreditReportEncodesNrcInSearchUrlTest() throws IOException {
+        mockTokenGeneration();
+        mockOkHttpCall(request -> {
+            if (request.url().host().equals("search.report.url")) {
+                assertEquals("/api/..%2F..%2Fadmin%3Fx%3D1%23", request.url().encodedPath());
+                assertNull(request.url().query());
+                return createOkhttpResponse(request, createResponseObjectArrayData(() -> "Success", data -> data));
+            }
+            if (request.url().host().equals("token.url")) {
+                return createOkhttpResponse(request, 200, createValidToken());
+            }
+            return createOkhttpResponse(request, 404, "Not Found");
+        });
+
+        String json = mapper.writeValueAsString(mapper.createObjectNode().put("NRC", "../../admin?x=1#").put("creditBureauID", "1"));
+        JsonCommand command = JsonCommand.from(json, JsonParser.parseString(json), fromJsonHelper, null, 1L, 2L, 3L, 4L, null, null, null,
+                null, null, null, null, null, null);
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.getCreditReportFromThitsaWorks(command));
     }
 
     private interface CheckedFunction<T, R> {

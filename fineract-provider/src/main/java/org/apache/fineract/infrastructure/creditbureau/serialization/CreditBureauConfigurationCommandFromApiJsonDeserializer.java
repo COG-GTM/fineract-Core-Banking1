@@ -33,6 +33,7 @@ import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
 import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.creditbureau.service.CreditBureauUrlValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -44,10 +45,13 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
     public static final String DESCRIPTION = "description";
     private static final Set<String> SUPPORTED_PARAMETERS = new HashSet<>(Arrays.asList(CONFIGKEY, VALUE, DESCRIPTION));
     private final FromJsonHelper fromApiJsonHelper;
+    private final CreditBureauUrlValidator urlValidator;
 
     @Autowired
-    public CreditBureauConfigurationCommandFromApiJsonDeserializer(final FromJsonHelper fromApiJsonHelper) {
+    public CreditBureauConfigurationCommandFromApiJsonDeserializer(final FromJsonHelper fromApiJsonHelper,
+            final CreditBureauUrlValidator urlValidator) {
         this.fromApiJsonHelper = fromApiJsonHelper;
+        this.urlValidator = urlValidator;
     }
 
     public void validateForCreate(final String json, final Long creditBureauId) {
@@ -73,6 +77,7 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
 
         final String value = this.fromApiJsonHelper.extractStringNamed(VALUE, element);
         baseDataValidator.reset().parameter(VALUE).value(value).notBlank().notExceedingLengthOf(100);
+        validateUrlValue(baseDataValidator, configkey, value);
 
         final String description = this.fromApiJsonHelper.extractStringNamed(DESCRIPTION, element);
         baseDataValidator.reset().parameter(DESCRIPTION).value(description).notBlank().notExceedingLengthOf(100);
@@ -80,7 +85,7 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
 
-    public void validateForUpdate(final String json) {
+    public void validateForUpdate(final String json, final String existingConfigKey, final String existingValue) {
         if (StringUtils.isBlank(json)) {
             throw new InvalidJsonException();
         }
@@ -93,9 +98,16 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
 
         final JsonElement element = this.fromApiJsonHelper.parse(json);
 
+        String value = existingValue;
         if (this.fromApiJsonHelper.parameterExists(VALUE, element)) {
-            final String value = this.fromApiJsonHelper.extractStringNamed(VALUE, element);
+            value = this.fromApiJsonHelper.extractStringNamed(VALUE, element);
             baseDataValidator.reset().parameter(VALUE).value(value).notBlank().notExceedingLengthOf(100);
+        }
+
+        final boolean configKeyChanged = this.fromApiJsonHelper.parameterExists(CONFIGKEY, element);
+        if (configKeyChanged || this.fromApiJsonHelper.parameterExists(VALUE, element)) {
+            final String configkey = configKeyChanged ? this.fromApiJsonHelper.extractStringNamed(CONFIGKEY, element) : existingConfigKey;
+            validateUrlValue(baseDataValidator, configkey, value);
         }
 
         if (this.fromApiJsonHelper.parameterExists(DESCRIPTION, element)) {
@@ -104,6 +116,13 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
+    }
+
+    private void validateUrlValue(final DataValidatorBuilder baseDataValidator, final String configkey, final String value) {
+        if (CreditBureauUrlValidator.isUrlConfigurationKey(configkey) && StringUtils.isNotBlank(value)) {
+            this.urlValidator.findViolation(value)
+                    .ifPresent(violation -> baseDataValidator.reset().parameter(VALUE).value(value).failWithCode(violation));
+        }
     }
 
     private void throwExceptionIfValidationWarningsExist(final List<ApiParameterError> dataValidationErrors) {
