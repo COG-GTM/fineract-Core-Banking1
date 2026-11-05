@@ -146,6 +146,19 @@ public class LoanCOBFilterHelperTest {
     }
 
     @Test
+    public void testBatchReferenceOutsideLoanSegmentKeepsKnownLoanId() throws IOException {
+        String json = """
+                [
+                    {"requestId": 1, "relativeUrl": "clients/5", "method": "GET"},
+                    {"requestId": 2, "relativeUrl": "loans/123/transactions/$.id?command=adjust", "method": "POST",
+                     "reference": 1, "body": "{}"}
+                ]
+                """;
+        List<Long> loanIds = helper.calculateRelevantLoanIds(batchRequest(json));
+        Assertions.assertEquals(List.of(123L), loanIds);
+    }
+
+    @Test
     public void testResolvedBatchRequestOnHardLockedLoanIsRejected() {
         mockBypassUser(false);
         Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);

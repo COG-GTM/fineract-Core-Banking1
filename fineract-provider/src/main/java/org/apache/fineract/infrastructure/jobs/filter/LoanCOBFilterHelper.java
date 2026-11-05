@@ -33,8 +33,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.batch.domain.BatchRequest;
@@ -61,6 +63,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 @Conditional(LoanCOBEnabledCondition.class)
@@ -151,8 +154,9 @@ public class LoanCOBFilterHelper implements InitializingBean {
         return isRelativeUrlVersioned(relativeUrl) ? "/" + relativeUrl : "/v1/" + relativeUrl;
     }
 
-    private static boolean containsBatchReference(String value) {
-        return value.contains(BATCH_REFERENCE_PREFIX);
+    private static boolean isLoanSegmentBatchReference(String pathInfo) {
+        Matcher matcher = LOAN_PATH_PATTERN.matcher(pathInfo);
+        return matcher.matches() && matcher.group(1).contains(BATCH_REFERENCE_PREFIX);
     }
 
     private boolean isApiMatching(String method, String pathInfo) {
@@ -224,9 +228,9 @@ public class LoanCOBFilterHelper implements InitializingBean {
         for (BatchRequest batchRequest : getBatchRequests(request)) {
             // check the URL for Loan related ID
             String relativeUrl = batchRequest.getRelativeUrl();
-            if (!containsBatchReference(relativeUrl)) {
-                // references (e.g. $.resourceId, $.id) are only resolved while the batch executes; those sub-requests
-                // are checked after resolution by LoanCOBBatchRequestPreprocessor
+            if (!isLoanSegmentBatchReference(relativeUrl)) {
+                // a loan id given as a reference (e.g. loans/$.id) is only resolved while the batch executes; those
+                // sub-requests are checked after resolution by LoanCOBBatchRequestPreprocessor
                 loanIds.addAll(getLoanIdsFromApi(relativeUrl));
             }
 
@@ -272,6 +276,7 @@ public class LoanCOBFilterHelper implements InitializingBean {
             return getTopLevelLoanIdFromBatchRequest(batchRequest);
         } catch (JsonProcessingException e) {
             // malformed bodies are rejected by the command itself
+            log.debug("Could not read loanId from body of batch request {}", batchRequest.getRequestId(), e);
             return null;
         }
     }
