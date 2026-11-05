@@ -80,6 +80,16 @@ public class ClientCollateralManagementRepositoryWrapper {
                 .orElseThrow(() -> new ClientCollateralNotFoundException(collateralId));
     }
 
+    public ClientCollateralManagement getCollateralForClient(final Long clientId, final Long collateralId,
+            final String hierarchySearchString) {
+        final Client client = this.clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientId, hierarchySearchString);
+        final ClientCollateralManagement clientCollateralManagement = getCollateral(collateralId);
+        if (clientCollateralManagement.getClient() == null || !client.getId().equals(clientCollateralManagement.getClient().getId())) {
+            throw new ClientCollateralNotFoundException(collateralId);
+        }
+        return clientCollateralManagement;
+    }
+
     public ClientCollateralManagement updateClientCollateralProduct(final ClientCollateralManagement clientCollateralManagement) {
         return this.clientCollateralManagementRepository.saveAndFlush(clientCollateralManagement);
     }
