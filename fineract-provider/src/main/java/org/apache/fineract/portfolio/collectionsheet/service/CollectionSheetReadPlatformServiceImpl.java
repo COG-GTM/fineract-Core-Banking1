@@ -740,11 +740,11 @@ public class CollectionSheetReadPlatformServiceImpl implements CollectionSheetRe
             sb.append("ln.fee_charges_repaid_derived As feePaid ");
             sb.append("FROM m_loan ln ");
             sb.append("JOIN m_client cl ON cl.id = ln.client_id  ");
-            sb.append("LEFT JOIN m_office off ON off.id = cl.office_id AND off.hierarchy like :officeHierarchy ");
+            sb.append("JOIN m_office off ON off.id = cl.office_id ");
             sb.append("LEFT JOIN m_product_loan pl ON pl.id = ln.product_id ");
             sb.append("LEFT JOIN m_currency rc on rc." + sqlGenerator.escape("code") + " = ln.currency_code ");
             sb.append("JOIN m_loan_repayment_schedule ls ON ls.loan_id = ln.id AND ls.completed_derived = 0 AND ls.duedate <= :dueDate ");
-            sb.append("where ");
+            sb.append("where off.hierarchy like :officeHierarchy and ");
             if (checkForOfficeId) {
                 sb.append("off.id = :officeId and ");
             }
@@ -828,10 +828,11 @@ public class CollectionSheetReadPlatformServiceImpl implements CollectionSheetRe
                     "LEFT JOIN m_deposit_account_recurring_detail dard ON sa.id = dard.savings_account_id AND dard.is_mandatory = true AND dard.is_calendar_inherited = false ");
             sb.append(
                     "LEFT JOIN m_mandatory_savings_schedule mss ON mss.savings_account_id=sa.id AND mss.completed_derived = 0 AND mss.duedate <= :dueDate ");
-            sb.append("LEFT JOIN m_office off ON off.id = cl.office_id AND off.hierarchy like :officeHierarchy ");
+            sb.append("JOIN m_office off ON off.id = cl.office_id ");
             sb.append("LEFT JOIN m_currency rc on rc." + sqlGenerator.escape("code") + " = sa.currency_code ");
             sb.append("WHERE sa.status_enum=300 and sa.group_id is null and sa.deposit_type_enum in (100,300,400) ");
             sb.append("and (cl.status_enum = 300 or (cl.status_enum = 600 and cl.closedon_date >= :dueDate)) ");
+            sb.append("and off.hierarchy like :officeHierarchy ");
             if (checkForOfficeId) {
                 sb.append("and off.id = :officeId ");
             }
