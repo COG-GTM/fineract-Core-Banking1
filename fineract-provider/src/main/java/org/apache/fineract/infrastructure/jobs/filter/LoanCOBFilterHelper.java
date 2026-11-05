@@ -26,6 +26,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -112,14 +113,14 @@ public class LoanCOBFilterHelper implements InitializingBean {
         return LOAN_PATH_PATTERN.matcher(pathInfo).matches() && pathInfo.contains("/v1/rescheduleloans/");
     }
 
-    public boolean isOnApiList(BodyCachingHttpServletRequestWrapper request) throws IOException {
+    public boolean isOnApiList(HttpServletRequest request) throws IOException {
         String pathInfo = request.getPathInfo();
         String method = request.getMethod();
         if (StringUtils.isBlank(pathInfo)) {
             return false;
         }
         if (isBatchApi(pathInfo)) {
-            return isBatchApiMatching(request);
+            return isBatchApiMatching(CachedRequestBodySupport.cachedRequest(request));
         } else {
             return isApiMatching(method, pathInfo);
         }
@@ -156,11 +157,15 @@ public class LoanCOBFilterHelper implements InitializingBean {
     }
 
     private boolean isBatchApi(String pathInfo) {
-        return pathInfo.startsWith("/v1/batches");
+        return CachedRequestBodySupport.isBatchApi(pathInfo);
     }
 
     private boolean isGlim(String pathInfo) {
         return LOAN_GLIMACCOUNT_PATH_PATTERN.matcher(pathInfo).matches();
+    }
+
+    public long getCachedRequestBodySizeLimit() {
+        return CachedRequestBodySupport.maxBodySize(fineractProperties);
     }
 
     public boolean isBypassUser() {
@@ -205,10 +210,10 @@ public class LoanCOBFilterHelper implements InitializingBean {
         return CollectionUtils.isNotEmpty(loanIdAndLastClosedBusinessDates);
     }
 
-    public List<Long> calculateRelevantLoanIds(BodyCachingHttpServletRequestWrapper request) throws IOException {
+    public List<Long> calculateRelevantLoanIds(HttpServletRequest request) throws IOException {
         String pathInfo = request.getPathInfo();
         if (isBatchApi(pathInfo)) {
-            return getLoanIdsFromBatchApi(request);
+            return getLoanIdsFromBatchApi(CachedRequestBodySupport.cachedRequest(request));
         } else {
             return getLoanIdsFromApi(pathInfo);
         }

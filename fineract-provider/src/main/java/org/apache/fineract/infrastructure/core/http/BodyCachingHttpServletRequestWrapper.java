@@ -27,6 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -34,14 +35,41 @@ import org.apache.commons.io.IOUtils;
 
 public class BodyCachingHttpServletRequestWrapper extends HttpServletRequestWrapper {
 
+    public static final long DEFAULT_MAX_BODY_SIZE = 10L * 1024 * 1024;
+    private static final long MAX_SUPPORTED_BODY_SIZE = Integer.MAX_VALUE - 8L;
+
     private final byte[] cachedBody;
     private ByteArrayInputStream inputStream;
 
-    @SuppressFBWarnings(value = "CT_CONSTRUCTOR_THROW")
     public BodyCachingHttpServletRequestWrapper(HttpServletRequest request) throws IOException {
+        this(request, DEFAULT_MAX_BODY_SIZE);
+    }
+
+    @SuppressFBWarnings(value = "CT_CONSTRUCTOR_THROW")
+    public BodyCachingHttpServletRequestWrapper(HttpServletRequest request, long maxBodySize) throws IOException {
         super(request);
-        this.cachedBody = IOUtils.toByteArray(request.getInputStream());
+        this.cachedBody = readBody(request, Math.min(Math.max(maxBodySize, 0L), MAX_SUPPORTED_BODY_SIZE));
         this.inputStream = new ByteArrayInputStream(cachedBody);
+    }
+
+    public static BodyCachingHttpServletRequestWrapper of(HttpServletRequest request, long maxBodySize) throws IOException {
+        if (request instanceof BodyCachingHttpServletRequestWrapper cachedRequest) {
+            return cachedRequest;
+        }
+        return new BodyCachingHttpServletRequestWrapper(request, maxBodySize);
+    }
+
+    private static byte[] readBody(HttpServletRequest request, long maxBodySize) throws IOException {
+        long contentLength = request.getContentLengthLong();
+        if (contentLength > maxBodySize) {
+            throw new RequestBodyTooLargeException(maxBodySize);
+        }
+        ByteArrayOutputStream body = new ByteArrayOutputStream(contentLength > 0 ? (int) contentLength : 256);
+        IOUtils.copyLarge(request.getInputStream(), body, 0, maxBodySize + 1);
+        if (body.size() > maxBodySize) {
+            throw new RequestBodyTooLargeException(maxBodySize);
+        }
+        return body.toByteArray();
     }
 
     @Override

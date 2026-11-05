@@ -28,6 +28,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,6 +43,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collections;
@@ -71,6 +73,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -78,7 +81,12 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.unit.DataSize;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -114,6 +122,7 @@ class LoanCOBApiFilterTest {
     @AfterEach
     public void tearDown() {
         ThreadLocalContextUtil.reset();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -465,7 +474,7 @@ class LoanCOBApiFilterTest {
         final byte[] cachedBody = new byte[0];
         given(request.getInputStream())
                 .willReturn(new BodyCachingHttpServletRequestWrapper.CachedBodyServletInputStream(new ByteArrayInputStream(cachedBody)));
-        doReturn(true).when(spyHelper).isOnApiList(any(BodyCachingHttpServletRequestWrapper.class));
+        doReturn(true).when(spyHelper).isOnApiList(any(HttpServletRequest.class));
         doThrow(new UnAuthenticatedUserException()).when(spyHelper).isBypassUser();
 
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> testObj.doFilterInternal(request, response, filterChain));
@@ -483,11 +492,88 @@ class LoanCOBApiFilterTest {
         final byte[] cachedBody = new byte[0];
         given(request.getInputStream())
                 .willReturn(new BodyCachingHttpServletRequestWrapper.CachedBodyServletInputStream(new ByteArrayInputStream(cachedBody)));
-        doReturn(true).when(spyHelper).isOnApiList(any(BodyCachingHttpServletRequestWrapper.class));
+        doReturn(true).when(spyHelper).isOnApiList(any(HttpServletRequest.class));
         doReturn(true).when(spyHelper).isBypassUser();
 
         testObj.doFilterInternal(request, response, filterChain);
 
         verify(filterChain, times(1)).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+    }
+
+    @Test
+    void shouldNotReadBodyOfNonBatchRequest() throws ServletException, IOException {
+        MockHttpServletRequest request = mock(MockHttpServletRequest.class);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+        given(request.getPathInfo()).willReturn("/v1/clients");
+        given(request.getMethod()).willReturn(HTTPMethods.POST.value());
+
+        testObj.doFilterInternal(request, response, filterChain);
+
+        verify(request, never()).getInputStream();
+        verify(filterChain, times(1)).doFilter(request, response);
+    }
+
+    @Test
+    void shouldNotReadBodyOfUnauthenticatedBatchRequest() throws ServletException, IOException {
+        MockHttpServletRequest request = mock(MockHttpServletRequest.class);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+        given(request.getPathInfo()).willReturn("/v1/batches");
+        given(request.getMethod()).willReturn(HTTPMethods.POST.value());
+        SecurityContextHolder.getContext().setAuthentication(
+                new AnonymousAuthenticationToken("key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+
+        testObj.doFilterInternal(request, response, filterChain);
+
+        verify(request, never()).getInputStream();
+        verify(filterChain, times(1)).doFilter(request, response);
+    }
+
+    @Test
+    void shouldRejectAuthenticatedBatchRequestWithBodyAboveLimit() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest(HTTPMethods.POST.value(), "/api/v1/batches");
+        request.setPathInfo("/v1/batches");
+        request.setContent(new byte[64]);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+        authenticate();
+        givenCachedRequestBodySizeLimit(DataSize.ofBytes(32));
+
+        testObj.doFilterInternal(request, response, filterChain);
+
+        Assertions.assertEquals(413, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("error.msg.request.body.too.large"));
+        verifyNoInteractions(filterChain);
+    }
+
+    @Test
+    void shouldCacheAuthenticatedBatchRequestWithinLimit() throws ServletException, IOException {
+        String body = "[{\"requestId\":1,\"relativeUrl\":\"clients\",\"method\":\"POST\",\"body\":\"{}\"}]";
+        MockHttpServletRequest request = new MockHttpServletRequest(HTTPMethods.POST.value(), "/api/v1/batches");
+        request.setPathInfo("/v1/batches");
+        request.setContent(body.getBytes(StandardCharsets.UTF_8));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+        authenticate();
+        givenCachedRequestBodySizeLimit(DataSize.ofKilobytes(1));
+
+        testObj.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<HttpServletRequest> forwarded = ArgumentCaptor.forClass(HttpServletRequest.class);
+        verify(filterChain, times(1)).doFilter(forwarded.capture(), eq(response));
+        Assertions.assertInstanceOf(BodyCachingHttpServletRequestWrapper.class, forwarded.getValue());
+        Assertions.assertEquals(body, new String(forwarded.getValue().getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+    }
+
+    private void authenticate() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("mifos", null, AuthorityUtils.createAuthorityList("ALL_FUNCTIONS")));
+    }
+
+    private void givenCachedRequestBodySizeLimit(DataSize limit) {
+        FineractProperties.FineractApiProperties apiProperties = new FineractProperties.FineractApiProperties();
+        apiProperties.setCachedRequestBodySizeLimit(limit);
+        given(fineractProperties.getApi()).willReturn(apiProperties);
     }
 }

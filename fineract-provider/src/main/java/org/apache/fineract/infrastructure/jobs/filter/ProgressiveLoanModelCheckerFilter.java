@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletRequestWrapper;
+import org.apache.fineract.infrastructure.core.http.RequestBodyTooLargeException;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
 import org.apache.fineract.portfolio.loanaccount.service.ProgressiveLoanModelProcessingService;
 import org.apache.fineract.portfolio.loanproduct.calc.data.ProgressiveLoanInterestScheduleModel;
@@ -43,12 +44,23 @@ public class ProgressiveLoanModelCheckerFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        request = new BodyCachingHttpServletRequestWrapper(request);
+        if (CachedRequestBodySupport.isBatchApi(request.getPathInfo())) {
+            if (!CachedRequestBodySupport.isAuthenticated()) {
+                proceed(filterChain, request, response);
+                return;
+            }
+            try {
+                request = BodyCachingHttpServletRequestWrapper.of(request, helper.getCachedRequestBodySizeLimit());
+            } catch (RequestBodyTooLargeException e) {
+                CachedRequestBodySupport.rejectTooLarge(response, e);
+                return;
+            }
+        }
 
-        if (!helper.isOnApiList((BodyCachingHttpServletRequestWrapper) request)) {
+        if (!helper.isOnApiList(request)) {
             proceed(filterChain, request, response);
         } else {
-            List<Long> loanIds = helper.calculateRelevantLoanIds((BodyCachingHttpServletRequestWrapper) request);
+            List<Long> loanIds = helper.calculateRelevantLoanIds(request);
             if (!loanIds.isEmpty()) {
                 loanIds.forEach(loanId -> {
                     if (isProgressiveLoan(loanId) && allowedLoanStatuses(loanId) && !hasValidModel(loanId)) {

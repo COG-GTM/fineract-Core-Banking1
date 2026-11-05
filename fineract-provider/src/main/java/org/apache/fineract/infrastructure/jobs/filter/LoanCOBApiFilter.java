@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.cob.conditions.LoanCOBEnabledCondition;
 import org.apache.fineract.infrastructure.core.data.ApiGlobalErrorResponse;
 import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletRequestWrapper;
+import org.apache.fineract.infrastructure.core.http.RequestBodyTooLargeException;
 import org.apache.fineract.infrastructure.jobs.exception.LoanIdsHardLockedException;
 import org.apache.fineract.useradministration.exception.UnAuthenticatedUserException;
 import org.apache.http.HttpStatus;
@@ -64,9 +65,20 @@ public class LoanCOBApiFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        request = new BodyCachingHttpServletRequestWrapper(request);
+        if (CachedRequestBodySupport.isBatchApi(request.getPathInfo())) {
+            if (!CachedRequestBodySupport.isAuthenticated()) {
+                proceed(filterChain, request, response);
+                return;
+            }
+            try {
+                request = BodyCachingHttpServletRequestWrapper.of(request, helper.getCachedRequestBodySizeLimit());
+            } catch (RequestBodyTooLargeException e) {
+                CachedRequestBodySupport.rejectTooLarge(response, e);
+                return;
+            }
+        }
 
-        if (!helper.isOnApiList((BodyCachingHttpServletRequestWrapper) request)) {
+        if (!helper.isOnApiList(request)) {
             proceed(filterChain, request, response);
         } else {
             try {
@@ -75,7 +87,7 @@ public class LoanCOBApiFilter extends OncePerRequestFilter {
                     proceed(filterChain, request, response);
                 } else {
                     try {
-                        List<Long> loanIds = helper.calculateRelevantLoanIds((BodyCachingHttpServletRequestWrapper) request);
+                        List<Long> loanIds = helper.calculateRelevantLoanIds(request);
                         if (!loanIds.isEmpty() && helper.isLoanBehind(loanIds)) {
                             helper.executeInlineCob(loanIds);
                         }
