@@ -26,7 +26,11 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -45,12 +49,12 @@ import org.apache.fineract.accounting.journalentry.exception.JournalEntriesNotFo
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
@@ -73,11 +77,15 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
     private final JdbcTemplate jdbcTemplate;
     private final GLAccountReadPlatformService glAccountReadPlatformService;
     private final OfficeReadPlatformService officeReadPlatformService;
-    private final ColumnValidator columnValidator;
     private final FinancialActivityAccountRepositoryWrapper financialActivityAccountRepositoryWrapper;
 
     private final PaginationHelper paginationHelper;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
+
+    private static final Map<String, String> SORTABLE_COLUMNS = buildSortableColumns();
+    private static final String SORTABLE_COLUMNS_API_NAMES = "id, transactionId, transactionDate, submittedOnDate, officeId, officeName, "
+            + "glAccountId, glAccountName, glAccountCode, referenceNumber, manualEntry, entryType, amount, entityType, entityId, "
+            + "createdByUserId, createdByUserName, reversed, currencyCode";
 
     protected static class GLJournalEntryMapper implements RowMapper<JournalEntryData> {
 
@@ -358,12 +366,10 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
         }
 
         if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+            sqlBuilder.append(" order by ").append(resolveOrderByColumn(searchParameters.getOrderBy()));
 
             if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+                sqlBuilder.append(' ').append(resolveSortOrder(searchParameters.getSortOrder()));
             }
         } else {
             sqlBuilder.append(" order by journalEntry.entry_date, journalEntry.id");
@@ -380,6 +386,61 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
 
         final Object[] finalObjectArray = Arrays.copyOf(objectArray, arrayPos);
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, rm);
+    }
+
+    static String resolveOrderByColumn(final String orderBy) {
+        final String column = SORTABLE_COLUMNS.get(orderBy.trim().toLowerCase(Locale.ROOT));
+        if (column == null) {
+            throw new PlatformApiDataValidationException("validation.msg.journalentry.orderBy.not.supported",
+                    "The parameter `orderBy` must be one of the supported sort columns: " + SORTABLE_COLUMNS_API_NAMES, "orderBy",
+                    orderBy);
+        }
+        return column;
+    }
+
+    static String resolveSortOrder(final String sortOrder) {
+        final String normalized = sortOrder.trim();
+        if ("ASC".equalsIgnoreCase(normalized)) {
+            return "ASC";
+        }
+        if ("DESC".equalsIgnoreCase(normalized)) {
+            return "DESC";
+        }
+        throw new PlatformApiDataValidationException("validation.msg.journalentry.sortOrder.not.supported",
+                "The parameter `sortOrder` must be either ASC or DESC", "sortOrder", sortOrder);
+    }
+
+    private static Map<String, String> buildSortableColumns() {
+        final Map<String, String> apiColumns = new LinkedHashMap<>();
+        apiColumns.put("id", "journalEntry.id");
+        apiColumns.put("transactionId", "journalEntry.transaction_id");
+        apiColumns.put("transactionDate", "journalEntry.entry_date");
+        apiColumns.put("submittedOnDate", "journalEntry.submitted_on_date");
+        apiColumns.put("officeId", "journalEntry.office_id");
+        apiColumns.put("officeName", "office.name");
+        apiColumns.put("glAccountId", "glAccount.id");
+        apiColumns.put("glAccountName", "glAccount.name");
+        apiColumns.put("glAccountCode", "glAccount.gl_code");
+        apiColumns.put("referenceNumber", "journalEntry.ref_num");
+        apiColumns.put("manualEntry", "journalEntry.manual_entry");
+        apiColumns.put("entryType", "journalEntry.type_enum");
+        apiColumns.put("amount", "journalEntry.amount");
+        apiColumns.put("entityType", "journalEntry.entity_type_enum");
+        apiColumns.put("entityId", "journalEntry.entity_id");
+        apiColumns.put("createdByUserId", "creatingUser.id");
+        apiColumns.put("createdByUserName", "creatingUser.username");
+        apiColumns.put("reversed", "journalEntry.reversed");
+        apiColumns.put("currencyCode", "journalEntry.currency_code");
+
+        final Map<String, String> columns = new HashMap<>();
+        apiColumns.forEach((apiName, column) -> {
+            columns.put(apiName.toLowerCase(Locale.ROOT), column);
+            columns.put(column.toLowerCase(Locale.ROOT), column);
+        });
+        columns.put("entry_date", "journalEntry.entry_date");
+        columns.put("transaction_id", "journalEntry.transaction_id");
+        columns.put("submitted_on_date", "journalEntry.submitted_on_date");
+        return Map.copyOf(columns);
     }
 
     protected GLJournalEntryMapper getGlJournalEntryMapper(JournalEntryAssociationParametersData associationParametersData) {
