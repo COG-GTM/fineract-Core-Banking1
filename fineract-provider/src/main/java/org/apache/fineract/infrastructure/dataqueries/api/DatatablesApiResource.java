@@ -49,13 +49,11 @@ import org.apache.fineract.commands.service.CommandWrapperBuilder;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.api.ApiParameterHelper;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
-import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.PagedLocalRequest;
 import org.apache.fineract.infrastructure.dataqueries.data.DatatableData;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.service.DatatableReadService;
-import org.apache.fineract.infrastructure.dataqueries.service.DatatableWriteService;
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.search.data.AdvancedQueryData;
@@ -73,7 +71,6 @@ public class DatatablesApiResource {
     private final PlatformSecurityContext context;
     private final GenericDataService genericDataService;
     private final DatatableReadService datatableReadService;
-    private final DatatableWriteService datatableWriteService;
     private final ToApiJsonSerializer<GenericResultsetData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
 
@@ -179,8 +176,9 @@ public class DatatablesApiResource {
     @Operation(summary = "Deregister Data Table", description = "Deregisters a data table. It will no longer be available through the API.")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = DatatablesApiResourceSwagger.PutDataTablesResponse.class)))
     public String deregisterDatatable(@PathParam("datatable") @Parameter(description = "datatable") final String datatable) {
-        this.datatableWriteService.deregisterDatatable(datatable);
-        final CommandProcessingResult result = new CommandProcessingResultBuilder().withResourceIdAsString(datatable).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().deregisterDBDatatable(datatable).build();
+
+        final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         return this.toApiJsonSerializer.serialize(result);
     }
 
