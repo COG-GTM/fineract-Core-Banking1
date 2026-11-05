@@ -59,6 +59,7 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     private final ContentStoreService storeService;
     private final BusinessEventNotifierService businessEventNotifierService;
     private final FineractProperties properties;
+    private final DocumentParentEntityAccessValidator parentEntityAccessValidator;
 
     @Transactional
     @Override
@@ -67,6 +68,8 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
             requireNonNull(request, "Request parameter required");
             requireNonNull(request.getFileName(), "File name parameter required");
             requireNonNull(request.getStream(), "Document content required");
+
+            parentEntityAccessValidator.validate(request.getEntityType(), request.getEntityId());
 
             // TODO: make "prefix" configurable
             var path = getPath(STORE_PREFIX, request.getEntityType(), request.getEntityId(), request.getFileName(),
@@ -96,6 +99,8 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
         try {
             requireNonNull(request, "Request parameter required");
 
+            final var doc = findDocument(request.getEntityType(), request.getEntityId(), request.getId());
+
             String path = null;
 
             if (StringUtils.isNotEmpty(request.getFileName())) {
@@ -103,9 +108,6 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
                 path = getPath(STORE_PREFIX, request.getEntityType(), request.getEntityId(), request.getFileName(),
                         storeService.getDelimiter());
             }
-
-            final var doc = this.documentRepository.findById(request.getId())
-                    .orElseThrow(() -> new DocumentNotFoundException(request.getEntityType(), request.getEntityId(), request.getId()));
 
             doc.setStorageType(storeService.getType().getValue());
 
@@ -147,8 +149,9 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     @Override
     public DocumentDeleteResponse deleteDocument(@Valid final DocumentDeleteRequest request) {
         try {
-            final var doc = this.documentRepository.findById(request.getId())
-                    .orElseThrow(() -> new DocumentNotFoundException(request.getEntityType(), request.getEntityId(), request.getId()));
+            requireNonNull(request, "Request parameter required");
+
+            final var doc = findDocument(request.getEntityType(), request.getEntityId(), request.getId());
 
             storeService.delete(doc.getLocation());
 
@@ -161,6 +164,13 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
             throw ErrorHandler.getMappable(e, "error.msg.document.unknown.data.integrity.issue",
                     "Unknown data integrity issue with resource.");
         }
+    }
+
+    private Document findDocument(final String entityType, final Long entityId, final Long documentId) {
+        parentEntityAccessValidator.validate(entityType, entityId);
+
+        return documentRepository.findByIdAndParentEntityTypeAndParentEntityId(documentId, entityType, entityId)
+                .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, documentId));
     }
 
     private String getPath(final String prefix, final String entityType, final Long entityId, final String fileName, String delimiter) {

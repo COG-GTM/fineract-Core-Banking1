@@ -24,6 +24,7 @@ import static org.apache.fineract.infrastructure.documentmanagement.api.Document
 import static org.apache.fineract.infrastructure.documentmanagement.api.DocumentApiConstants.DOCUMENT_API_PARAM_ENTITY_TYPE;
 import static org.apache.fineract.infrastructure.documentmanagement.api.DocumentApiConstants.DOCUMENT_API_PARAM_FILE;
 import static org.apache.fineract.infrastructure.documentmanagement.api.DocumentApiConstants.DOCUMENT_API_PARAM_NAME;
+import static org.apache.fineract.infrastructure.documentmanagement.service.DocumentParentEntityAccessValidator.requireOfficeScopedEntityType;
 import static org.apache.fineract.util.StreamResponseUtil.DISPOSITION_TYPE_ATTACHMENT;
 import static org.springframework.http.HttpHeaders.CONTENT_LENGTH;
 import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
@@ -103,6 +104,7 @@ public class DocumentApiResource {
             """)
     public List<DocumentData> retrieveAllDocuments(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         return documentReadPlatformService.retrieveAllDocuments(entityType, entityId);
     }
@@ -121,6 +123,7 @@ public class DocumentApiResource {
     public DocumentData getDocument(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         return documentReadPlatformService.retrieveDocument(entityType, entityId, documentId);
     }
@@ -141,6 +144,7 @@ public class DocumentApiResource {
     public Response downloadFile(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         final var content = documentReadPlatformService.retrieveDocumentContent(entityType, entityId, documentId);
 
@@ -174,6 +178,7 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataBodyPart filePart,
             @FormDataParam(DOCUMENT_API_PARAM_NAME) final String name,
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         fileUploadValidator.validate(fileSize, is, fileDetails, filePart);
 
@@ -214,6 +219,7 @@ public class DocumentApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataBodyPart filePart,
             @FormDataParam(DOCUMENT_API_PARAM_NAME) final String name,
             @FormDataParam(DOCUMENT_API_PARAM_DESCRIPTION) final String description) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         final var command = new DocumentUpdateCommand();
 
@@ -241,6 +247,7 @@ public class DocumentApiResource {
     public DocumentDeleteResponse deleteDocument(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId,
             @PathParam(DOCUMENT_API_PARAM_DOCUMENT_ID) final Long documentId) {
+        requireOfficeScopedEntityType(entityType, entityId);
 
         final var command = new DocumentDeleteCommand();
 
