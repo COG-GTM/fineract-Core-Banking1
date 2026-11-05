@@ -31,9 +31,6 @@ import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyManagementException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -136,31 +133,29 @@ public class TemplateMergeService {
             }
         }
 
-        String authToken = ThreadLocalContextUtil.getAuthToken();
-        if (authToken == null) {
-            final String name = SecurityContextHolder.getContext().getAuthentication().getName();
-            final String password = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
-
-            Authenticator.setDefault(new Authenticator() {
-
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(name, password.toCharArray());
-                }
-            });
-        }
+        final String authToken = ThreadLocalContextUtil.getAuthToken();
 
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) new URL(url).openConnection();
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Basic " + authToken);// NOSONAR
+            } else {
+                final String name = SecurityContextHolder.getContext().getAuthentication().getName();
+                final String password = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
+
+                connection.setAuthenticator(new Authenticator() {
+
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(name, password.toCharArray());
+                    }
+                });
             }
-            TrustModifier.relaxHostChecking(connection);
 
             connection.setDoInput(true);
 
-        } catch (IOException | KeyManagementException | NoSuchAlgorithmException | KeyStoreException e) {
+        } catch (IOException e) {
             log.error("getConnection() failed, return null", e);
         }
 
