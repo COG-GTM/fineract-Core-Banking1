@@ -129,9 +129,6 @@ public class ExecuteStandingInstructionsTasklet implements Tasklet {
     private boolean transferAmount(final List<Throwable> errors, final AccountTransferDTO accountTransferDTO, final Long instructionId) {
         boolean transferCompleted = true;
         StringBuilder errorLog = new StringBuilder();
-        StringBuilder updateQuery = new StringBuilder(
-                "INSERT INTO m_account_transfer_standing_instructions_history (standing_instruction_id, " + sqlGenerator.escape("status")
-                        + ", amount,execution_time, error_log) VALUES (");
         try {
             accountTransfersWritePlatformService.transferFunds(accountTransferDTO);
         } catch (final PlatformApiDataValidationException e) {
@@ -152,17 +149,17 @@ public class ExecuteStandingInstructionsTasklet implements Tasklet {
             errorLog.append("Exception while trasfering funds ").append(e.getMessage());
 
         }
-        updateQuery.append(instructionId).append(",");
+        final String status;
         if (errorLog.length() > 0) {
             transferCompleted = false;
-            updateQuery.append("'failed'").append(",");
+            status = "failed";
         } else {
-            updateQuery.append("'success'").append(",");
+            status = "success";
         }
-        updateQuery.append(accountTransferDTO.getTransactionAmount().doubleValue());
-        updateQuery.append(", now(),");
-        updateQuery.append("'").append(errorLog).append("')");
-        jdbcTemplate.update(updateQuery.toString());
+        final String insertQuery = "INSERT INTO m_account_transfer_standing_instructions_history (standing_instruction_id, "
+                + sqlGenerator.escape("status") + ", amount, execution_time, error_log) VALUES (?, ?, ?, now(), ?)";
+        jdbcTemplate.update(insertQuery, instructionId, status, accountTransferDTO.getTransactionAmount().doubleValue(),
+                errorLog.toString());
         return transferCompleted;
     }
 
