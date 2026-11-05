@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,8 +63,8 @@ class ReadReportingServiceImplPdfTest {
     };
 
     @Test
-    void retrieveReportPdfReturnsPdfBytesForReportNamesWithSpaces() throws Exception {
-        byte[] pdf = service.retrieveReportPDF(REPORT_NAME, "report", Map.of("${officeId}", "office1"), false);
+    void retrieveReportPdfRendersReportNamesWithSpaces() throws Exception {
+        byte[] pdf = render("office1");
 
         assertTrue(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1).startsWith("%PDF-"));
         assertTrue(pageText(pdf).contains("office1-client-0"));
@@ -95,7 +96,13 @@ class ReadReportingServiceImplPdfTest {
     }
 
     private Callable<byte[]> export(String office) {
-        return () -> service.retrieveReportPDF(REPORT_NAME, "report", Map.of("${officeId}", office), false);
+        return () -> render(office);
+    }
+
+    private byte[] render(String office) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        service.retrieveReportPDF(REPORT_NAME, "report", Map.of("${officeId}", office), false).write(out);
+        return out.toByteArray();
     }
 
     private static String pageText(byte[] pdf) throws Exception {

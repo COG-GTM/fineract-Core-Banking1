@@ -18,9 +18,9 @@
  */
 package org.apache.fineract.infrastructure.dataqueries.service.export;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import jakarta.ws.rs.core.Response;
-import java.nio.charset.StandardCharsets;
+import jakarta.ws.rs.core.StreamingOutput;
 import java.util.Map;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -51,8 +51,8 @@ class PdfDatatableReportExportServiceTest {
     }
 
     @Test
-    void exportReturnsPdfBytesAndFileNameWithoutServerPath() {
-        byte[] pdf = "%PDF-1.4 report".getBytes(StandardCharsets.ISO_8859_1);
+    void exportReturnsPdfStreamAndFileNameWithoutServerPath() {
+        StreamingOutput pdf = out -> {};
         ReadReportingService readReportingService = mock(ReadReportingService.class);
         when(readReportingService.retrieveReportPDF(eq("Client Listing"), eq("report"), anyMap(), eq(false))).thenReturn(pdf);
 
@@ -61,12 +61,25 @@ class PdfDatatableReportExportServiceTest {
 
         assertEquals(Response.Status.OK, response.status());
         assertEquals("application/pdf", response.contentType());
-        assertArrayEquals(pdf, (byte[]) response.entity());
+        assertSame(pdf, response.entity());
         assertEquals(1, response.headers().size());
         assertEquals("Content-Disposition", response.headers().get(0).getKey());
         String disposition = response.headers().get(0).getValue();
         assertTrue(disposition.matches("attachment; filename=\"Client_Listing\\(\\)_\\d{14}\\.pdf\""), disposition);
         assertFalse(disposition.contains("/"));
         assertFalse(disposition.contains("\\"));
+    }
+
+    @Test
+    void exportFileNameStripsHeaderControlCharactersFromParameters() {
+        ReadReportingService readReportingService = mock(ReadReportingService.class);
+        when(readReportingService.retrieveReportPDF(eq("Client Listing"), eq("report"), anyMap(), eq(false))).thenReturn(out -> {});
+
+        ResponseHolder response = new PdfDatatableReportExportService(readReportingService).export("Client Listing",
+                new MultivaluedStringMap(), Map.of("${officeId}", "1\"\r\nSet-Cookie: x=y"), false, "report");
+
+        String disposition = response.headers().get(0).getValue();
+        assertTrue(disposition.matches("attachment; filename=\"Client_Listing\\(officeId_1___Set-Cookie__x_y\\)_\\d{14}\\.pdf\""),
+                disposition);
     }
 }

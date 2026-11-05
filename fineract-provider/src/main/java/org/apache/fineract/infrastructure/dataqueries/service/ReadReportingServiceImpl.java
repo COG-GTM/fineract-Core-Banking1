@@ -39,7 +39,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.data.ReportData;
 import org.apache.fineract.infrastructure.dataqueries.data.ReportParameterData;
@@ -222,55 +221,64 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     }
 
     @Override
-    public byte[] retrieveReportPDF(final String reportName, final String type, final Map<String, String> queryParams,
+    public StreamingOutput retrieveReportPDF(final String reportName, final String type, final Map<String, String> queryParams,
             final boolean isSelfServiceUserReport) {
+        final GenericResultsetData result;
         try {
-            final GenericResultsetData result = retrieveGenericResultset(reportName, type, queryParams, isSelfServiceUserReport);
-
-            final List<ResultsetColumnHeaderData> columnHeaders = result.getColumnHeaders();
-            final List<ResultsetRowData> data = result.getData();
-            List<Object> row;
-
-            log.debug("NO. of Columns: {}", columnHeaders.size());
-            final Integer chSize = columnHeaders.size();
-
-            final Document document = new Document(PageSize.B0.rotate());
-            final ByteArrayOutputStream pdfBuffer = new ByteArrayOutputStream();
-            PdfWriter.getInstance(document, pdfBuffer);
-            document.open();
-
-            final PdfPTable table = new PdfPTable(chSize);
-            table.setWidthPercentage(100);
-
-            for (int i = 0; i < chSize; i++) {
-
-                table.addCell(columnHeaders.get(i).getColumnName());
-
-            }
-            table.completeRow();
-
-            Integer rSize;
-            JdbcJavaType currColType;
-            String currVal;
-            log.debug("NO. of Rows: {}", data.size());
-            for (ResultsetRowData element : data) {
-                row = element.getRow();
-                rSize = row.size();
-                for (int j = 0; j < rSize; j++) {
-                    currVal = (String) row.get(j);
-                    if (currVal != null) {
-                        table.addCell(currVal);
-                    }
-                }
-            }
-            table.completeRow();
-            document.add(table);
-            document.close();
-            return pdfBuffer.toByteArray();
+            result = retrieveGenericResultset(reportName, type, queryParams, isSelfServiceUserReport);
         } catch (final Exception e) {
             log.error("error.msg.reporting.error:", e);
             throw ErrorHandler.getMappable(e);
         }
+        return out -> {
+            try {
+                generatePdf(result, out);
+            } catch (final Exception e) {
+                log.error("error.msg.reporting.error:", e);
+                throw ErrorHandler.getMappable(e);
+            }
+        };
+    }
+
+    private void generatePdf(final GenericResultsetData result, final OutputStream out) {
+        final List<ResultsetColumnHeaderData> columnHeaders = result.getColumnHeaders();
+        final List<ResultsetRowData> data = result.getData();
+        List<Object> row;
+
+        log.debug("NO. of Columns: {}", columnHeaders.size());
+        final Integer chSize = columnHeaders.size();
+
+        final Document document = new Document(PageSize.B0.rotate());
+        final PdfWriter writer = PdfWriter.getInstance(document, out);
+        writer.setCloseStream(false);
+        document.open();
+
+        final PdfPTable table = new PdfPTable(chSize);
+        table.setWidthPercentage(100);
+
+        for (int i = 0; i < chSize; i++) {
+
+            table.addCell(columnHeaders.get(i).getColumnName());
+
+        }
+        table.completeRow();
+
+        Integer rSize;
+        String currVal;
+        log.debug("NO. of Rows: {}", data.size());
+        for (ResultsetRowData element : data) {
+            row = element.getRow();
+            rSize = row.size();
+            for (int j = 0; j < rSize; j++) {
+                currVal = (String) row.get(j);
+                if (currVal != null) {
+                    table.addCell(currVal);
+                }
+            }
+        }
+        table.completeRow();
+        document.add(table);
+        document.close();
     }
 
     @Override
