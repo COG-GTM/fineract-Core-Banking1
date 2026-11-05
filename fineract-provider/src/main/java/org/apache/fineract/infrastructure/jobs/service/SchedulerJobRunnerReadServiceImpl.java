@@ -22,8 +22,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.api.IdTypeResolver;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
@@ -33,7 +36,6 @@ import org.apache.fineract.infrastructure.jobs.data.JobDetailHistoryData;
 import org.apache.fineract.infrastructure.jobs.domain.ScheduledJobDetailRepository;
 import org.apache.fineract.infrastructure.jobs.exception.JobNotFoundException;
 import org.apache.fineract.infrastructure.jobs.exception.OperationNotAllowedException;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -46,19 +48,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SchedulerJobRunnerReadServiceImpl implements SchedulerJobRunnerReadService {
 
+    private static final Map<String, String> SORTABLE_HISTORY_COLUMNS = Map.ofEntries(Map.entry("version", "version"),
+            Map.entry("start_time", "start_time"), Map.entry("runstarttime", "start_time"), Map.entry("jobrunstarttime", "start_time"),
+            Map.entry("end_time", "end_time"), Map.entry("runendtime", "end_time"), Map.entry("jobrunendtime", "end_time"),
+            Map.entry("status", "status"), Map.entry("trigger_type", "trigger_type"), Map.entry("triggertype", "trigger_type"));
+
     private final JdbcTemplate jdbcTemplate;
-    private final ColumnValidator columnValidator;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final ScheduledJobDetailRepository jobDetailRepository;
 
     private final PaginationHelper paginationHelper;
 
     @Autowired
-    public SchedulerJobRunnerReadServiceImpl(final JdbcTemplate jdbcTemplate, final ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, ScheduledJobDetailRepository jobDetailRepository,
-            PaginationHelper paginationHelper) {
+    public SchedulerJobRunnerReadServiceImpl(final JdbcTemplate jdbcTemplate, DatabaseSpecificSQLGenerator sqlGenerator,
+            ScheduledJobDetailRepository jobDetailRepository, PaginationHelper paginationHelper) {
         this.jdbcTemplate = jdbcTemplate;
-        this.columnValidator = columnValidator;
         this.sqlGenerator = sqlGenerator;
         this.jobDetailRepository = jobDetailRepository;
         this.paginationHelper = paginationHelper;
@@ -106,11 +110,9 @@ public class SchedulerJobRunnerReadServiceImpl implements SchedulerJobRunnerRead
         }
         sqlBuilder.append(" = ?");
         if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+            sqlBuilder.append(" order by runHistory.").append(resolveHistoryOrderBy(searchParameters.getOrderBy()));
             if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                sqlBuilder.append(' ').append(resolveSortOrder(searchParameters.getSortOrder()));
             }
         }
 
@@ -147,6 +149,24 @@ public class SchedulerJobRunnerReadServiceImpl implements SchedulerJobRunnerRead
             throw new OperationNotAllowedException(jobNames);
         }
         return true;
+    }
+
+    private String resolveHistoryOrderBy(String orderBy) {
+        final String column = SORTABLE_HISTORY_COLUMNS.get(orderBy.trim().toLowerCase(Locale.ROOT));
+        if (column == null) {
+            throw new PlatformApiDataValidationException("validation.msg.jobs.runhistory.orderBy.invalid",
+                    "orderBy must be one of: version, start_time, end_time, status, trigger_type", "orderBy", orderBy);
+        }
+        return "status".equals(column) ? sqlGenerator.escape(column) : column;
+    }
+
+    private static String resolveSortOrder(String sortOrder) {
+        final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
+        if (!"ASC".equals(normalized) && !"DESC".equals(normalized)) {
+            throw new PlatformApiDataValidationException("validation.msg.jobs.runhistory.sortOrder.invalid", "sortOrder must be ASC or DESC",
+                    "sortOrder", sortOrder);
+        }
+        return normalized;
     }
 
     private boolean isJobExist(@NonNull IdTypeResolver.IdType idType, @NonNull String jobId) {
