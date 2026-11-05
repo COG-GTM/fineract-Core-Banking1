@@ -28,13 +28,13 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.service.Page;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.PlatformUserRightsContext;
 import org.apache.fineract.investor.data.ExternalTransferLoanProductAttributesData;
 import org.apache.fineract.investor.service.ExternalAssetOwnerLoanProductAttributesReadService;
 import org.apache.fineract.portfolio.loanproduct.exception.LoanProductNotFoundException;
 import org.apache.fineract.useradministration.domain.AppUser;
-import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,7 +72,7 @@ public class ExternalAssetOwnerLoanProductAttributesApiResourceTest {
 
     @Test
     public void getAttributesRequiresReadPermission() {
-        doThrow(new NoAuthorizationException("User has no authority to READ " + RESOURCE.toLowerCase() + "s")).when(user)
+        doThrow(new NoAuthorizationException("User has no authority to READ " + RESOURCE)).when(user)
                 .validateHasReadPermission(RESOURCE);
 
         assertThrows(NoAuthorizationException.class, () -> underTest.getExternalAssetOwnerLoanProductAttributes(null, 999L, null));
