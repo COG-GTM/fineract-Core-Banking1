@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.portfolio.savings.jobs.generateadhocclientschhedule;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -39,6 +40,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +54,10 @@ class GenerateAdhocClientScheduleTaskletTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SqlValidator sqlValidator;
+    @Mock
+    private StepContribution contribution;
+    @Mock
+    private ChunkContext chunkContext;
     @InjectMocks
     private GenerateAdhocClientScheduleTasklet tasklet;
 
@@ -74,7 +82,7 @@ class GenerateAdhocClientScheduleTaskletTest {
         when(adHocReadPlatformService.retrieveAllActiveAdHocQuery())
                 .thenReturn(List.of(adhoc("m_adhoc_client", "client_id", "select id from m_client")));
 
-        tasklet.execute(null, null);
+        assertEquals(RepeatStatus.FINISHED, tasklet.execute(contribution, chunkContext));
 
         verify(jdbcTemplate).update("INSERT INTO m_adhoc_client(client_id) select id from m_client");
     }
@@ -85,7 +93,7 @@ class GenerateAdhocClientScheduleTaskletTest {
                 .thenReturn(List.of(adhoc("m_appuser (username) select 'x'; delete from m_client; insert into m_adhoc_client", "client_id",
                         "select id from m_client")));
 
-        tasklet.execute(null, null);
+        assertEquals(RepeatStatus.FINISHED, tasklet.execute(contribution, chunkContext));
 
         verify(jdbcTemplate, never()).update(anyString());
     }
@@ -95,7 +103,7 @@ class GenerateAdhocClientScheduleTaskletTest {
         when(adHocReadPlatformService.retrieveAllActiveAdHocQuery())
                 .thenReturn(List.of(adhoc("m_adhoc_client", "client_id) select 1; drop table m_client; --", "select id from m_client")));
 
-        tasklet.execute(null, null);
+        assertEquals(RepeatStatus.FINISHED, tasklet.execute(contribution, chunkContext));
 
         verify(jdbcTemplate, never()).update(anyString());
     }
@@ -106,7 +114,7 @@ class GenerateAdhocClientScheduleTaskletTest {
         when(adHocReadPlatformService.retrieveAllActiveAdHocQuery()).thenReturn(List.of(adhoc("m_adhoc_client", "client_id", query)));
         doThrow(new SqlValidationException("stacked")).when(sqlValidator).validate("adhoc", query);
 
-        tasklet.execute(null, null);
+        assertEquals(RepeatStatus.FINISHED, tasklet.execute(contribution, chunkContext));
 
         verify(jdbcTemplate, never()).update(anyString());
     }
