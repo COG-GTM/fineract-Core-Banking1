@@ -40,6 +40,7 @@ import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
 import org.apache.fineract.portfolio.client.exception.ClientNotFoundException;
 import org.apache.fineract.portfolio.self.registration.domain.SelfServiceRegistration;
 import org.apache.fineract.portfolio.self.registration.domain.SelfServiceRegistrationRepository;
+import org.apache.fineract.portfolio.self.registration.exception.SelfServiceRegistrationNotFoundException;
 import org.apache.fineract.useradministration.domain.PasswordValidationPolicy;
 import org.apache.fineract.useradministration.domain.PasswordValidationPolicyRepository;
 import org.apache.fineract.useradministration.domain.RoleRepository;
@@ -150,10 +151,24 @@ class SelfServiceRegistrationWritePlatformServiceImplTest {
     void createUserRejectedWhenClientAlreadyHasSelfServiceUser() {
         SelfServiceRegistration registration = mock(SelfServiceRegistration.class);
         when(registration.getClient()).thenReturn(client);
+        when(registration.getEmail()).thenReturn(STORED_EMAIL);
         when(selfServiceRegistrationRepository.getRequestByIdAndAuthenticationToken(5L, "1234")).thenReturn(registration);
         when(selfServiceRegistrationReadPlatformService.isClientMappedToSelfServiceUser(1L)).thenReturn(true);
 
         assertThrows(PlatformDataIntegrityException.class,
+                () -> service.createUser("{\"requestId\":5,\"authenticationToken\":\"1234\"}"));
+
+        verify(userDomainService, never()).create(any(), any());
+    }
+
+    @Test
+    void createUserRejectsPendingRequestWithEmailNotStoredOnClient() {
+        SelfServiceRegistration registration = mock(SelfServiceRegistration.class);
+        when(registration.getClient()).thenReturn(client);
+        when(registration.getEmail()).thenReturn("mallory@example.com");
+        when(selfServiceRegistrationRepository.getRequestByIdAndAuthenticationToken(5L, "1234")).thenReturn(registration);
+
+        assertThrows(SelfServiceRegistrationNotFoundException.class,
                 () -> service.createUser("{\"requestId\":5,\"authenticationToken\":\"1234\"}"));
 
         verify(userDomainService, never()).create(any(), any());

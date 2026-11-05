@@ -25,4 +25,6 @@ public interface SelfServiceRegistrationReadPlatformService {
 
     boolean isClientMappedToSelfServiceUser(Long clientId);
 
+    void lockClient(Long clientId);
+
 }

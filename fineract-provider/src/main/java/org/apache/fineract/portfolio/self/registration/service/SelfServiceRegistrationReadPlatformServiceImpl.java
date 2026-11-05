@@ -49,4 +49,9 @@ public class SelfServiceRegistrationReadPlatformServiceImpl implements SelfServi
         return count != null && count != 0;
     }
 
+    @Override
+    public void lockClient(Long clientId) {
+        this.jdbcTemplate.queryForList("select id from m_client where id = ? for update", Long.class, clientId);
+    }
+
 }

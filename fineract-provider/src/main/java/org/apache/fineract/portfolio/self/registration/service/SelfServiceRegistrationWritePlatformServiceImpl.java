@@ -71,6 +71,7 @@ import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServiceRegistrationWritePlatformService {
@@ -177,6 +178,21 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         }
     }
 
+    private void validateRegistrationContactMatchesClient(SelfServiceRegistration selfServiceRegistration, Client client, Long id,
+            String authenticationToken) {
+        final String mobileNumber = selfServiceRegistration.getMobileNumber();
+        final String email = selfServiceRegistration.getEmail();
+        final boolean matches;
+        if (mobileNumber != null) {
+            matches = mobileNumber.equals(client.getMobileNo());
+        } else {
+            matches = email != null && email.equalsIgnoreCase(client.getEmailAddress());
+        }
+        if (!matches) {
+            throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
+        }
+    }
+
     public void sendAuthorizationToken(SelfServiceRegistration selfServiceRegistration, Boolean isEmailAuthenticationMode) {
         if (isEmailAuthenticationMode) {
             sendAuthorizationMail(selfServiceRegistration);
@@ -235,6 +251,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     @Override
+    @Transactional
     public AppUser createUser(String apiRequestBodyAsJson) {
         JsonCommand command = null;
         String username = null;
@@ -266,6 +283,8 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             }
             username = selfServiceRegistration.getUsername();
             Client client = selfServiceRegistration.getClient();
+            validateRegistrationContactMatchesClient(selfServiceRegistration, client, id, authenticationToken);
+            this.selfServiceRegistrationReadPlatformService.lockClient(client.getId());
             validateClientHasNoSelfServiceUser(client);
             final boolean passwordNeverExpire = true;
             final boolean isSelfServiceUser = true;
