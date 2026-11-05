@@ -22,11 +22,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
+import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.cob.loan.RetrieveLoanIdService;
 import org.apache.fineract.cob.service.InlineLoanCOBExecutorServiceImpl;
 import org.apache.fineract.cob.service.LoanAccountLockService;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletRequestWrapper;
+import org.apache.fineract.infrastructure.jobs.exception.LoanIdsHardLockedException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.loanaccount.domain.GLIMAccountInfoRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
@@ -123,6 +125,55 @@ public class LoanCOBFilterHelperTest {
         Mockito.when(httpServletRequest.getInputStream()).thenReturn(inputStream);
         List<Long> loanIds = helper.calculateRelevantLoanIds(httpServletRequest);
         Assertions.assertEquals(0, loanIds.size());
+    }
+
+    private static BatchRequest batchRequest(String method, String relativeUrl, String body) {
+        BatchRequest batchRequest = new BatchRequest();
+        batchRequest.setRequestId(2L);
+        batchRequest.setMethod(method);
+        batchRequest.setRelativeUrl(relativeUrl);
+        batchRequest.setBody(body);
+        return batchRequest;
+    }
+
+    @Test
+    public void testResolvedBatchSubRequestIsOnApiList() {
+        Assertions.assertTrue(helper.isOnApiList(batchRequest("POST", "loans/123/transactions?command=repayment", null)));
+        Assertions.assertTrue(helper.isOnApiList(batchRequest("POST", "v1/loans/123/transactions?command=repayment", null)));
+        Assertions.assertTrue(helper.isOnApiList(batchRequest("PUT", "/v1/loans/123", null)));
+        Assertions.assertFalse(helper.isOnApiList(batchRequest("GET", "v1/loans/123", null)));
+        Assertions.assertFalse(helper.isOnApiList(batchRequest("POST", "v1/loans/catch-up", null)));
+        Assertions.assertFalse(helper.isOnApiList(batchRequest("POST", "v1/clients", null)));
+    }
+
+    @Test
+    public void testResolvedBatchSubRequestOnHardLockedLoanIsRejected() {
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(false);
+
+        LoanIdsHardLockedException ex = Assertions.assertThrows(LoanIdsHardLockedException.class,
+                () -> helper.calculateRelevantLoanIds(batchRequest("POST", "v1/loans/123/transactions?command=repayment", "{}")));
+
+        Assertions.assertEquals(123L, ex.getLoanIdFromRequest());
+    }
+
+    @Test
+    public void testResolvedBatchSubRequestBodyLoanIdOnHardLockedLoanIsRejected() {
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(false);
+
+        Assertions.assertThrows(LoanIdsHardLockedException.class,
+                () -> helper.calculateRelevantLoanIds(batchRequest("POST", "v1/loans/456/charges", "{\"loanId\": 123}")));
+    }
+
+    @Test
+    public void testResolvedBatchSubRequestOnOverrulableLockReturnsLoanId() throws IOException {
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(true);
+
+        List<Long> loanIds = helper.calculateRelevantLoanIds(batchRequest("POST", "loans/123/transactions?command=repayment", null));
+
+        Assertions.assertEquals(List.of(123L), loanIds);
     }
 
 }

@@ -60,6 +60,8 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 @Component
@@ -125,6 +127,17 @@ public class LoanCOBFilterHelper implements InitializingBean {
         }
     }
 
+    /**
+     * Checks a single (already reference-resolved) batch sub-request against the loan write API list.
+     */
+    public boolean isOnApiList(BatchRequest batchRequest) {
+        String relativeUrl = batchRequest.getRelativeUrl();
+        if (StringUtils.isBlank(relativeUrl) || StringUtils.isBlank(batchRequest.getMethod())) {
+            return false;
+        }
+        return isApiMatching(batchRequest.getMethod(), toBatchPathInfo(relativeUrl));
+    }
+
     private boolean isBatchApiMatching(BodyCachingHttpServletRequestWrapper request) throws IOException {
         for (BatchRequest batchRequest : getBatchRequests(request)) {
             String method = batchRequest.getMethod();
@@ -141,13 +154,14 @@ public class LoanCOBFilterHelper implements InitializingBean {
         // since we read body, we have to reset so the upcoming readings are successful
         request.resetStream();
         for (BatchRequest batchRequest : batchRequests) {
-            String pathInfo = "/" + batchRequest.getRelativeUrl();
-            if (!isRelativeUrlVersioned(batchRequest.getRelativeUrl())) {
-                pathInfo = "/v1/" + batchRequest.getRelativeUrl();
-            }
-            batchRequest.setRelativeUrl(pathInfo);
+            batchRequest.setRelativeUrl(toBatchPathInfo(batchRequest.getRelativeUrl()));
         }
         return batchRequests;
+    }
+
+    private static String toBatchPathInfo(String relativeUrl) {
+        String pathInfo = StringUtils.removeStart(relativeUrl, "/");
+        return isRelativeUrlVersioned(pathInfo) ? "/" + pathInfo : "/v1/" + pathInfo;
     }
 
     private boolean isApiMatching(String method, String pathInfo) {
@@ -225,17 +239,30 @@ public class LoanCOBFilterHelper implements InitializingBean {
                 loanIds.addAll(getLoanIdsFromApi(relativeUrl));
             }
 
-            // check the body for Loan ID
-            Long loanId = getTopLevelLoanIdFromBatchRequest(batchRequest);
-            if (loanId != null) {
-                if (isLoanHardLocked(loanId) && !isLockOverrulable(loanId)) {
-                    throw new LoanIdsHardLockedException(loanId);
-                } else {
-                    loanIds.add(loanId);
-                }
-            }
+            loanIds.addAll(getLoanIdsFromBatchRequestBody(batchRequest));
         }
         return loanIds;
+    }
+
+    /**
+     * Calculates the loan IDs of a single batch sub-request after its {@code $.} references have been resolved, and
+     * throws {@link LoanIdsHardLockedException} if any of them is hard locked.
+     */
+    public List<Long> calculateRelevantLoanIds(BatchRequest batchRequest) throws JsonProcessingException {
+        List<Long> loanIds = new ArrayList<>(getLoanIdsFromApi(toBatchPathInfo(batchRequest.getRelativeUrl())));
+        loanIds.addAll(getLoanIdsFromBatchRequestBody(batchRequest));
+        return loanIds;
+    }
+
+    private List<Long> getLoanIdsFromBatchRequestBody(BatchRequest batchRequest) throws JsonProcessingException {
+        Long loanId = getTopLevelLoanIdFromBatchRequest(batchRequest);
+        if (loanId == null) {
+            return Collections.emptyList();
+        }
+        if (isLoanHardLocked(loanId) && !isLockOverrulable(loanId)) {
+            throw new LoanIdsHardLockedException(loanId);
+        }
+        return Collections.singletonList(loanId);
     }
 
     private Long getTopLevelLoanIdFromBatchRequest(BatchRequest batchRequest) throws JsonProcessingException {
@@ -271,6 +298,8 @@ public class LoanCOBFilterHelper implements InitializingBean {
         }
     }
 
+    // inline COB runs its own Spring Batch job and lock transactions, so it must not join a caller's (batch) transaction
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void executeInlineCob(List<Long> loanIds) {
         inlineLoanCOBExecutorService.execute(loanIds, LoanCOBConstant.INLINE_LOAN_COB_JOB_NAME);
     }
