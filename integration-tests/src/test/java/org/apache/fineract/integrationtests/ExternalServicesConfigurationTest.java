@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 public class ExternalServicesConfigurationTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExternalServicesConfigurationTest.class);
+    private static final String MASKED_SECRET_VALUE = "********";
     private ResponseSpecification responseSpec;
     private RequestSpecification requestSpec;
     private ExternalServicesConfigurationHelper externalServicesConfigurationHelper;
@@ -58,7 +59,7 @@ public class ExternalServicesConfigurationTest {
         this.externalServicesConfigurationHelper = new ExternalServicesConfigurationHelper(this.requestSpec, this.responseSpec);
 
         // Checking for S3
-        String configName = "s3_access_key";
+        String configName = "s3_bucket_name";
         ArrayList<HashMap> externalServicesConfig = ExternalServicesConfigurationHelper
                 .getExternalServicesConfigurationByServiceName(requestSpec, responseSpec, "S3");
         Assertions.assertNotNull(externalServicesConfig);
@@ -131,6 +132,47 @@ public class ExternalServicesConfigurationTest {
             }
 
         }
+    }
+
+    @Test
+    public void testExternalServiceSecretsAreMasked() {
+        assertSecretIsMasked("S3", "s3_secret_key", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+        assertSecretIsMasked("S3", "s3_access_key", "AKIAIOSFODNN7EXAMPLE");
+        assertSecretIsMasked("SMS", "tenant_app_key", "tenant-app-key-1234567890");
+    }
+
+    private void assertSecretIsMasked(String serviceName, String propertyName, String secret) {
+        HashMap changes = ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec,
+                serviceName, propertyName, secret);
+        Assertions.assertEquals(secret, changes.get("value"));
+
+        String returnedValue = findValue(serviceName, propertyName);
+        Assertions.assertEquals(MASKED_SECRET_VALUE, returnedValue);
+
+        // Sending back the masked placeholder must not overwrite the stored secret
+        HashMap noChanges = ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec,
+                serviceName, propertyName, MASKED_SECRET_VALUE);
+        Assertions.assertTrue(noChanges == null || noChanges.isEmpty());
+        HashMap stillSame = ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec,
+                serviceName, propertyName, secret);
+        Assertions.assertTrue(stillSame == null || stillSame.isEmpty());
+
+        // Clear the secret again
+        ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec, serviceName, propertyName,
+                "");
+        Assertions.assertNull(findValue(serviceName, propertyName));
+    }
+
+    private String findValue(String serviceName, String propertyName) {
+        ArrayList<HashMap> config = ExternalServicesConfigurationHelper.getExternalServicesConfigurationByServiceName(requestSpec,
+                responseSpec, serviceName);
+        for (HashMap property : config) {
+            if (propertyName.equals(property.get("name"))) {
+                return (String) property.get("value");
+            }
+        }
+        Assertions.fail(propertyName + " not found for " + serviceName);
+        return null;
     }
 
     private boolean hasMoreThanThreeStars(String input) {
