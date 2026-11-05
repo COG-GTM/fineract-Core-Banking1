@@ -122,11 +122,9 @@ public class ImageOfficeScopingTest {
     private RequestSpecification userSpec(Integer officeId) {
         String username = Utils.uniqueRandomStringGenerator("ImgScope", 6);
         String password = UserHelper.SIMPLE_USER_PASSWORD;
-        UserHelper.createUser(adminSpec, okSpec,
-                new PostUsersRequest().username(username).firstname(Utils.randomFirstNameGenerator())
-                        .lastname(Utils.randomLastNameGenerator()).email("imagescope@example.com").password(password)
-                        .repeatPassword(password).sendPasswordToEmail(false).passwordNeverExpires(true).officeId(officeId.longValue())
-                        .roles(List.of(roleId.longValue())));
+        UserHelper.createUser(adminSpec, okSpec, new PostUsersRequest().username(username).firstname(Utils.randomFirstNameGenerator())
+                .lastname(Utils.randomLastNameGenerator()).email("imagescope@example.com").password(password).repeatPassword(password)
+                .sendPasswordToEmail(false).passwordNeverExpires(true).officeId(officeId.longValue()).roles(List.of(roleId.longValue())));
         String basic = Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
         RequestSpecification spec = new RequestSpecBuilder().build();
         spec.header("Authorization", "Basic " + basic);
