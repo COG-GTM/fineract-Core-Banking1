@@ -56,6 +56,8 @@ import org.apache.fineract.portfolio.account.service.StandingInstructionReadPlat
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -69,6 +71,8 @@ public class ExecuteStandingInstructionsTaskletTest {
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final DatabaseSpecificSQLGenerator sqlGenerator = mock(DatabaseSpecificSQLGenerator.class);
     private final AccountTransfersWritePlatformService transfersWritePlatformService = mock(AccountTransfersWritePlatformService.class);
+    private final StepContribution stepContribution = mock(StepContribution.class);
+    private final ChunkContext chunkContext = mock(ChunkContext.class);
     private final ExecuteStandingInstructionsTasklet tasklet = new ExecuteStandingInstructionsTasklet(readPlatformService, jdbcTemplate,
             sqlGenerator, transfersWritePlatformService);
 
@@ -92,7 +96,7 @@ public class ExecuteStandingInstructionsTaskletTest {
 
     @Test
     public void successfulTransferIsRecordedWithBindParameters() throws Exception {
-        RepeatStatus status = tasklet.execute(null, null);
+        RepeatStatus status = tasklet.execute(stepContribution, chunkContext);
 
         assertEquals(RepeatStatus.FINISHED, status);
         verify(jdbcTemplate).update(eq(EXPECTED_HISTORY_INSERT), eq(INSTRUCTION_ID), eq("success"), eq(100.0d), eq(""));
@@ -104,7 +108,7 @@ public class ExecuteStandingInstructionsTaskletTest {
         String message = "account O'Brien'); DELETE FROM m_savings_account; --";
         doThrow(new IllegalStateException(message)).when(transfersWritePlatformService).transferFunds(any(AccountTransferDTO.class));
 
-        assertThrows(JobExecutionException.class, () -> tasklet.execute(null, null));
+        assertThrows(JobExecutionException.class, () -> tasklet.execute(stepContribution, chunkContext));
 
         verify(jdbcTemplate).update(eq(EXPECTED_HISTORY_INSERT), eq(INSTRUCTION_ID), eq("failed"), eq(100.0d),
                 eq("Exception while trasfering funds " + message));
@@ -117,7 +121,7 @@ public class ExecuteStandingInstructionsTaskletTest {
         doThrow(new PlatformApiDataValidationException("error.msg.invalid", message, List.of())).when(transfersWritePlatformService)
                 .transferFunds(any(AccountTransferDTO.class));
 
-        assertThrows(JobExecutionException.class, () -> tasklet.execute(null, null));
+        assertThrows(JobExecutionException.class, () -> tasklet.execute(stepContribution, chunkContext));
 
         verify(jdbcTemplate).update(eq(EXPECTED_HISTORY_INSERT), eq(INSTRUCTION_ID), eq("failed"), eq(100.0d),
                 eq("Validation exception while trasfering funds " + message));
