@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.core.service;
 
+import com.google.common.net.InetAddresses;
 import java.util.Properties;
 import org.apache.fineract.infrastructure.configuration.data.SMTPCredentialsData;
 import org.apache.fineract.infrastructure.configuration.service.ExternalServicesPropertiesReadPlatformService;
@@ -29,6 +30,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class GmailBackedPlatformEmailService implements PlatformEmailService {
+
+    private static final int SMTPS_PORT = 465;
 
     private final ExternalServicesPropertiesReadPlatformService externalServicesReadPlatformService;
 
@@ -56,30 +59,7 @@ public class GmailBackedPlatformEmailService implements PlatformEmailService {
     public void sendDefinedEmail(EmailDetail emailDetails) {
         final SMTPCredentialsData smtpCredentialsData = this.externalServicesReadPlatformService.getSMTPCredentials();
 
-        final String authuser = smtpCredentialsData.getUsername();
-        final String authpwd = smtpCredentialsData.getPassword();
-
-        final JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        mailSender.setHost(smtpCredentialsData.getHost()); // smtp.gmail.com
-        mailSender.setPort(Integer.parseInt(smtpCredentialsData.getPort())); // 587
-
-        // Important: Enable less secure app access for the gmail account used in the following authentication
-
-        mailSender.setUsername(authuser); // use valid gmail address
-        mailSender.setPassword(authpwd); // use password of the above gmail account
-
-        Properties props = mailSender.getJavaMailProperties();
-        props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.debug", "true");
-
-        // these are the added lines
-        props.put("mail.smtp.starttls.enable", "true");
-        // props.put("mail.smtp.ssl.enable", "true");
-
-        props.put("mail.smtp.socketFactory.port", Integer.parseInt(smtpCredentialsData.getPort()));
-        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");// NOSONAR
-        props.put("mail.smtp.socketFactory.fallback", "true");
+        final JavaMailSenderImpl mailSender = createMailSender(smtpCredentialsData);
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
@@ -92,5 +72,41 @@ public class GmailBackedPlatformEmailService implements PlatformEmailService {
         } catch (Exception e) {
             throw new PlatformEmailSendException(e);
         }
+    }
+
+    static JavaMailSenderImpl createMailSender(final SMTPCredentialsData smtpCredentialsData) {
+        final JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+        final int port = Integer.parseInt(smtpCredentialsData.getPort());
+        mailSender.setHost(smtpCredentialsData.getHost());
+        mailSender.setPort(port);
+        mailSender.setUsername(smtpCredentialsData.getUsername());
+        mailSender.setPassword(smtpCredentialsData.getPassword());
+
+        final Properties props = mailSender.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
+
+        if (port == SMTPS_PORT) {
+            // Implicit TLS (SMTPS): the connection is TLS from the first byte, no plain-text fallback.
+            props.put("mail.smtp.ssl.enable", "true");
+        } else {
+            // STARTTLS must succeed before credentials or message content are sent, otherwise an on-path
+            // attacker could strip it. Loopback relays have no network path to intercept.
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", String.valueOf(!isLoopbackHost(smtpCredentialsData.getHost())));
+        }
+        return mailSender;
+    }
+
+    private static boolean isLoopbackHost(final String host) {
+        if (host == null) {
+            return false;
+        }
+        if ("localhost".equalsIgnoreCase(host)) {
+            return true;
+        }
+        // Only IP literals are checked; resolving a hostname here could differ from what the mail client connects to.
+        return InetAddresses.isInetAddress(host) && InetAddresses.forString(host).isLoopbackAddress();
     }
 }
