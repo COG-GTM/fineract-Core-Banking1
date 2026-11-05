@@ -57,6 +57,8 @@ public class AdHocApiResource {
     private static final Set<String> RESPONSE_DATA_PARAMETERS = new HashSet<>(Arrays.asList("id", "name", "query", "tableName",
             "tableField", "isActive", "createdBy", "createdOn", "createdById", "updatedById", "updatedOn", "email"));
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "ADHOC";
+
     private final PlatformSecurityContext context;
     private final AdHocReadPlatformService adHocReadPlatformService;
     private final DefaultToApiJsonSerializer<AdHocData> toApiJsonSerializer;
@@ -67,7 +69,7 @@ public class AdHocApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public List<AdHocData> retrieveAll() {
 
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return adHocReadPlatformService.retrieveAllAdHocQuery();
     }
 
@@ -97,7 +99,7 @@ public class AdHocApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public AdHocData retrieveAdHocQuery(@PathParam("adHocId") @Parameter(description = "adHocId") final Long adHocId) {
 
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         return adHocReadPlatformService.retrieveOne(adHocId);
     }
