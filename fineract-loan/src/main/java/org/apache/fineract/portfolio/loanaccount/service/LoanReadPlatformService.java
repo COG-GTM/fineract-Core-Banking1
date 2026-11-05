@@ -163,6 +163,8 @@ public interface LoanReadPlatformService {
 
     Long getResolvedLoanId(ExternalId loanExternalId);
 
+    void validateLoanIsInOfficeHierarchy(Long loanId);
+
     Long getResolvedLoanTransactionId(Long transactionId, ExternalId externalTransactionId);
 
     LoanTransactionData retrieveLoanReAgeTemplate(Long loanId);

@@ -222,6 +222,21 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
         }
     }
 
+    @Override
+    public void validateLoanIsInOfficeHierarchy(final Long loanId) {
+        final String hierarchySearchString = getHierarchyString() + "%";
+        final String sql = "select count(l.id) from m_loan l" //
+                + " left join m_client c on c.id = l.client_id" //
+                + " left join m_group g on g.id = l.group_id" //
+                + " join m_office o on (o.id = c.office_id or o.id = g.office_id)" //
+                + " left join m_office transferToOffice on transferToOffice.id = c.transfer_to_office_id" //
+                + " where l.id = ? and (o.hierarchy like ? or transferToOffice.hierarchy like ?)";
+        final Long count = this.jdbcTemplate.queryForObject(sql, Long.class, loanId, hierarchySearchString, hierarchySearchString);
+        if (count == null || count == 0) {
+            throw new LoanNotFoundException(loanId);
+        }
+    }
+
     private String getHierarchyString() {
         AppUser currentUser = null;
         if (this.context != null) {
