@@ -38066,7 +38066,8 @@ No Request Body:
                                         <p>
                                         Placeholders can be put in the reportSql to act as parameters.  They have the format ${paramName}.
                                         The runreports api will translate the value of any query parameter beginning R_ with the equivalent placeholder.<br>
-                                        e.g. query parameter R_myName=john will replace ${myName} with john
+                                        e.g. query parameter R_myName=john will replace ${myName} with john<br>
+                                        Values are escaped for the SQL context of the placeholder: inside quotes, quote characters are doubled and backslashes are rejected; outside quotes only numbers or comma-separated numbers/'quoted' strings are accepted. The automatic placeholders below cannot be overridden by R_ parameters.
                                         </p>
                                         <p>
                                         There is a special 'automatic' placeholder ${currentUserHierarchy} - if this is included in reportSql
@@ -38404,6 +38405,7 @@ Request Body:
 						<dd>The number and names of the parameters depend on the
 							specific report and how it has been configured. R_officeId is an
 							example parameter name.</dd>
+						<dd>Parameter names must match [A-Za-z0-9_]+; R_currentUserHierarchy, R_currentUserId, R_isSelfServiceUser and R_currentDate are reserved and rejected. Values used outside quotes in the report SQL must be numbers or comma-separated numbers/'quoted' strings; values used inside quotes must not contain backslashes.</dd>
 						<dd>Note: the prefix R_ stands for Reporting</dd>
 						<dt>genericResultSet</dt>
 						<dd>
@@ -52748,6 +52750,7 @@ GET https://DomainName/api/v1/self/loanproducts/{productId}?clientId={clientId}
 						<dd>The number and names of the parameters depend on the
 							specific report and how it has been configured. R_officeId is an
 							example parameter name.</dd>
+						<dd>Parameter names must match [A-Za-z0-9_]+; R_currentUserHierarchy, R_currentUserId, R_isSelfServiceUser and R_currentDate are reserved and rejected. Values used outside quotes in the report SQL must be numbers or comma-separated numbers/'quoted' strings; values used inside quotes must not contain backslashes.</dd>
 						<dd>Note: the prefix R_ stands for Reporting</dd>
 						<dt>genericResultSet</dt>
 						<dd>
