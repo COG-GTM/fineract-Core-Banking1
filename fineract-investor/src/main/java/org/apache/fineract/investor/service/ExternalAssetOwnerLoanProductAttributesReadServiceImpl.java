@@ -20,13 +20,18 @@ package org.apache.fineract.investor.service;
 
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.investor.data.ExternalTransferLoanProductAttributesData;
+import org.apache.fineract.investor.data.attribute.SettlementModelExternalAssetOwnerLoanProductAttribute;
 import org.apache.fineract.investor.domain.ExternalAssetOwnerLoanProductAttributes;
 import org.apache.fineract.investor.domain.ExternalAssetOwnerLoanProductAttributesRepository;
+import org.apache.fineract.investor.exception.ExternalAssetOwnerLoanProductAttributeInvalidSettlementAttributeException;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRepository;
 import org.apache.fineract.portfolio.loanproduct.exception.LoanProductNotFoundException;
 import org.springframework.cache.annotation.Cacheable;
@@ -45,11 +50,14 @@ public class ExternalAssetOwnerLoanProductAttributesReadServiceImpl implements E
     private final LoanProductRepository loanProductRepository;
     private final ExternalAssetOwnerLoanProductAttributesMapper mapper;
 
+    private static final Set<String> SUPPORTED_ATTRIBUTE_KEYS = supportedAttributeKeys();
+
     @Override
-    @Cacheable(cacheNames = "externalAssetOwnerLoanProductAttributes", key = "T(org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil).getTenant().getTenantIdentifier().concat(#loanProductId.toString() + #attributeKey)", unless = "#attributeKey == null")
+    @Cacheable(cacheNames = "externalAssetOwnerLoanProductAttributes", key = "T(org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil).getTenant().getTenantIdentifier() + ':' + #loanProductId + ':' + #attributeKey", unless = "#attributeKey == null")
     public Page<ExternalTransferLoanProductAttributesData> retrieveAllLoanProductAttributesByLoanProductId(final Long loanProductId,
             final String attributeKey) {
         validateLoanProduct(loanProductId);
+        validateAttributeKey(attributeKey);
 
         PageRequest pageRequest = PageRequest.of(0, 100, Sort.by("id"));
 
@@ -68,6 +76,17 @@ public class ExternalAssetOwnerLoanProductAttributesReadServiceImpl implements E
         if (!loanProductRepository.existsById(loanProductId)) {
             throw new LoanProductNotFoundException(loanProductId);
         }
+    }
+
+    private void validateAttributeKey(final String attributeKey) {
+        if (StringUtils.isNotBlank(attributeKey) && !SUPPORTED_ATTRIBUTE_KEYS.contains(attributeKey)) {
+            throw new ExternalAssetOwnerLoanProductAttributeInvalidSettlementAttributeException("The given attribute key is not valid.");
+        }
+    }
+
+    private static Set<String> supportedAttributeKeys() {
+        return Arrays.stream(SettlementModelExternalAssetOwnerLoanProductAttribute.values())
+                .map(SettlementModelExternalAssetOwnerLoanProductAttribute::getAttributeKey).collect(Collectors.toUnmodifiableSet());
     }
 
     public static Specification<ExternalAssetOwnerLoanProductAttributes> retrieveLoanProductAttributesByLoanProductIdAndAttributeKeySpecification(

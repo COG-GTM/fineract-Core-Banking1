@@ -19,7 +19,6 @@
 package org.apache.fineract.investor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -33,6 +32,7 @@ import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.investor.data.ExternalTransferLoanProductAttributesData;
 import org.apache.fineract.investor.domain.ExternalAssetOwnerLoanProductAttributes;
 import org.apache.fineract.investor.domain.ExternalAssetOwnerLoanProductAttributesRepository;
+import org.apache.fineract.investor.exception.ExternalAssetOwnerLoanProductAttributeInvalidSettlementAttributeException;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRepository;
 import org.apache.fineract.portfolio.loanproduct.exception.LoanProductNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,32 +101,23 @@ public class ExternalAssetOwnerLoanProductAttributesReadServiceTest {
         verify(mapper, times(1)).mapLoanProductAttributes(attributes);
     }
 
-    @Test
-    public void testRetrieveAllLoanProductAttributesByLoanProductIdAndInvalidAttributeKey() {
+    @ParameterizedTest
+    @MethodSource("invalidAttributeKeyDataProvider")
+    public void testRetrieveAllLoanProductAttributesByLoanProductIdAndInvalidAttributeKey(String attributeKey) {
         // given
         Long loanProductId = 1L;
-        ExternalAssetOwnerLoanProductAttributes attributes = Mockito.mock(ExternalAssetOwnerLoanProductAttributes.class);
-        PageRequest pageRequest = PageRequest.of(OFFSET, LIMIT, Sort.by("id").ascending());
-        org.springframework.data.domain.Page<ExternalAssetOwnerLoanProductAttributes> attributesPage = new PageImpl<>(List.of(attributes),
-                pageRequest, 0);
-
-        when(externalAssetOwnerLoanProductAttributesRepository
-                .findAll(ArgumentMatchers.<Specification<ExternalAssetOwnerLoanProductAttributes>>any(), eq(pageRequest)))
-                .thenReturn(attributesPage);
         when(loanProductRepository.existsById(loanProductId)).thenReturn(true);
-        when(mapper.mapLoanProductAttributes(attributes)).thenReturn(null);
 
         // when
-        Page<ExternalTransferLoanProductAttributesData> result = underTest.retrieveAllLoanProductAttributesByLoanProductId(loanProductId,
-                "BAD_KEY");
+        ExternalAssetOwnerLoanProductAttributeInvalidSettlementAttributeException exception = assertThrows(
+                ExternalAssetOwnerLoanProductAttributeInvalidSettlementAttributeException.class,
+                () -> underTest.retrieveAllLoanProductAttributesByLoanProductId(loanProductId, attributeKey));
 
         // then
-        assertEquals(1, result.getTotalFilteredRecords());
-        assertNull(result.getPageItems().getFirst());
-        verify(externalAssetOwnerLoanProductAttributesRepository, times(1))
-                .findAll(ArgumentMatchers.<Specification<ExternalAssetOwnerLoanProductAttributes>>any(), eq(pageRequest));
+        assertEquals("The given attribute key is not valid.", exception.getMessage());
         verify(loanProductRepository, times(1)).existsById(loanProductId);
-        verify(mapper, times(1)).mapLoanProductAttributes(attributes);
+        verifyNoInteractions(externalAssetOwnerLoanProductAttributesRepository);
+        verifyNoInteractions(mapper);
     }
 
     @Test
@@ -163,5 +154,9 @@ public class ExternalAssetOwnerLoanProductAttributesReadServiceTest {
 
     private static Stream<Arguments> testRetrieveAllLoanProductAttributesByLoanProductIdDataProvider() {
         return Stream.of(Arguments.of(1L, "SETTLEMENT_MODEL"), Arguments.of(1L, null));
+    }
+
+    private static Stream<Arguments> invalidAttributeKeyDataProvider() {
+        return Stream.of(Arguments.of("BAD_KEY"), Arguments.of("2SETTLEMENT_MODEL"), Arguments.of("settlement_model"));
     }
 }
