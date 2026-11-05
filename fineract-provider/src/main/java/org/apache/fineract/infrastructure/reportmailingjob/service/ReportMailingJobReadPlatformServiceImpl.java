@@ -25,8 +25,11 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
@@ -46,6 +49,17 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ReportMailingJobReadPlatformServiceImpl implements ReportMailingJobReadPlatformService {
+
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.ofEntries(Map.entry("id", "rmj.id"), Map.entry("name", "rmj.name"),
+            Map.entry("description", "rmj.description"), Map.entry("start_datetime", "rmj.start_datetime"),
+            Map.entry("startdatetime", "rmj.start_datetime"), Map.entry("recurrence", "rmj.recurrence"),
+            Map.entry("created_date", "rmj.created_date"), Map.entry("createdondate", "rmj.created_date"),
+            Map.entry("lastmodified_date", "rmj.lastmodified_date"), Map.entry("updatedondate", "rmj.lastmodified_date"),
+            Map.entry("previous_run_datetime", "rmj.previous_run_datetime"), Map.entry("previousrundatetime", "rmj.previous_run_datetime"),
+            Map.entry("next_run_datetime", "rmj.next_run_datetime"), Map.entry("nextrundatetime", "rmj.next_run_datetime"),
+            Map.entry("previous_run_status", "rmj.previous_run_status"), Map.entry("previousrunstatus", "rmj.previous_run_status"),
+            Map.entry("number_of_runs", "rmj.number_of_runs"), Map.entry("numberofruns", "rmj.number_of_runs"),
+            Map.entry("is_active", "rmj.is_active"), Map.entry("isactive", "rmj.is_active"));
 
     private final JdbcTemplate jdbcTemplate;
     private final ColumnValidator columnValidator;
@@ -72,11 +86,13 @@ public class ReportMailingJobReadPlatformServiceImpl implements ReportMailingJob
         sqlStringBuilder.append(" where rmj.is_deleted = false");
 
         if (searchParameters.hasOrderBy()) {
-            sqlStringBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), searchParameters.getOrderBy());
+            final String orderByColumn = resolveOrderByColumn(searchParameters.getOrderBy());
+            sqlStringBuilder.append(" order by ").append(orderByColumn);
+            this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), orderByColumn);
             if (searchParameters.hasSortOrder()) {
-                sqlStringBuilder.append(" ").append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), searchParameters.getSortOrder());
+                final String sortOrder = resolveSortOrder(searchParameters.getSortOrder());
+                sqlStringBuilder.append(" ").append(sortOrder);
+                this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), sortOrder);
             }
         } else {
             sqlStringBuilder.append(" order by rmj.name ");
@@ -92,6 +108,28 @@ public class ReportMailingJobReadPlatformServiceImpl implements ReportMailingJob
         }
 
         return paginationHelper.fetchPage(this.jdbcTemplate, sqlStringBuilder.toString(), queryParameters.toArray(), mapper);
+    }
+
+    private static String resolveOrderByColumn(final String orderBy) {
+        String key = orderBy.trim().toLowerCase(Locale.ROOT);
+        if (key.startsWith("rmj.")) {
+            key = key.substring("rmj.".length());
+        }
+        final String column = SORTABLE_COLUMNS.get(key);
+        if (column == null) {
+            throw new PlatformApiDataValidationException("validation.msg.reportmailingjob.orderBy.invalid",
+                    "Unsupported orderBy value `" + orderBy + "`", "orderBy", orderBy);
+        }
+        return column;
+    }
+
+    private static String resolveSortOrder(final String sortOrder) {
+        final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
+        if (!"ASC".equals(normalized) && !"DESC".equals(normalized)) {
+            throw new PlatformApiDataValidationException("validation.msg.reportmailingjob.sortOrder.invalid",
+                    "sortOrder must be ASC or DESC", "sortOrder", sortOrder);
+        }
+        return normalized;
     }
 
     @Override
