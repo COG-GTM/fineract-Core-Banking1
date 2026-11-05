@@ -23,6 +23,7 @@ import static org.apache.fineract.useradministration.service.AppUserConstants.CL
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import jakarta.persistence.PersistenceException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -190,6 +191,23 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
         }
     }
 
+    private void rejectClientMappingChangeWithoutPermission(final JsonCommand command, final AppUser currentUser) {
+        if (currentUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")) {
+            return;
+        }
+        final List<String> forbiddenParams = new ArrayList<>();
+        if (command.hasParameter(CLIENTS)) {
+            forbiddenParams.add(CLIENTS);
+        }
+        if (command.hasParameter(AppUserConstants.IS_SELF_SERVICE_USER)) {
+            forbiddenParams.add(AppUserConstants.IS_SELF_SERVICE_USER);
+        }
+        if (!forbiddenParams.isEmpty()) {
+            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterError("not.enough.permission.to.update.fields",
+                    "Current user has no permission to update fields", String.join(",", forbiddenParams))));
+        }
+    }
+
     @Override
     @Transactional
     @Caching(evict = { @CacheEvict(value = "users", allEntries = true), @CacheEvict(value = "usersByUsername", allEntries = true) })
@@ -198,6 +216,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             final AppUser currentUser = this.context.authenticatedUser(new CommandWrapperBuilder().updateUser(null).build());
 
             this.fromApiJsonDeserializer.validateForUpdate(command.json(), currentUser);
+            rejectClientMappingChangeWithoutPermission(command, currentUser);
 
             final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 

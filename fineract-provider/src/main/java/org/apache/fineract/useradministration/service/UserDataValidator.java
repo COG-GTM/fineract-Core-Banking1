@@ -175,14 +175,9 @@ public final class UserDataValidator {
 
     void validateFieldLevelACL(final String json, AppUser authenticatedUser) {
         if (!authenticatedUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")) {
-            Set<String> paramNamesFromRequest = getParamNamesFromRequest(json);
-            if (authenticatedUser.isSelfServiceUser()) {
-                // selfService user can change the clients and the password
-                paramNamesFromRequest.removeAll(Set.of(CLIENTS, PASSWORD, REPEAT_PASSWORD));
-            } else {
-                // user without permission can only change the password
-                paramNamesFromRequest.removeAll(Set.of(PASSWORD, REPEAT_PASSWORD));
-            }
+            // users without permission (including self-service users) can only change the password
+            Set<String> paramNamesFromRequest = new HashSet<>(getParamNamesFromRequest(json));
+            paramNamesFromRequest.removeAll(Set.of(PASSWORD, REPEAT_PASSWORD));
             if (paramNamesFromRequest.size() > 0) {
                 throw new PlatformApiDataValidationException(
                         List.of(ApiParameterError.parameterError("not.enough.permission.to.update.fields",
