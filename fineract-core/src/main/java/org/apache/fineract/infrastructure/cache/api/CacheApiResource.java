@@ -36,6 +36,7 @@ import org.apache.fineract.infrastructure.cache.data.CacheData;
 import org.apache.fineract.infrastructure.cache.data.CacheSwitchRequest;
 import org.apache.fineract.infrastructure.cache.data.CacheSwitchResponse;
 import org.apache.fineract.infrastructure.cache.service.RuntimeDelegatingCacheManager;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +56,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CacheApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "CACHE";
+
+    private final PlatformSecurityContext context;
     @Qualifier("runtimeDelegatingCacheManager")
     private final RuntimeDelegatingCacheManager cacheService;
     private final CommandPipeline commandPipeline;
@@ -68,12 +72,15 @@ public class CacheApiResource {
             caches
             """)
     public Collection<CacheData> retrieveAll() {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return cacheService.retrieveAll();
     }
 
     @PUT
     @Operation(summary = "Switch Cache", description = "Switches the cache to chosen one.")
     public CacheSwitchResponse switchCache(@Valid CacheSwitchRequest request) {
+        context.authenticatedUser().validateHasUpdatePermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
         final var command = new CacheSwitchCommand();
 
         command.setPayload(request);
