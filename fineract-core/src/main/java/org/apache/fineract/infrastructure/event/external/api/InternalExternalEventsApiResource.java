@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
 import org.apache.fineract.infrastructure.event.external.data.ExternalEventResponse;
 import org.apache.fineract.infrastructure.event.external.service.InternalExternalEventService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -42,7 +43,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class InternalExternalEventsApiResource {
 
+    private static final String REQUIRED_PERMISSION = "ALL_FUNCTIONS";
+
     private final InternalExternalEventService internalExternalEventService;
+    private final PlatformSecurityContext context;
 
     @GET
     @Consumes({ MediaType.APPLICATION_JSON })
@@ -50,7 +54,7 @@ public class InternalExternalEventsApiResource {
     public List<ExternalEventResponse> getAllExternalEvents(@QueryParam("idempotencyKey") final String idempotencyKey,
             @QueryParam("type") final String type, @QueryParam("category") final String category,
             @QueryParam("aggregateRootId") final Long aggregateRootId) {
-        // TODO: authorization constraints?
+        context.authenticatedUser().validateHasPermissionTo(REQUIRED_PERMISSION);
         return internalExternalEventService.getAllExternalEvents(idempotencyKey, type, category, aggregateRootId);
     }
 
@@ -58,7 +62,7 @@ public class InternalExternalEventsApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public void deleteAllExternalEvents() {
-        // TODO: authorization constraints?
+        context.authenticatedUser().validateHasPermissionTo(REQUIRED_PERMISSION);
         internalExternalEventService.deleteAllExternalEvents();
     }
 }
