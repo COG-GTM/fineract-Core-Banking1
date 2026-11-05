@@ -100,6 +100,13 @@ public class StandingInstructionReadPlatformServiceImplTest {
         assertTrue(executedSql().endsWith(" order by atsi.priority"), executedSql());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = { "fromclient.display_name", "toclient.display_name", "fromoff.name", "tooff.name" })
+    public void acceptsQualifiedJoinedTableColumns(String column) {
+        service.retrieveAll(dto(column, "asc"));
+        assertTrue(executedSql().endsWith(" order by " + column + " ASC"), executedSql());
+    }
+
     @Test
     public void omitsOrderByWhenNotRequested() {
         service.retrieveAll(dto(null, "DESC"));

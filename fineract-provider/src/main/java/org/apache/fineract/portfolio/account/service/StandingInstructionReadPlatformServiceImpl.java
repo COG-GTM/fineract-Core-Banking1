@@ -75,8 +75,9 @@ public class StandingInstructionReadPlatformServiceImpl implements StandingInstr
             Map.entry("atsi.valid_from", "atsi.valid_from"), Map.entry("validtill", "atsi.valid_till"),
             Map.entry("atsi.valid_till", "atsi.valid_till"), Map.entry("transfertype", "atd.transfer_type"),
             Map.entry("atd.transfer_type", "atd.transfer_type"), Map.entry("fromclientname", "fromclient.display_name"),
-            Map.entry("toclientname", "toclient.display_name"), Map.entry("fromofficename", "fromoff.name"),
-            Map.entry("toofficename", "tooff.name"));
+            Map.entry("fromclient.display_name", "fromclient.display_name"), Map.entry("toclientname", "toclient.display_name"),
+            Map.entry("toclient.display_name", "toclient.display_name"), Map.entry("fromofficename", "fromoff.name"),
+            Map.entry("fromoff.name", "fromoff.name"), Map.entry("toofficename", "tooff.name"), Map.entry("tooff.name", "tooff.name"));
 
     private final JdbcTemplate jdbcTemplate;
     private final ClientReadPlatformService clientReadPlatformService;

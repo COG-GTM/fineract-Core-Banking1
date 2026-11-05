@@ -50,8 +50,10 @@ public class StandingInstructionHistoryReadPlatformServiceImpl implements Standi
             Map.entry("atsih.status", "atsih.status"), Map.entry("executiontime", "atsih.execution_time"),
             Map.entry("execution_time", "atsih.execution_time"), Map.entry("atsih.execution_time", "atsih.execution_time"),
             Map.entry("amount", "atsih.amount"), Map.entry("atsih.amount", "atsih.amount"),
-            Map.entry("fromclientname", "fromclient.display_name"), Map.entry("toclientname", "toclient.display_name"),
-            Map.entry("fromofficename", "fromoff.name"), Map.entry("toofficename", "tooff.name"));
+            Map.entry("fromclientname", "fromclient.display_name"), Map.entry("fromclient.display_name", "fromclient.display_name"),
+            Map.entry("toclientname", "toclient.display_name"), Map.entry("toclient.display_name", "toclient.display_name"),
+            Map.entry("fromofficename", "fromoff.name"), Map.entry("fromoff.name", "fromoff.name"), Map.entry("toofficename", "tooff.name"),
+            Map.entry("tooff.name", "tooff.name"));
 
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
