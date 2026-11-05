@@ -27,6 +27,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,6 +46,7 @@ import org.apache.fineract.commands.configuration.RetryConfigurationAssembler;
 import org.apache.fineract.commands.domain.CommandProcessingResultType;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandWrapper;
+import org.apache.fineract.commands.exception.CommandNotAwaitingApprovalException;
 import org.apache.fineract.commands.exception.CommandResultPersistenceException;
 import org.apache.fineract.commands.handler.NewCommandSourceHandler;
 import org.apache.fineract.commands.provider.CommandHandlerProvider;
@@ -452,6 +454,60 @@ public class SynchronousCommandProcessingServiceTest {
 
         verify(commandSourceService).getCommandSource(commandId);
         verify(commandSourceService).generateErrorInfo(runtimeException);
+    }
+
+    @Test
+    public void checkerApprovalClaimsCommandAtomicallyBeforeRunningHandler() {
+        CommandWrapper commandWrapper = getCommandWrapper();
+
+        long commandId = 1L;
+        JsonCommand jsonCommand = Mockito.mock(JsonCommand.class);
+        when(jsonCommand.commandId()).thenReturn(commandId);
+
+        NewCommandSourceHandler commandHandler = Mockito.mock(NewCommandSourceHandler.class);
+        when(commandHandlerProvider.getHandler(Mockito.any(), Mockito.any())).thenReturn(commandHandler);
+        CommandProcessingResult commandProcessingResult = Mockito.mock(CommandProcessingResult.class);
+
+        CommandSource commandSource = Mockito.mock(CommandSource.class);
+        when(commandSource.getId()).thenReturn(commandId);
+        when(commandSource.getIdempotencyKey()).thenReturn("idk");
+        when(commandSourceService.claimForApprovalNewTransaction(commandId)).thenReturn(commandSource);
+        when(commandSourceService.saveResultSameTransaction(commandSource)).thenReturn(commandSource);
+
+        AppUser appUser = Mockito.mock(AppUser.class);
+        when(context.authenticatedUser(Mockito.any(CommandWrapper.class))).thenReturn(appUser);
+        when(commandSourceService.processCommand(commandHandler, jsonCommand, commandSource, appUser, true))
+                .thenReturn(commandProcessingResult);
+
+        CommandProcessingResult actual = underTest.executeCommand(commandWrapper, jsonCommand, true);
+
+        assertEquals(commandProcessingResult, actual);
+        verify(commandSourceService).claimForApprovalNewTransaction(commandId);
+        verify(commandSourceService, never()).getCommandSource(commandId);
+        verify(commandSourceService, never()).findCommandSource(any(), any());
+        verify(commandSourceService).processCommand(commandHandler, jsonCommand, commandSource, appUser, true);
+        verify(commandSourceService).saveResultSameTransaction(commandSource);
+    }
+
+    @Test
+    public void concurrentCheckerApprovalIsRejectedWithoutRunningHandler() {
+        CommandWrapper commandWrapper = getCommandWrapper();
+
+        long commandId = 1L;
+        JsonCommand jsonCommand = Mockito.mock(JsonCommand.class);
+        when(jsonCommand.commandId()).thenReturn(commandId);
+
+        NewCommandSourceHandler commandHandler = Mockito.mock(NewCommandSourceHandler.class);
+        when(commandHandlerProvider.getHandler(Mockito.any(), Mockito.any())).thenReturn(commandHandler);
+        when(commandSourceService.claimForApprovalNewTransaction(commandId)).thenThrow(new CommandNotAwaitingApprovalException(commandId));
+
+        assertThrows(CommandNotAwaitingApprovalException.class, () -> underTest.executeCommand(commandWrapper, jsonCommand, true));
+
+        verify(commandSourceService).claimForApprovalNewTransaction(commandId);
+        verify(commandSourceService, never()).processCommand(any(), any(), any(), any(), Mockito.anyBoolean());
+        verify(commandSourceService, never()).saveResultNewTransaction(any());
+        verify(commandSourceService, never()).saveResultSameTransaction(any());
+        verify(commandHandler, never()).processCommand(any());
     }
 
     @NonNull
