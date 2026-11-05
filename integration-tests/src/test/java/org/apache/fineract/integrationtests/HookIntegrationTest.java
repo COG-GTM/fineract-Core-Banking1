@@ -122,4 +122,14 @@ public class HookIntegrationTest {
             rejectingHookHelper.createHook(url);
         }
     }
+
+    @Test
+    public void shouldRejectHookUpdateToInternalAddress() {
+        final String payloadURL = "https://echo-webhook.herokuapp.com/Z7RXoCBdLSFMDrpn/";
+        final Long hookId = this.hookHelper.createHook(payloadURL).longValue();
+        final ResponseSpecification badRequest = new ResponseSpecBuilder().expectStatusCode(400).build();
+        new HookHelper(this.requestSpec, badRequest).updateHook("https://169.254.169.254/latest/meta-data/", hookId);
+        this.hookHelper.verifyUpdateHook(payloadURL, hookId);
+        this.hookHelper.deleteHook(hookId);
+    }
 }

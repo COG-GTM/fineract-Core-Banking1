@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.hooks.processor;
 
+import java.net.Proxy;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -79,7 +80,9 @@ public final class ProcessorHelper {
     }
 
     private OkHttpClient createClient() {
-        var okBuilder = new OkHttpClient.Builder().dns(urlValidator.dns()).followRedirects(false).followSslRedirects(false);
+        // no proxy: with a proxy OkHttp resolves only the proxy host, which would skip the address checks in dns()
+        var okBuilder = new OkHttpClient.Builder().proxy(Proxy.NO_PROXY).dns(urlValidator.dns()).followRedirects(false)
+                .followSslRedirects(false);
         if (insecureHttpClient) {
             configureInsecureClient(okBuilder);
         }

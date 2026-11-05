@@ -157,6 +157,7 @@ public class HookWritePlatformServiceJpaRepositoryImpl implements HookWritePlatf
                 if (changes.containsKey(configParamName)) {
                     final String configJson = command.jsonFragment(configParamName);
                     final Set<HookConfiguration> config = assembleConfig(command.mapValueOfParameterNamed(configJson), template);
+                    validatePayloadUrl(config);
                     final boolean updated = hook.updateConfig(config);
                     if (!updated) {
                         changes.remove(configParamName);
@@ -267,15 +268,9 @@ public class HookWritePlatformServiceJpaRepositoryImpl implements HookWritePlatf
                 }
             }
 
-            if (conf.getFieldName().equals(payloadURLName)) {
-                try {
-                    final WebHookService service = processorHelper.createWebHookService(fieldValue);
-                    service.sendEmptyRequest().execute();
-                } catch (IOException | IllegalArgumentException re) {
-                    // same error for rejected and unreachable URLs, so this check cannot be used to probe hosts
-                    String errorMessage = "url.invalid";
-                    baseDataValidator.reset().failWithCodeNoParameterAddedToErrorCode(errorMessage);
-                }
+            if (conf.getFieldName().equals(payloadURLName) && !isPayloadUrlAccepted(fieldValue)) {
+                String errorMessage = "url.invalid";
+                baseDataValidator.reset().failWithCodeNoParameterAddedToErrorCode(errorMessage);
             }
         }
 
@@ -302,6 +297,31 @@ public class HookWritePlatformServiceJpaRepositoryImpl implements HookWritePlatf
 
         if (!dataValidationErrors.isEmpty()) {
             throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+    }
+
+    private void validatePayloadUrl(final Set<HookConfiguration> config) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors).resource("hook");
+        for (final HookConfiguration conf : config) {
+            if (conf.getFieldName().equals(payloadURLName) && !isPayloadUrlAccepted(conf.getFieldValue())) {
+                baseDataValidator.reset().failWithCodeNoParameterAddedToErrorCode("url.invalid");
+            }
+        }
+        if (!dataValidationErrors.isEmpty()) {
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+    }
+
+    // Rejected, unreachable and redirecting URLs all fail the same way, so this check cannot be used to probe hosts.
+    // Redirects are refused because hook delivery does not follow them.
+    private boolean isPayloadUrlAccepted(final String url) {
+        try {
+            final WebHookService service = processorHelper.createWebHookService(url);
+            final int status = service.sendEmptyRequest().execute().code();
+            return status < 300 || status >= 400;
+        } catch (IOException | IllegalArgumentException e) {
+            return false;
         }
     }
 
