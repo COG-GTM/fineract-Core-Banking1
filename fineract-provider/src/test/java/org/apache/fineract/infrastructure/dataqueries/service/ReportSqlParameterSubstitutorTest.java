@@ -41,8 +41,9 @@ class ReportSqlParameterSubstitutorTest {
     @Test
     void substitutesNumericAndQuotedValues() {
         assertEquals("select 1 from t where o.id = -1 and d >= '2023-01-01' and c = 'USD' and dd = DATE '2024-02-29' and n in (1, 2)",
-                substitute("select 1 from t where o.id = ${officeId} and d >= '${startDate}' and c = '${currencyId}'"
-                        + " and dd = DATE ${endDate} and n in (${ids})",
+                substitute(
+                        "select 1 from t where o.id = ${officeId} and d >= '${startDate}' and c = '${currencyId}'"
+                                + " and dd = DATE ${endDate} and n in (${ids})",
                         Map.of("${officeId}", "-1", "${startDate}", "2023-01-01", "${currencyId}", "USD", "${endDate}", "'2024-02-29'",
                                 "${ids}", "1, 2")));
     }

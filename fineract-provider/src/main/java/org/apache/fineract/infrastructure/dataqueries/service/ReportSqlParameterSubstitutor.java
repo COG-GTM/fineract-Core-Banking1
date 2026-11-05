@@ -25,9 +25,9 @@ import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidati
 /**
  * Substitutes {@code ${name}} placeholders in stored report and parameter SQL in a single pass.
  *
- * Trusted values (computed by the server) are inserted as-is. Request values are checked against the lexical context
- * of each placeholder so that they can only ever form a literal: inside a quoted literal the quote character is
- * doubled and backslashes are rejected; outside a literal only numbers, ISO dates, booleans, number lists or lists of
+ * Trusted values (computed by the server) are inserted as-is. Request values are checked against the lexical context of
+ * each placeholder so that they can only ever form a literal: inside a quoted literal the quote character is doubled
+ * and backslashes are rejected; outside a literal only numbers, ISO dates, booleans, number lists or lists of
  * single-quoted literals are accepted.
  */
 public final class ReportSqlParameterSubstitutor {
