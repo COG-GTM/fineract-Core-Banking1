@@ -68,7 +68,7 @@ public class FixedDepositAccountInterestCalculationServiceImpl implements FixedD
         Long totalNumberOfCompoundings = tenureInMonths / interestCompoundingPeriodInMonths;
         MathContext mc = MoneyHelper.getMathContext();
         BigDecimal exponentialTerm = annualInterestRate.divide(numberOfCompoundingsPerAnnum, mc).divide(BigDecimal.valueOf(100), mc)
-                .add(BigDecimal.valueOf(1)).pow(Math.toIntExact(totalNumberOfCompoundings));
+                .add(BigDecimal.valueOf(1)).pow(Math.toIntExact(totalNumberOfCompoundings), mc);
         return principalAmount.multiply(exponentialTerm);
     }
 }

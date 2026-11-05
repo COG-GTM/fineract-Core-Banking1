@@ -615,6 +615,10 @@ public class DepositAccountDataValidator {
 
         Long tenureInMonths = this.fromApiJsonHelper.extractLongNamed(tenureInMonthsParamName, element);
         baseDataValidator.reset().parameter(tenureInMonthsParamName).value(tenureInMonths).notNull().longGreaterThanZero();
+        if (tenureInMonths != null && tenureInMonths > DepositsApiConstants.MAX_INTEREST_CALCULATION_TENURE_IN_MONTHS) {
+            baseDataValidator.reset().parameter(tenureInMonthsParamName).value(tenureInMonths).failWithCode("is.greater.than.max",
+                    DepositsApiConstants.MAX_INTEREST_CALCULATION_TENURE_IN_MONTHS);
+        }
 
         Long interestPostingPeriodInMonths = this.fromApiJsonHelper.extractLongNamed(interestPostingPeriodInMonthsParamName, element);
         baseDataValidator.reset().parameter(interestPostingPeriodInMonthsParamName).value(interestPostingPeriodInMonths).notNull()
