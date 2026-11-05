@@ -2543,6 +2543,71 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         assertEquals(409, errorResponse.getHttpStatusCode());
     }
 
+    /**
+     * Tests that a batch sub-request whose loan ID is only known after resolving a {@code $.} reference to its parent
+     * response is still rejected while the loan is hard locked by COB.
+     */
+    @Test
+    public void shouldRejectReferencedRepaymentDuringLockedLoan() {
+        LoanAccountLockHelper loanAccountLockHelper = new LoanAccountLockHelper(this.requestSpec,
+                new ResponseSpecBuilder().expectStatusCode(202).build());
+        final String loanProductJSON = new LoanProductTestBuilder() //
+                .withPrincipal("1000.00") //
+                .withNumberOfRepayments("24") //
+                .withRepaymentAfterEvery("1") //
+                .withRepaymentTypeAsMonth() //
+                .withinterestRatePerPeriod("2") //
+                .withInterestRateFrequencyTypeAsMonths() //
+                .withAmortizationTypeAsEqualPrincipalPayment() //
+                .withInterestTypeAsDecliningBalance() //
+                .currencyDetails("0", "100").build(null);
+
+        final Long applyLoanRequestId = ThreadLocalRandom.current().nextLong(100, 1000);
+        final Long approveLoanRequestId = applyLoanRequestId + 1;
+        final Long disburseLoanRequestId = approveLoanRequestId + 1;
+
+        final Integer productId = new LoanTransactionHelper(this.requestSpec, this.responseSpec).getLoanProductId(loanProductJSON);
+        final Integer clientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        ClientHelper.verifyClientCreatedOnServer(this.requestSpec, this.responseSpec, clientId);
+
+        final List<BatchRequest> createLoanRequests = Arrays.asList(
+                BatchHelper.applyLoanRequestWithClientId(applyLoanRequestId, clientId, productId),
+                BatchHelper.transitionLoanStateByExternalId(approveLoanRequestId, applyLoanRequestId,
+                        LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(10), "approve"),
+                BatchHelper.transitionLoanStateByExternalId(disburseLoanRequestId, approveLoanRequestId,
+                        LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(8), "disburse"));
+        final List<BatchResponse> createLoanResponses = BatchHelper.postBatchRequestsWithoutEnclosingTransaction(this.requestSpec,
+                this.responseSpec, BatchHelper.toJsonString(createLoanRequests));
+        createLoanResponses.forEach(response -> Assertions.assertEquals(HttpStatus.SC_OK, response.getStatusCode()));
+
+        final Long loanId = new FromJsonHelper().parse(createLoanResponses.get(2).getBody()).getAsJsonObject().get("resourceId")
+                .getAsLong();
+
+        loanAccountLockHelper.placeSoftLockOnLoanAccount(loanId.intValue(), "LOAN_COB_CHUNK_PROCESSING");
+
+        RequestSpecification requestSpec = UserHelper.getSimpleUserWithoutBypassPermission(this.requestSpec, this.responseSpec);
+
+        final BatchRequest getLoanRequest = BatchHelper.getLoanByIdRequest(loanId, 1L, null, null);
+
+        final BatchRequest repaymentRequest = new BatchRequest();
+        repaymentRequest.setRequestId(2L);
+        repaymentRequest.setReference(1L);
+        repaymentRequest.setRelativeUrl("v1/loans/$.id/transactions?command=repayment");
+        repaymentRequest.setMethod("POST");
+        String dateString = LocalDate.now(Utils.getZoneIdOfTenant()).format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
+        repaymentRequest.setBody(String.format(
+                "{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", \"transactionDate\": \"%s\", \"transactionAmount\": \"500\"}",
+                dateString));
+
+        final List<BatchResponse> responses = BatchHelper.postBatchRequestsWithoutEnclosingTransaction(requestSpec, this.responseSpec,
+                BatchHelper.toJsonString(List.of(getLoanRequest, repaymentRequest)));
+
+        Assertions.assertEquals(HttpStatus.SC_OK, responses.get(0).getStatusCode(), "Verify Status Code 200 for Get Loan");
+        Assertions.assertEquals(HttpStatus.SC_CONFLICT, responses.get(1).getStatusCode(),
+                "Verify Status Code 409 for referenced repayment on locked loan");
+        MatcherAssert.assertThat(responses.get(1).getBody(), containsString("error.msg.loan.locked"));
+    }
+
     @Test
     public void verifyCalculatingRunningBalanceAfterBatchWithReleaseAmount() {
         final SavingsProductHelper savingsProductHelper = new SavingsProductHelper();
