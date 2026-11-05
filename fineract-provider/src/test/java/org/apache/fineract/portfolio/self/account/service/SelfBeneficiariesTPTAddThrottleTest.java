@@ -19,6 +19,7 @@
 package org.apache.fineract.portfolio.self.account.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Clock;
@@ -87,6 +88,19 @@ class SelfBeneficiariesTPTAddThrottleTest {
         assertThrows(BeneficiaryAddAttemptsExceededException.class, () -> throttle.acquire("t:1"));
         assertDoesNotThrow(() -> throttle.acquire("t:2"));
         assertDoesNotThrow(() -> throttle.acquire("other:1"));
+    }
+
+    @Test
+    void expiredEntriesOfInactiveUsersArePurged() {
+        for (int i = 0; i < 100; i++) {
+            throttle.acquire("t:" + i);
+            throttle.recordFailure("t:" + i);
+        }
+        assertEquals(200, throttle.trackedKeys());
+
+        clock.advance(Duration.ofHours(25));
+        throttle.acquire("t:active");
+        assertEquals(1, throttle.trackedKeys());
     }
 
     private static final class MutableClock extends Clock {

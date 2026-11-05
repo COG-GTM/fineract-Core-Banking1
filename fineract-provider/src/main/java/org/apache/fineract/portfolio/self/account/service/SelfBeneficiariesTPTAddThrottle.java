@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.fineract.portfolio.self.account.exception.BeneficiaryAddAttemptsExceededException;
 
@@ -45,6 +46,7 @@ public class SelfBeneficiariesTPTAddThrottle {
     private final Clock clock;
     private final Map<String, Deque<Instant>> failedAttempts = new HashMap<>();
     private final Map<String, Deque<Instant>> attempts = new HashMap<>();
+    private Instant nextSweep = Instant.MIN;
 
     public SelfBeneficiariesTPTAddThrottle() {
         this(DEFAULT_MAX_FAILED_ATTEMPTS, DEFAULT_FAILED_ATTEMPTS_WINDOW, DEFAULT_MAX_ATTEMPTS, DEFAULT_ATTEMPTS_WINDOW,
@@ -65,6 +67,7 @@ public class SelfBeneficiariesTPTAddThrottle {
      */
     public synchronized void acquire(final String key) {
         final Instant now = this.clock.instant();
+        sweepExpired(now);
         if (count(this.failedAttempts, key, now.minus(this.failedAttemptsWindow)) >= this.maxFailedAttempts
                 || count(this.attempts, key, now.minus(this.attemptsWindow)) >= this.maxAttempts) {
             throw new BeneficiaryAddAttemptsExceededException();
@@ -74,6 +77,21 @@ public class SelfBeneficiariesTPTAddThrottle {
 
     public synchronized void recordFailure(final String key) {
         this.failedAttempts.computeIfAbsent(key, k -> new ArrayDeque<>()).addLast(this.clock.instant());
+    }
+
+    synchronized int trackedKeys() {
+        return this.failedAttempts.size() + this.attempts.size();
+    }
+
+    private void sweepExpired(final Instant now) {
+        if (now.isBefore(this.nextSweep)) {
+            return;
+        }
+        final Instant failedWindowStart = now.minus(this.failedAttemptsWindow);
+        final Instant attemptsWindowStart = now.minus(this.attemptsWindow);
+        List.copyOf(this.failedAttempts.keySet()).forEach(key -> count(this.failedAttempts, key, failedWindowStart));
+        List.copyOf(this.attempts.keySet()).forEach(key -> count(this.attempts, key, attemptsWindowStart));
+        this.nextSweep = now.plus(this.failedAttemptsWindow);
     }
 
     private static int count(final Map<String, Deque<Instant>> store, final String key, final Instant windowStart) {
