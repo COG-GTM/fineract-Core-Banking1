@@ -44,6 +44,7 @@ import org.apache.fineract.spm.exception.SurveyNotFoundException;
 import org.apache.fineract.spm.service.LookupTableService;
 import org.apache.fineract.spm.service.SpmService;
 import org.apache.fineract.spm.util.LookupTableMapper;
+import org.apache.fineract.spm.util.SurveyApiConstants;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +65,7 @@ public class LookupTableApiResource {
     @Operation(summary = "List all Lookup Table entries", description = "List all Lookup Table entries for a survey.")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = LookupTableData.class))))
     public List<LookupTableData> fetchLookupTables(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.LOOKUPTABLE_PERMISSION_ENTITY);
 
         final Survey survey = findSurvey(surveyId);
 
@@ -86,7 +87,7 @@ public class LookupTableApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LookupTableData.class)))
     public LookupTableData findLookupTable(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @PathParam("key") @Parameter(description = "Enter key") final String key) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.LOOKUPTABLE_PERMISSION_ENTITY);
 
         findSurvey(surveyId);
 
@@ -108,7 +109,7 @@ public class LookupTableApiResource {
     @ApiResponse(responseCode = "200", description = "OK")
     public void createLookupTable(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             final LookupTableData lookupTableData) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasCreatePermission(SurveyApiConstants.LOOKUPTABLE_PERMISSION_ENTITY);
 
         final Survey survey = findSurvey(surveyId);
 

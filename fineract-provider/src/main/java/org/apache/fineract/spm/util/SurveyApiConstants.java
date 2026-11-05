@@ -25,6 +25,11 @@ public final class SurveyApiConstants {
     }
 
     public static final String SURVEY_RESOURCE_NAME = "survey";
+    public static final String SURVEY_PERMISSION_ENTITY = "SURVEY";
+    public static final String SCORECARD_PERMISSION_ENTITY = "SCORECARD";
+    public static final String LOOKUPTABLE_PERMISSION_ENTITY = "LOOKUPTABLE";
+    public static final String ACTIVATE_SURVEY_PERMISSION = "ACTIVATE_SURVEY";
+    public static final String DEACTIVATE_SURVEY_PERMISSION = "DEACTIVATE_SURVEY";
     public static final String keyParamName = "key";
     public static final String nameParamName = "name";
     public static final String countryCodeParamName = "countrycode";

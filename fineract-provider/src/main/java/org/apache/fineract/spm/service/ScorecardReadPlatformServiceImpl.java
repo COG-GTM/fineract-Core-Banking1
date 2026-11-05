@@ -47,6 +47,8 @@ public class ScorecardReadPlatformServiceImpl implements ScorecardReadPlatformSe
             sb.append(" from m_survey_scorecards sc ");
             sb.append(" left join m_surveys s ON s.id = sc.survey_id ");
             sb.append(" left join m_appuser user ON user.id = sc.user_id ");
+            sb.append(" join m_client c ON c.id = sc.client_id ");
+            sb.append(" join m_office o ON o.id = c.office_id ");
 
             return sb.toString();
         }
@@ -104,31 +106,36 @@ public class ScorecardReadPlatformServiceImpl implements ScorecardReadPlatformSe
 
     @Override
     public Collection<ScorecardData> retrieveScorecardBySurvey(Long surveyId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
         ScorecardMapper scm = new ScorecardMapper();
-        String sql = "select " + scm.schema() + " where sc.survey_id = ? " + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { surveyId }); // NOSONAR
+        String sql = "select " + scm.schema() + " where sc.survey_id = ? and o.hierarchy like ? "
+                + " group by sc.survey_id, sc.client_id, sc.id ";
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
+                new Object[] { surveyId, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
 
     @Override
     public Collection<ScorecardData> retrieveScorecardByClient(Long clientId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
         ScorecardMapper scm = new ScorecardMapper();
-        String sql = "select " + scm.schema() + " where sc.client_id = ? " + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { clientId }); // NOSONAR
+        String sql = "select " + scm.schema() + " where sc.client_id = ? and o.hierarchy like ? "
+                + " group by sc.survey_id, sc.client_id, sc.id ";
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
+                new Object[] { clientId, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
 
     @Override
     public Collection<ScorecardData> retrieveScorecardBySurveyAndClient(Long surveyId, Long clientId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
         ScorecardMapper scm = new ScorecardMapper();
-        String sql = "select " + scm.schema() + " where sc.survey_id = ? and sc.client_id = ? "
+        String sql = "select " + scm.schema() + " where sc.survey_id = ? and sc.client_id = ? and o.hierarchy like ? "
                 + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { surveyId, clientId }); // NOSONAR
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
+                new Object[] { surveyId, clientId, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
