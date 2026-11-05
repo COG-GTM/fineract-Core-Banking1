@@ -127,7 +127,7 @@ final class SelfBeneficiariesTPTApiResourceSwagger {
         public String name;
         @Schema(example = "Test Office")
         public String officeName;
-        @Schema(example = "FN2 LN2")
+        @Schema(example = "F** L**")
         public String clientName;
         public GetSelfBeneficiariesTPTTemplateResponse.GetSelfBeneficiariesAccountOptions accountType;
         @Schema(example = "000000002")

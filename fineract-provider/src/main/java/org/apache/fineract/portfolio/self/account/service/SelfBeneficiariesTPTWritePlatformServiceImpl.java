@@ -31,8 +31,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
+import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
@@ -57,11 +59,15 @@ public class SelfBeneficiariesTPTWritePlatformServiceImpl implements SelfBenefic
     private final SelfBeneficiariesTPTDataValidator validator;
     private final LoanRepositoryWrapper loanRepositoryWrapper;
     private final SavingsAccountRepositoryWrapper savingRepositoryWrapper;
+    private final SelfBeneficiariesTPTAddThrottle addThrottle;
 
     @Transactional
     @Override
     public CommandProcessingResult add(JsonCommand command) {
         HashMap<String, Object> params = this.validator.validateForCreate(command.json());
+        AppUser user = this.context.authenticatedUser();
+        String throttleKey = throttleKey(user);
+        this.addThrottle.acquire(throttleKey);
 
         String name = (String) params.get(NAME_PARAM_NAME);
         Integer accountType = (Integer) params.get(ACCOUNT_TYPE_PARAM_NAME);
@@ -96,7 +102,6 @@ public class SelfBeneficiariesTPTWritePlatformServiceImpl implements SelfBenefic
 
         if (validAccountDetails) {
             try {
-                AppUser user = this.context.authenticatedUser();
                 SelfBeneficiariesTPT beneficiary = new SelfBeneficiariesTPT(user.getId(), name, officeId, clientId, accountId, accountType,
                         transferLimit);
                 this.repository.saveAndFlush(beneficiary);
@@ -105,6 +110,8 @@ public class SelfBeneficiariesTPTWritePlatformServiceImpl implements SelfBenefic
                 handleDataIntegrityIssues(command, dae);
             }
         }
+        this.addThrottle.recordFailure(throttleKey);
+        log.warn("Self-service user {} failed to register a TPT beneficiary: no matching active account", user.getId());
         throw new InvalidAccountInformationException(officeName, accountNumber, PortfolioAccountType.fromInt(accountType).getCode());
 
     }
@@ -153,6 +160,12 @@ public class SelfBeneficiariesTPTWritePlatformServiceImpl implements SelfBenefic
                     .build();
         }
         throw new InvalidBeneficiaryException(beneficiaryId);
+    }
+
+    private static String throttleKey(final AppUser user) {
+        final FineractPlatformTenant tenant = ThreadLocalContextUtil.getTenant();
+        final String tenantIdentifier = tenant == null ? "" : tenant.getTenantIdentifier();
+        return tenantIdentifier + ":" + user.getId();
     }
 
     private void handleDataIntegrityIssues(final JsonCommand command, final DataAccessException dae) {

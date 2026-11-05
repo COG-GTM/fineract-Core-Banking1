@@ -25,6 +25,7 @@ import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.account.service.AccountTransferEnumerations;
+import org.apache.fineract.portfolio.self.account.data.ClientNameMasker;
 import org.apache.fineract.portfolio.self.account.data.SelfAccountTemplateData;
 import org.apache.fineract.portfolio.self.account.data.SelfBeneficiariesTPTData;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -105,7 +106,7 @@ public class SelfBeneficiariesTPTReadPlatformServiceImpl implements SelfBenefici
             final Long id = rs.getLong("id");
             final String name = rs.getString("name");
             final String officeName = rs.getString("officeName");
-            final String clientName = rs.getString("clientName");
+            final String clientName = ClientNameMasker.mask(rs.getString("clientName"));
             final Integer accountTypeId = rs.getInt("accountType");
             final EnumOptionData accountType = AccountTransferEnumerations.accountType(PortfolioAccountType.fromInt(accountTypeId));
             final String accountNumber = rs.getString("accountNumber");
@@ -162,7 +163,7 @@ public class SelfBeneficiariesTPTReadPlatformServiceImpl implements SelfBenefici
 
             final String officeName = rs.getString("officeName");
             final Long officeId = rs.getLong("officeId");
-            final String clientName = rs.getString("clientName");
+            final String clientName = ClientNameMasker.mask(rs.getString("clientName"));
             final Long clientId = rs.getLong("clientId");
             final Integer accountTypeId = rs.getInt("accountType");
             final String accountNumber = rs.getString("accountNumber");
