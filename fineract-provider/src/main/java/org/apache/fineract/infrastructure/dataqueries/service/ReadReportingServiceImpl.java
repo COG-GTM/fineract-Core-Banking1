@@ -43,6 +43,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
@@ -143,7 +144,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         final Map<String, String> trustedParams = Map.of("${currentUserHierarchy}", currentUser.getOffice().getHierarchy(),
                 "${currentUserId}", currentUser.getId().toString(), "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport),
                 "${currentDate}", sqlGenerator.currentBusinessDate());
-        sql = ReportSqlParameterSubstitutor.substitute(sql, queryParams, trustedParams);
+        sql = ReportSqlParameterSubstitutor.substitute(sql, queryParams, trustedParams, sqlGenerator.getDialect() == DatabaseType.MYSQL);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;

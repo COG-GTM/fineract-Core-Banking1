@@ -34,8 +34,12 @@ class ReportSqlParameterSubstitutorTest {
             + " where o.hierarchy like concat('${currentUserHierarchy}', '%') and o.id = ${officeId}";
 
     private static String substitute(final String sql, final Map<String, String> requestParams) {
+        return substitute(sql, requestParams, true);
+    }
+
+    private static String substitute(final String sql, final Map<String, String> requestParams, final boolean mysql) {
         final Map<String, String> trustedParams = Map.of("${currentUserHierarchy}", ".1.", "${currentUserId}", "7");
-        return ReportSqlParameterSubstitutor.substitute(sql, requestParams, trustedParams);
+        return ReportSqlParameterSubstitutor.substitute(sql, requestParams, trustedParams, mysql);
     }
 
     @Test
@@ -131,5 +135,37 @@ class ReportSqlParameterSubstitutorTest {
     void negativeValueCannotFormLineComment() {
         assertEquals("select 5 - -1 from t", substitute("select 5 -${n} from t", Map.of("${n}", "-1")));
         assertEquals("select 5 - -1 from t", substitute("select 5 - ${n} from t", Map.of("${n}", "-1")));
+    }
+
+    @Test
+    void hashIsAnOperatorInPostgresql() {
+        assertEquals("select 5 # 3", substitute("select 5 # ${mask}", Map.of("${mask}", "3"), false));
+        assertThrows(PlatformApiDataValidationException.class,
+                () -> substitute("select 1 # 1 where o.id = ${officeId}", Map.of("${officeId}", "0 or 2>1"), false));
+    }
+
+    @Test
+    void placeholderAfterLiteralBackslashIsSubstituted() {
+        assertEquals("select '\\3'", substitute("select '\\${part}'", Map.of("${part}", "3"), false));
+        assertEquals("select '\\3'", substitute("select '\\${part}'", Map.of("${part}", "3"), true));
+    }
+
+    @Test
+    void postgresqlStandardStringBackslashDoesNotHideUnquotedPlaceholder() {
+        final String sql = "select 'C:\\' as p from m_office o where o.id = ${officeId}";
+        assertThrows(PlatformApiDataValidationException.class, () -> substitute(sql, Map.of("${officeId}", "0 or 2>1"), false));
+        assertEquals("select 'C:\\' as p from m_office o where o.id = 5", substitute(sql, Map.of("${officeId}", "5"), false));
+    }
+
+    @Test
+    void postgresqlEscapeStringBackslashDoesNotHideUnquotedPlaceholder() {
+        final String sql = "select E'\\'' as p from m_office o where o.id = ${officeId}";
+        assertThrows(PlatformApiDataValidationException.class, () -> substitute(sql, Map.of("${officeId}", "0 or 2>1"), false));
+        assertEquals("select E'\\'' as p from m_office o where o.id = 5", substitute(sql, Map.of("${officeId}", "5"), false));
+    }
+
+    @Test
+    void negativeValueInsideLiteralIsNotSpaced() {
+        assertEquals("select 'prefix--1'", substitute("select 'prefix-${value}'", Map.of("${value}", "-1")));
     }
 }

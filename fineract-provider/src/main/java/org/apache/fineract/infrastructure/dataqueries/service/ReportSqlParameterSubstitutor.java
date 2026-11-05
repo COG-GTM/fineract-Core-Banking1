@@ -30,9 +30,10 @@ import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidati
  * and backslashes are rejected; outside a literal only numbers, ISO dates, booleans, number lists or lists of
  * single-quoted literals are accepted.
  *
- * Once the SQL contains a construct whose meaning differs between MySQL and PostgreSQL ({@code #} or a backslash), the
- * lexical context of later placeholders cannot be trusted, so from there on only values that are safe in any context
- * (numbers, ISO dates, booleans and number lists) are accepted.
+ * Comments and backslash escapes are lexed according to the database dialect ({@code #} comments and backslash escapes
+ * in MySQL, {@code E'...'} escape strings in PostgreSQL). Because backslash handling also depends on server settings,
+ * once the SQL contains a backslash only values that are safe in any context (numbers, ISO dates, booleans and number
+ * lists) are accepted for later placeholders.
  */
 public final class ReportSqlParameterSubstitutor {
 
@@ -43,10 +44,12 @@ public final class ReportSqlParameterSubstitutor {
 
     private ReportSqlParameterSubstitutor() {}
 
-    public static String substitute(final String sql, final Map<String, String> requestParams, final Map<String, String> trustedParams) {
+    public static String substitute(final String sql, final Map<String, String> requestParams, final Map<String, String> trustedParams,
+            final boolean mysql) {
         final int length = sql.length();
         final StringBuilder result = new StringBuilder(length);
         char quote = 0;
+        boolean backslashEscapes = false;
         boolean ambiguous = false;
         int i = 0;
         while (i < length) {
@@ -59,8 +62,7 @@ public final class ReportSqlParameterSubstitutor {
                     i = end;
                     continue;
                 }
-                if (c == '#') {
-                    ambiguous = true;
+                if (mysql && c == '#') {
                     final int end = indexOrLength(sql, "\n", i + 1, 0);
                     result.append(sql, i, end);
                     i = end;
@@ -74,15 +76,18 @@ public final class ReportSqlParameterSubstitutor {
                 }
                 if (c == '\'' || c == '"' || c == '`') {
                     quote = c;
+                    backslashEscapes = mysql ? c != '`' : c == '\'' && isEscapeStringPrefix(sql, i);
                     result.append(c);
                     i++;
                     continue;
                 }
-            } else if (c == '\\' && next != 0) {
+            } else if (c == '\\') {
                 ambiguous = true;
-                result.append(c).append(next);
-                i += 2;
-                continue;
+                if (backslashEscapes && (next == quote || next == '\\')) {
+                    result.append(c).append(next);
+                    i += 2;
+                    continue;
+                }
             } else if (c == quote) {
                 if (next == quote) {
                     result.append(c).append(next);
@@ -109,7 +114,7 @@ public final class ReportSqlParameterSubstitutor {
                     }
                     if (requestParams.containsKey(key)) {
                         final String fragment = toSqlFragment(key, requestParams.get(key), quote, ambiguous);
-                        if (fragment.startsWith("-") && !result.isEmpty() && result.charAt(result.length() - 1) == '-') {
+                        if (quote == 0 && fragment.startsWith("-") && !result.isEmpty() && result.charAt(result.length() - 1) == '-') {
                             result.append(' ');
                         }
                         result.append(fragment);
@@ -122,6 +127,13 @@ public final class ReportSqlParameterSubstitutor {
             i++;
         }
         return result.toString();
+    }
+
+    private static boolean isEscapeStringPrefix(final String sql, final int quoteIndex) {
+        if (quoteIndex == 0 || Character.toUpperCase(sql.charAt(quoteIndex - 1)) != 'E') {
+            return false;
+        }
+        return quoteIndex == 1 || !Character.isLetterOrDigit(sql.charAt(quoteIndex - 2)) && sql.charAt(quoteIndex - 2) != '_';
     }
 
     private static int indexOrLength(final String sql, final String token, final int from, final int tokenLength) {
