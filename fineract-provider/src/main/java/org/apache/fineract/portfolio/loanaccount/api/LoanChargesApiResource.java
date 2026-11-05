@@ -397,7 +397,7 @@ public class LoanChargesApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId loanChargeExternalId = ExternalIdFactory.produce(loanChargeExternalIdStr);
 
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
         Long resolvedLoanChargeId = getResolvedLoanChargeId(loanChargeId, loanChargeExternalId);
 
         final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteLoanCharge(resolvedLoanId, resolvedLoanChargeId).build();
@@ -414,7 +414,7 @@ public class LoanChargesApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId loanChargeExternalId = ExternalIdFactory.produce(loanChargeExternalIdStr);
 
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
         Long resolvedLoanChargeId = getResolvedLoanChargeId(loanChargeId, loanChargeExternalId);
 
         final LoanChargeData loanCharge = this.loanChargeReadPlatformService.retrieveLoanChargeDetails(resolvedLoanChargeId,
@@ -433,7 +433,7 @@ public class LoanChargesApiResource {
             final String apiRequestBodyAsJson) {
 
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
 
         CommandProcessingResult result;
         if (CommandParameterUtil.is(commandParam, COMMAND_PAY)) {
@@ -459,7 +459,7 @@ public class LoanChargesApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId loanChargeExternalId = ExternalIdFactory.produce(loanChargeExternalIdStr);
 
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
         Long resolvedLoanChargeId = getResolvedLoanChargeId(loanChargeId, loanChargeExternalId);
 
         final CommandWrapperBuilder builder = new CommandWrapperBuilder().withJson(apiRequestBodyAsJson);
@@ -489,7 +489,7 @@ public class LoanChargesApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId loanChargeExternalId = ExternalIdFactory.produce(loanChargeExternalIdStr);
 
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
         Long resolvedLoanChargeId = getResolvedLoanChargeId(loanChargeId, loanChargeExternalId);
 
         final CommandWrapper commandRequest = new CommandWrapperBuilder().updateLoanCharge(resolvedLoanId, resolvedLoanChargeId)
@@ -504,7 +504,7 @@ public class LoanChargesApiResource {
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
 
         final Collection<LoanChargeData> loanCharges = this.loanChargeReadPlatformService.retrieveLoanCharges(resolvedLoanId);
 
@@ -516,7 +516,7 @@ public class LoanChargesApiResource {
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = resolveLoanIdWithinOfficeHierarchy(loanId, loanExternalId);
 
         final List<ChargeData> chargeOptions = this.chargeReadPlatformService.retrieveLoanAccountApplicableCharges(resolvedLoanId,
                 new ChargeTimeType[] { ChargeTimeType.OVERDUE_INSTALLMENT });
@@ -524,6 +524,12 @@ public class LoanChargesApiResource {
 
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return this.toApiJsonSerializer.serialize(settings, loanChargeTemplate, RESPONSE_DATA_PARAMETERS);
+    }
+
+    private Long resolveLoanIdWithinOfficeHierarchy(final Long loanId, final ExternalId loanExternalId) {
+        final Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        loanReadPlatformService.validateLoanIsInOfficeHierarchy(resolvedLoanId);
+        return resolvedLoanId;
     }
 
     private Long getResolvedLoanChargeId(final Long loanChargeId, final ExternalId loanChargeExternalId) {
