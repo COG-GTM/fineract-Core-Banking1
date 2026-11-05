@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformPasswordEncoder;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
@@ -65,6 +67,9 @@ import org.springframework.data.domain.PageRequest;
 public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     private static final Long USER_ID = 1L;
+    private static final String HEAD_OFFICE_HIERARCHY = ".";
+    private static final String OWN_BRANCH_HIERARCHY = ".3.";
+    private static final String OTHER_BRANCH_HIERARCHY = ".2.";
 
     @Mock
     private PlatformSecurityContext context;
@@ -103,10 +108,10 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         user = mock(AppUser.class);
         authenticatedUser = mock(AppUser.class);
 
-        when(command.json()).thenReturn("{}");
-        when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(context.authenticatedUser(any(CommandWrapper.class))).thenReturn(authenticatedUser);
-        doNothing().when(fromApiJsonDeserializer).validateForChangePassword(anyString(), nullable(AppUser.class));
+        lenient().when(command.json()).thenReturn("{}");
+        lenient().when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        lenient().when(context.authenticatedUser(any(CommandWrapper.class))).thenReturn(authenticatedUser);
+        lenient().doNothing().when(fromApiJsonDeserializer).validateForChangePassword(anyString(), nullable(AppUser.class));
     }
 
     @AfterEach
@@ -116,6 +121,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     @Test
     void changeUserPasswordThrowsWhenPasswordPreviouslyUsed() {
+        givenUserInOffice(OWN_BRANCH_HIERARCHY);
         when(user.getId()).thenReturn(USER_ID);
         when(user.getEncodedPassword(command, platformPasswordEncoder)).thenReturn("encoded");
         when(configurationDomainService.getPasswordReuseRestrictionCount()).thenReturn(2);
@@ -147,5 +153,91 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         assertEquals(USER_ID, result.getResourceId());
         verify(appUserRepository).saveAndFlush(user);
         verify(appUserPreviewPasswordRepository).save(any(AppUserPreviousPassword.class));
+    }
+
+    @Test
+    void updateUserOutsideCallerHierarchyIsRejected() {
+        givenUserInOffice(OTHER_BRANCH_HIERARCHY);
+        denyAccessTo(OTHER_BRANCH_HIERARCHY);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.updateUser(USER_ID, command));
+
+        verify(user, never()).update(any(JsonCommand.class), any(PlatformPasswordEncoder.class), any());
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void updateUserCannotMoveUserIntoOfficeOutsideCallerHierarchy() {
+        givenUserInOffice(OWN_BRANCH_HIERARCHY);
+        Office headOffice = mock(Office.class);
+        when(headOffice.getHierarchy()).thenReturn(HEAD_OFFICE_HIERARCHY);
+        when(officeRepositoryWrapper.findOneWithNotFoundDetection(1L)).thenReturn(headOffice);
+        when(user.update(command, platformPasswordEncoder, null)).thenReturn(Map.of("officeId", 1L));
+        denyAccessTo(HEAD_OFFICE_HIERARCHY);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.updateUser(USER_ID, command));
+
+        verify(user, never()).changeOffice(any(Office.class));
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void changeUserPasswordOutsideCallerHierarchyIsRejected() {
+        givenUserInOffice(OTHER_BRANCH_HIERARCHY);
+        denyAccessTo(OTHER_BRANCH_HIERARCHY);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.changeUserPassword(USER_ID, command));
+
+        verify(user, never()).changePassword(any(JsonCommand.class), any(PlatformPasswordEncoder.class));
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void deleteUserOutsideCallerHierarchyIsRejected() {
+        givenUserInOffice(OTHER_BRANCH_HIERARCHY);
+        denyAccessTo(OTHER_BRANCH_HIERARCHY);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.deleteUser(USER_ID));
+
+        verify(user, never()).delete();
+        verify(appUserRepository, never()).save(any(AppUser.class));
+    }
+
+    @Test
+    void deleteUserInsideCallerHierarchySucceeds() {
+        Office office = givenUserInOffice(OWN_BRANCH_HIERARCHY);
+        when(office.getId()).thenReturn(3L);
+
+        CommandProcessingResult result = underTest.deleteUser(USER_ID);
+
+        assertEquals(USER_ID, result.getResourceId());
+        verify(context).validateAccessRights(OWN_BRANCH_HIERARCHY);
+        verify(user).delete();
+        verify(appUserRepository).save(user);
+    }
+
+    @Test
+    void createUserInOfficeOutsideCallerHierarchyIsRejected() {
+        Office headOffice = mock(Office.class);
+        when(headOffice.getHierarchy()).thenReturn(HEAD_OFFICE_HIERARCHY);
+        when(command.longValueOfParameterNamed("officeId")).thenReturn(1L);
+        when(officeRepositoryWrapper.findOneWithNotFoundDetection(1L)).thenReturn(headOffice);
+        denyAccessTo(HEAD_OFFICE_HIERARCHY);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.createUser(command));
+
+        verify(userDomainService, never()).create(any(AppUser.class), any());
+    }
+
+    private Office givenUserInOffice(final String hierarchy) {
+        Office office = mock(Office.class);
+        when(office.getHierarchy()).thenReturn(hierarchy);
+        when(user.getOffice()).thenReturn(office);
+        return office;
+    }
+
+    private void denyAccessTo(final String hierarchy) {
+        lenient().doThrow(new NoAuthorizationException("The user doesn't have enough permissions to access the resource.")).when(context)
+                .validateAccessRights(hierarchy);
     }
 }

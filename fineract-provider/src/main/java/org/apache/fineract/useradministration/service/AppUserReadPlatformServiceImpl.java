@@ -106,6 +106,7 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
         if (user.isDeleted()) {
             throw new UserNotFoundException(userId);
         }
+        this.context.validateAccessRights(user.getOffice().getHierarchy());
 
         final Collection<RoleData> availableRoles = this.roleReadPlatformService.retrieveAll();
 
