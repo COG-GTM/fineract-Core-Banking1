@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -36,11 +37,13 @@ import org.apache.fineract.command.core.CommandExecutor;
 import org.apache.fineract.command.core.CommandProperties;
 import org.apache.fineract.command.core.exception.CommandAuditException;
 import org.apache.fineract.command.core.exception.CommandIllegalArgumentException;
+import org.apache.fineract.command.persistence.domain.CommandEntity;
 import org.apache.fineract.command.persistence.domain.CommandRepository;
 import org.apache.fineract.command.persistence.mapping.CommandMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -107,6 +110,23 @@ class CommandAuditIntegrityTest {
 
         assertEquals(255, command.getIdempotencyKey().length());
         verify(executor).execute(command);
+    }
+
+    @Test
+    void processingAlwaysInsertsNewAuditRecord() {
+        var mapper = mock(CommandMapper.class);
+        var repository = mock(CommandRepository.class);
+        var entity = new CommandEntity();
+        var command = new Command<String>();
+        command.setCommandId(1234L);
+        when(mapper.map(command)).thenReturn(entity);
+        var auditor = new DefaultCommandAuditor(mapper, repository, properties, new ObjectMapper());
+
+        auditor.processing(command);
+
+        var captor = ArgumentCaptor.forClass(CommandEntity.class);
+        verify(repository).save(captor.capture());
+        assertNull(captor.getValue().getId());
     }
 
     @Test

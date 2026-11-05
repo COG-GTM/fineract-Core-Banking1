@@ -69,7 +69,6 @@ public class WorkingDaysApiResource {
 
         final var command = new WorkingDaysUpdateCommand();
 
-        command.setCommandId(System.currentTimeMillis());
         command.setCreatedAt(Instant.now());
         command.setPayload(request);
 
