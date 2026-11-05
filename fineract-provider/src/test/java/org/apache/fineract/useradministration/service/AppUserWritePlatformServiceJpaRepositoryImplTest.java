@@ -25,7 +25,6 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -155,7 +154,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
     @Test
     void updateUserRejectsClientsChangeWithoutUpdateUserPermission() {
         when(authenticatedUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")).thenReturn(false);
-        when(command.hasParameter(AppUserConstants.CLIENTS)).thenReturn(true);
+        lenient().when(command.hasParameter(AppUserConstants.CLIENTS)).thenReturn(true);
 
         PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
                 () -> underTest.updateUser(USER_ID, command));
@@ -168,7 +167,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
     @Test
     void updateUserRejectsSelfServiceFlagChangeWithoutUpdateUserPermission() {
         when(authenticatedUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")).thenReturn(false);
-        when(command.hasParameter(AppUserConstants.IS_SELF_SERVICE_USER)).thenReturn(true);
+        lenient().when(command.hasParameter(AppUserConstants.IS_SELF_SERVICE_USER)).thenReturn(true);
 
         assertThrows(PlatformApiDataValidationException.class, () -> underTest.updateUser(USER_ID, command));
 
