@@ -254,15 +254,16 @@ public class DatatableUtil {
         final List<String> orderParts = new ArrayList<>();
         for (String item : order.split(",", -1)) {
             final String trimmed = item.trim();
-            String columnName = findColumnName(trimmed, columnHeaders);
+            String columnName = null;
             String direction = null;
+            final String[] tokens = trimmed.split("\\s+");
+            final String lastToken = tokens[tokens.length - 1].toUpperCase(Locale.ROOT);
+            if (tokens.length > 1 && (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken))) {
+                columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
+                direction = columnName == null ? null : lastToken;
+            }
             if (columnName == null) {
-                final String[] tokens = trimmed.split("\\s+");
-                final String lastToken = tokens[tokens.length - 1].toUpperCase(Locale.ROOT);
-                if (tokens.length > 1 && (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken))) {
-                    columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
-                    direction = lastToken;
-                }
+                columnName = findColumnName(trimmed, columnHeaders);
             }
             if (columnName == null) {
                 throw invalidOrderBy(order);

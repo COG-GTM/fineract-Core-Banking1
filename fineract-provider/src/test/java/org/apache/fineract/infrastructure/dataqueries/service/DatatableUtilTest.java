@@ -244,10 +244,13 @@ class DatatableUtilTest {
 
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = { "`Date of Birth` desc|`Date of Birth` DESC", "date of birth|`Date of Birth`",
-            "\"DATE OF BIRTH\" Asc, `id`|`Date of Birth` ASC, `id`", "id desc|`id` DESC" })
+            "\"DATE OF BIRTH\" Asc, `id`|`Date of Birth` ASC, `id`", "id desc|`id` DESC", "status desc|`status` DESC",
+            "`status desc`|`status desc`", "`status desc` desc|`status desc` DESC", "status desc desc|`status desc` DESC" })
     void testOrderBySupportsSpacedAndQuotedColumnNames(String order, String expectedOrderBy) {
         List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
         headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        headers.add(ResultsetColumnHeaderData.basic("status", "varchar", DatabaseType.MYSQL));
+        headers.add(ResultsetColumnHeaderData.basic("status desc", "varchar", DatabaseType.MYSQL));
         when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
         when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
         when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
