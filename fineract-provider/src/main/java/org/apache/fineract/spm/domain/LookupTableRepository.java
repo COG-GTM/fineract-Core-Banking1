@@ -25,5 +25,5 @@ public interface LookupTableRepository extends JpaRepository<LookupTable, Long> 
 
     List<LookupTable> findBySurvey(Survey survey);
 
-    List<LookupTable> findByKey(String spmKey);
+    List<LookupTable> findBySurveyAndKey(Survey survey, String key);
 }
