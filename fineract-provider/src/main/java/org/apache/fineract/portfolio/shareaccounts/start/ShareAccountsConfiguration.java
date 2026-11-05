@@ -24,6 +24,7 @@ import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.account.service.AccountNumberGenerator;
 import org.apache.fineract.portfolio.accounts.constants.AccountsApiConstants;
@@ -96,10 +97,11 @@ public class ShareAccountsConfiguration {
             SavingsAccountReadPlatformService savingsAccountReadPlatformService, ClientReadPlatformService clientReadPlatformService,
             ShareAccountChargeReadPlatformService shareAccountChargeReadPlatformService,
             PurchasedSharesReadPlatformService purchasedSharesReadPlatformService, JdbcTemplate jdbcTemplate,
-            PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator) {
+            PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator, PlatformSecurityContext context) {
         return new ShareAccountReadPlatformServiceImpl(applicationContext, chargeReadPlatformService,
                 shareProductDropdownReadPlatformService, savingsAccountReadPlatformService, clientReadPlatformService,
-                shareAccountChargeReadPlatformService, purchasedSharesReadPlatformService, jdbcTemplate, paginationHelper, sqlGenerator);
+                shareAccountChargeReadPlatformService, purchasedSharesReadPlatformService, jdbcTemplate, paginationHelper, sqlGenerator,
+                context);
     }
 
     @Bean
