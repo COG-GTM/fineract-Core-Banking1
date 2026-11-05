@@ -25,6 +25,7 @@ import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.io.File;
 import java.util.HashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,20 @@ public class CreditBureauIntegrationHelper {
                 + Utils.TENANT_IDENTIFIER;
         return Utils.performServerPost(requestSpec, responseSpec, CREDITBUREAU_CONFIGURATION_URL,
                 createGetCreditReportAsJson(creditBureauId, nrc), null);
+    }
+
+    public static String saveCreditReport(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
+            final Long creditBureauId, final String nationalId, final String creditReportJson) {
+        final String url = "/fineract-provider/api/v1/creditBureauIntegration/saveCreditReport?" + Utils.TENANT_IDENTIFIER
+                + "&creditBureauId=" + creditBureauId + "&nationalId=" + nationalId;
+        return Utils.performServerPost(requestSpec, responseSpec, url, new Gson().toJson(Map.of("apiRequestBodyAsJson", creditReportJson)));
+    }
+
+    public static String getSavedCreditReports(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
+            final Long creditBureauId) {
+        final String url = "/fineract-provider/api/v1/creditBureauIntegration/creditReport/" + creditBureauId + "?"
+                + Utils.TENANT_IDENTIFIER;
+        return Utils.performServerGet(requestSpec, responseSpec, url);
     }
 
     public static String uploadCreditReport(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,

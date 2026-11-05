@@ -67,6 +67,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequiredArgsConstructor
 public class CreditBureauIntegrationApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "CREDITREPORT";
     private static final Set<String> RESPONSE_DATA_PARAMETERS = new HashSet<>(Arrays.asList("id", "creditBureauId", "nrc", "creditReport"));
 
     private final PlatformSecurityContext context;
@@ -136,7 +137,7 @@ public class CreditBureauIntegrationApiResource {
     public String getSavedCreditReport(@PathParam("creditBureauId") @Parameter(description = "creditBureauId") final Long creditBureauId,
             @Context final UriInfo uriInfo) {
 
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final Collection<CreditReportData> creditReport = this.creditReportReadPlatformService.retrieveCreditReportDetails(creditBureauId);
 
