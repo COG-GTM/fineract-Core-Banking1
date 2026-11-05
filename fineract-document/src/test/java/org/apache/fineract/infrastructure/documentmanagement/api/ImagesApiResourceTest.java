@@ -69,8 +69,8 @@ class ImagesApiResourceTest {
     @BeforeEach
     void setUp() {
         underTest = new ImagesApiResource(imageReadPlatformService, commandPipeline, imageResizeContentProcessor,
-                base64EncoderContentProcessor, dataUrlEncoderContentProcessor, base64DecoderContentProcessor, dataUrlDecoderContentProcessor,
-                fileUploadValidator);
+                base64EncoderContentProcessor, dataUrlEncoderContentProcessor, base64DecoderContentProcessor,
+                dataUrlDecoderContentProcessor, fileUploadValidator);
         lenient().doThrow(new DocumentNotFoundException(ENTITY_TYPE, ENTITY_ID, -1L)).when(imageReadPlatformService)
                 .validateAccess(ENTITY_TYPE, ENTITY_ID);
     }
