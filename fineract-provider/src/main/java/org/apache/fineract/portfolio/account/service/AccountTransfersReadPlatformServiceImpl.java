@@ -24,16 +24,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
@@ -57,7 +58,6 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
     private final ClientReadPlatformService clientReadPlatformService;
     private final OfficeReadPlatformService officeReadPlatformService;
     private final PortfolioAccountReadPlatformService portfolioAccountReadPlatformService;
-    private final ColumnValidator columnValidator;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     // mapper
     private final AccountTransfersMapper accountTransfersMapper;
@@ -207,14 +207,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
             finalObjectArray = new Object[] { accountDetailId };
         }
 
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-            }
-        }
+        appendOrderBy(sqlBuilder, searchParameters);
 
         if (searchParameters.hasLimit()) {
             sqlBuilder.append(" limit ").append(searchParameters.getLimit());
@@ -276,14 +269,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
         sqlBuilder.append(" where atsi.id = ?");
 
         if (searchParameters != null) {
-            if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-                if (searchParameters.hasSortOrder()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-                }
-            }
+            appendOrderBy(sqlBuilder, searchParameters);
 
             if (searchParameters.hasLimit()) {
                 sqlBuilder.append(" ");
@@ -297,6 +283,33 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
 
         final Object[] finalObjectArray = { id };
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, this.accountTransfersMapper);
+    }
+
+    private void appendOrderBy(final StringBuilder sqlBuilder, final SearchParameters searchParameters) {
+        final String sortOrder = resolveSortOrder(searchParameters);
+        if (!searchParameters.hasOrderBy()) {
+            return;
+        }
+        final String orderBy = searchParameters.getOrderBy();
+        final String sortColumn = this.accountTransfersMapper.resolveSortColumn(orderBy)
+                .orElseThrow(() -> new PlatformApiDataValidationException("validation.msg.accounttransfer.orderBy.invalid",
+                        "The parameter `orderBy` must be a sortable account transfer column", "orderBy", orderBy));
+        sqlBuilder.append(" order by ").append(sortColumn);
+        if (sortOrder != null) {
+            sqlBuilder.append(' ').append(sortOrder);
+        }
+    }
+
+    private static String resolveSortOrder(final SearchParameters searchParameters) {
+        if (!searchParameters.hasSortOrder()) {
+            return null;
+        }
+        final String sortOrder = searchParameters.getSortOrder().trim().toUpperCase(Locale.ROOT);
+        if (!"ASC".equals(sortOrder) && !"DESC".equals(sortOrder)) {
+            throw new PlatformApiDataValidationException("validation.msg.accounttransfer.sortOrder.invalid",
+                    "The parameter `sortOrder` must be ASC or DESC", "sortOrder", searchParameters.getSortOrder());
+        }
+        return sortOrder;
     }
 
     @Override

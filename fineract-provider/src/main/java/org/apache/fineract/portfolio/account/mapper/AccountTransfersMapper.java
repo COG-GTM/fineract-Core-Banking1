@@ -22,6 +22,12 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
@@ -37,7 +43,10 @@ import org.springframework.stereotype.Component;
 @Component
 public final class AccountTransfersMapper implements RowMapper<AccountTransferData> {
 
+    private static final Pattern SELECTED_COLUMN = Pattern.compile("(\\w+\\.\\w+) as (\\w+)");
+
     private final String schemaSql;
+    private final Map<String, String> sortableColumns;
 
     public AccountTransfersMapper() {
         final StringBuilder sqlBuilder = new StringBuilder(400);
@@ -77,10 +86,33 @@ public final class AccountTransfersMapper implements RowMapper<AccountTransferDa
         sqlBuilder.append("left join m_loan_transaction toloantran on toloantran.id = att.to_savings_transaction_id ");
 
         this.schemaSql = sqlBuilder.toString();
+        this.sortableColumns = buildSortableColumns(this.schemaSql);
+    }
+
+    private static Map<String, String> buildSortableColumns(final String schemaSql) {
+        final Map<String, String> columns = new HashMap<>();
+        final Matcher matcher = SELECTED_COLUMN.matcher(schemaSql);
+        while (matcher.find()) {
+            final String column = matcher.group(1);
+            columns.put(column.toLowerCase(Locale.ROOT), column);
+            columns.put(matcher.group(2).toLowerCase(Locale.ROOT), column);
+        }
+        return Map.copyOf(columns);
     }
 
     public String schema() {
         return this.schemaSql;
+    }
+
+    /**
+     * Resolves a client supplied orderBy value (a selected alias such as {@code transferDate} or a qualified column such
+     * as {@code att.transaction_date}) to the qualified column it refers to.
+     */
+    public Optional<String> resolveSortColumn(final String orderBy) {
+        if (orderBy == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(this.sortableColumns.get(orderBy.trim().toLowerCase(Locale.ROOT)));
     }
 
     @Override
