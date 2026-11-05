@@ -90,8 +90,7 @@ class JournalEntryReadPlatformServiceImplTest {
         PlatformApiDataValidationException exception = assertThrows(PlatformApiDataValidationException.class,
                 () -> service.retrieveAll(searchParameters, null, null, null, null, null, null, null, null, null));
 
-        assertThat(exception.getErrors()).singleElement()
-                .satisfies(error -> assertThat(error.getParameterName()).isEqualTo("orderBy"));
+        assertThat(exception.getErrors()).singleElement().satisfies(error -> assertThat(error.getParameterName()).isEqualTo("orderBy"));
         verifyNoInteractions(paginationHelper, jdbcTemplate);
     }
 
@@ -103,8 +102,7 @@ class JournalEntryReadPlatformServiceImplTest {
         PlatformApiDataValidationException exception = assertThrows(PlatformApiDataValidationException.class,
                 () -> service.retrieveAll(searchParameters, null, null, null, null, null, null, null, null, null));
 
-        assertThat(exception.getErrors()).singleElement()
-                .satisfies(error -> assertThat(error.getParameterName()).isEqualTo("sortOrder"));
+        assertThat(exception.getErrors()).singleElement().satisfies(error -> assertThat(error.getParameterName()).isEqualTo("sortOrder"));
         verifyNoInteractions(paginationHelper, jdbcTemplate);
     }
 

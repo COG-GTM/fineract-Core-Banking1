@@ -392,8 +392,7 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
         final String column = SORTABLE_COLUMNS.get(orderBy.trim().toLowerCase(Locale.ROOT));
         if (column == null) {
             throw new PlatformApiDataValidationException("validation.msg.journalentry.orderBy.not.supported",
-                    "The parameter `orderBy` must be one of the supported sort columns: " + SORTABLE_COLUMNS_API_NAMES, "orderBy",
-                    orderBy);
+                    "The parameter `orderBy` must be one of the supported sort columns: " + SORTABLE_COLUMNS_API_NAMES, "orderBy", orderBy);
         }
         return column;
     }
