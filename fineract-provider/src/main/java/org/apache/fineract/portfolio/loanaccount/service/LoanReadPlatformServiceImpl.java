@@ -2219,6 +2219,17 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     }
 
     @Override
+    public boolean existsByLoanIdWithinUserOfficeHierarchy(final Long loanId) {
+        final String hierarchySearchString = getHierarchyString() + "%";
+        final String sql = "select count(*) from m_loan l left join m_client c on c.id = l.client_id"
+                + " left join m_group g on g.id = l.group_id join m_office o on (o.id = c.office_id or o.id = g.office_id)"
+                + " left join m_office transferToOffice on transferToOffice.id = c.transfer_to_office_id"
+                + " where l.id = ? and (o.hierarchy like ? or transferToOffice.hierarchy like ?)";
+        final Long count = this.jdbcTemplate.queryForObject(sql, Long.class, loanId, hierarchySearchString, hierarchySearchString);
+        return count != null && count > 0;
+    }
+
+    @Override
     public LoanTransactionData retrieveManualInterestRefundTemplate(final Long loanId, final Long targetTransactionId) {
         final Loan loan = loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
         final LoanTransaction targetTxn = loan.getLoanTransaction(txn -> txn.getId() != null && txn.getId().equals(targetTransactionId));
