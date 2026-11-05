@@ -99,6 +99,8 @@ public class ClientAddressApiResource {
 
 
             clients/1/addresses?status=false,true&&type=1,2,3""")
+    @ApiResponse(responseCode = "200", description = "OK")
+    @ApiResponse(responseCode = "404", description = "Client not found or not in the caller's office hierarchy")
     public List<AddressData> getAddresses(@QueryParam("status") @Parameter(description = "status") final String status,
             @QueryParam("type") @Parameter(description = "type") final long addressTypeId,
             @PathParam("clientid") @Parameter(description = "clientId") final long clientid) {
