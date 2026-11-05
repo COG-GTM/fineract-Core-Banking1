@@ -25,16 +25,17 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.infrastructure.sms.data.SmsData;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageEnumerations;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageStatusType;
@@ -48,11 +49,16 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SmsReadPlatformServiceImpl implements SmsReadPlatformService {
 
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.ofEntries(Map.entry("id", "smo.id"),
+            Map.entry("groupid", "smo.group_id"), Map.entry("clientid", "smo.client_id"), Map.entry("staffid", "smo.staff_id"),
+            Map.entry("status", "smo.status_enum"), Map.entry("statusid", "smo.status_enum"), Map.entry("mobileno", "smo.mobile_no"),
+            Map.entry("submittedondate", "smo.submittedon_date"), Map.entry("campaignid", "smo.campaign_id"),
+            Map.entry("campaignname", "smc.campaign_name"));
+    private static final String SORTABLE_COLUMN_NAMES = String.join(", ", SORTABLE_COLUMNS.keySet().stream().sorted().toList());
+
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final PaginationHelper paginationHelper;
-    private final ColumnValidator columnValidator;
-    private final SqlValidator sqlValidator;
     private SmsMapper smsRowMapper;
 
     @PostConstruct
@@ -203,8 +209,8 @@ public class SmsReadPlatformServiceImpl implements SmsReadPlatformService {
     @Override
     public Page<SmsData> retrieveSmsByStatus(final Long campaignId, final SearchParameters searchParameters, final Integer status,
             final LocalDate dateFrom, final LocalDate dateTo) {
-        sqlValidator.validate(searchParameters.getOrderBy());
-        sqlValidator.validate(searchParameters.getSortOrder());
+        final String orderByColumn = resolveOrderByColumn(searchParameters.getOrderBy());
+        final String sortDirection = resolveSortOrder(searchParameters.getSortOrder());
 
         final StringBuilder sqlBuilder = new StringBuilder(200);
         final Object[] objectArray = new Object[10];
@@ -231,12 +237,10 @@ public class SmsReadPlatformServiceImpl implements SmsReadPlatformService {
             arrayPos = arrayPos + 1;
         }
 
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+        if (orderByColumn != null) {
+            sqlBuilder.append(" order by ").append(orderByColumn);
+            if (sortDirection != null) {
+                sqlBuilder.append(' ').append(sortDirection);
             }
         } else {
             sqlBuilder.append(" order by smo.submittedon_date, smo.id");
@@ -254,4 +258,35 @@ public class SmsReadPlatformServiceImpl implements SmsReadPlatformService {
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, this.smsRowMapper);
     }
 
+    private static String resolveOrderByColumn(final String orderBy) {
+        if (orderBy == null || orderBy.isBlank()) {
+            return null;
+        }
+        String key = orderBy.trim().toLowerCase(Locale.ROOT);
+        if (key.startsWith("smo.") || key.startsWith("smc.")) {
+            key = key.substring(4);
+        }
+        key = key.replace("_", "");
+        if ("statusenum".equals(key)) {
+            key = "status";
+        }
+        final String column = SORTABLE_COLUMNS.get(key);
+        if (column == null) {
+            throw new PlatformApiDataValidationException("validation.msg.sms.orderBy.not.supported",
+                    "The orderBy value is not supported. Allowed values: " + SORTABLE_COLUMN_NAMES, "orderBy", orderBy);
+        }
+        return column;
+    }
+
+    private static String resolveSortOrder(final String sortOrder) {
+        if (sortOrder == null || sortOrder.isBlank()) {
+            return null;
+        }
+        final String direction = sortOrder.trim().toUpperCase(Locale.ROOT);
+        if (!"ASC".equals(direction) && !"DESC".equals(direction)) {
+            throw new PlatformApiDataValidationException("validation.msg.sms.sortOrder.not.supported",
+                    "The sortOrder value must be ASC or DESC.", "sortOrder", sortOrder);
+        }
+        return direction;
+    }
 }
