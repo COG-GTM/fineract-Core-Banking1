@@ -19,7 +19,6 @@
 package org.apache.fineract.template.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 import java.io.IOException;
@@ -65,7 +64,7 @@ public class TemplateMergeService {
     public String compile(final Template template, final Map<String, Object> scopes) {
         scopes.put("static", new TemplateFunctions());
 
-        final MustacheFactory mf = new DefaultMustacheFactory();
+        final MustacheFactory mf = new NoPartialsMustacheFactory();
         final Mustache mustache = mf.compile(new StringReader(template.getText()), template.getName());
 
         getCompiledMapFromMappers(template.getMappersAsMap(), scopes);
@@ -79,7 +78,7 @@ public class TemplateMergeService {
     }
 
     private Map<String, Object> getCompiledMapFromMappers(final Map<String, String> data, final Map<String, Object> scopes) {
-        final MustacheFactory mf = new DefaultMustacheFactory();
+        final MustacheFactory mf = new NoPartialsMustacheFactory();
 
         if (data != null) {
             for (final Map.Entry<String, String> entry : data.entrySet()) {

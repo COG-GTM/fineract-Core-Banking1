@@ -20,7 +20,6 @@ package org.apache.fineract.infrastructure.campaigns.jobs.updateemailoutboundwit
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 import jakarta.mail.internet.AddressException;
@@ -47,6 +46,7 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.portfolio.calendar.service.CalendarUtils;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.template.service.NoPartialsMustacheFactory;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -126,7 +126,7 @@ public class UpdateEmailOutboundWithCampaignMessageTasklet implements Tasklet {
 
     private String compileEmailTemplate(final String textMessageTemplate, final String campaignName,
             final Map<String, Object> emailParams) {
-        final MustacheFactory mf = new DefaultMustacheFactory();
+        final MustacheFactory mf = new NoPartialsMustacheFactory();
         final Mustache mustache = mf.compile(new StringReader(textMessageTemplate), campaignName);
 
         final StringWriter stringWriter = new StringWriter();
