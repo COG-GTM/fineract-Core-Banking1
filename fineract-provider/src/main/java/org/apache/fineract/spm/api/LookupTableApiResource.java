@@ -53,6 +53,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LookupTableApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "LOOKUPTABLE";
+
     private final PlatformSecurityContext securityContext;
     private final SpmService spmService;
     private final LookupTableService lookupTableService;
@@ -64,7 +66,7 @@ public class LookupTableApiResource {
     @Operation(summary = "List all Lookup Table entries", description = "List all Lookup Table entries for a survey.")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = LookupTableData.class))))
     public List<LookupTableData> fetchLookupTables(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final Survey survey = findSurvey(surveyId);
 
@@ -86,11 +88,11 @@ public class LookupTableApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LookupTableData.class)))
     public LookupTableData findLookupTable(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @PathParam("key") @Parameter(description = "Enter key") final String key) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
-        findSurvey(surveyId);
+        final Survey survey = findSurvey(surveyId);
 
-        final List<LookupTable> lookupTables = this.lookupTableService.findByKey(key);
+        final List<LookupTable> lookupTables = this.lookupTableService.findBySurveyAndKey(survey, key);
 
         if (lookupTables == null || lookupTables.isEmpty()) {
             throw new LookupTableNotFoundException(key);
@@ -108,7 +110,7 @@ public class LookupTableApiResource {
     @ApiResponse(responseCode = "200", description = "OK")
     public void createLookupTable(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             final LookupTableData lookupTableData) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasCreatePermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final Survey survey = findSurvey(surveyId);
 

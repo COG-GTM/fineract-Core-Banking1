@@ -28,23 +28,25 @@ import org.apache.fineract.spm.domain.Survey;
 @RequiredArgsConstructor
 public class LookupTableService {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "LOOKUPTABLE";
+
     private final PlatformSecurityContext securityContext;
     private final LookupTableRepository lookupTableRepository;
 
-    public List<LookupTable> findByKey(final String key) {
-        this.securityContext.authenticatedUser();
+    public List<LookupTable> findBySurveyAndKey(final Survey survey, final String key) {
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
-        return this.lookupTableRepository.findByKey(key);
+        return this.lookupTableRepository.findBySurveyAndKey(survey, key);
     }
 
     public List<LookupTable> findBySurvey(final Survey survey) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         return this.lookupTableRepository.findBySurvey(survey);
     }
 
     public List<LookupTable> createLookupTable(final List<LookupTable> lookupTable) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasCreatePermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         return this.lookupTableRepository.saveAll(lookupTable);
     }
