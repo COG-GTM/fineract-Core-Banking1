@@ -20,27 +20,31 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.search.service.SearchUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -69,14 +73,12 @@ class DatatableUtilTest {
     private GenericDataService genericDataService;
     @Mock
     private DatabaseSpecificSQLGenerator sqlGenerator;
-    @Mock
-    private ColumnValidator columnValidator;
 
     private DatatableUtil underTest;
 
     @BeforeEach
     void setUp() {
-        underTest = new DatatableUtil(searchUtil, jdbcTemplate, sqlValidator, context, genericDataService, sqlGenerator, columnValidator);
+        underTest = new DatatableUtil(searchUtil, jdbcTemplate, sqlValidator, context, genericDataService, sqlGenerator);
         setupSecurityContext();
     }
 
@@ -216,6 +218,30 @@ class DatatableUtilTest {
         assertEquals(2, capturedParams.length, "Should have 2 parameters (appTableId + id)");
         assertEquals(APP_TABLE_ID, capturedParams[0], "First param should be appTableId");
         assertEquals(id, capturedParams[1], "Second param should be id");
+    }
+
+    @Test
+    void testRetrieveDataTableGenericResultSetOrdersByKnownColumn() {
+        when(sqlGenerator.escape(anyString())).thenAnswer(invocation -> "\"" + invocation.getArgument(0) + "\"");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(createMultiRowHeaders());
+        when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
+
+        underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "test_datatable", APP_TABLE_ID, "ID desc", null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(genericDataService).fillResultsetRowData(sqlCaptor.capture(), any(), any(Object[].class));
+        assertTrue(sqlCaptor.getValue().endsWith(" order by \"id\" DESC"), sqlCaptor.getValue());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "(select sleep(5))", "id, (select 1)", "id desc limit 1", "unknown_column", "id sideways" })
+    void testRetrieveDataTableGenericResultSetRejectsUnsupportedOrder(String order) {
+        when(sqlGenerator.escape(anyString())).thenAnswer(invocation -> "\"" + invocation.getArgument(0) + "\"");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(createMultiRowHeaders());
+
+        assertThrows(PlatformApiDataValidationException.class,
+                () -> underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "test_datatable", APP_TABLE_ID, order, null));
+        verify(genericDataService, never()).fillResultsetRowData(anyString(), any(), any(Object[].class));
     }
 
     @Test

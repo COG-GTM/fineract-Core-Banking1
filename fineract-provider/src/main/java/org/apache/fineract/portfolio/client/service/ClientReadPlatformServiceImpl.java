@@ -25,8 +25,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -66,6 +69,9 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ClientReadPlatformServiceImpl implements ClientReadPlatformService {
+
+    private static final Map<String, String> CLIENT_ORDER_BY_COLUMNS = buildClientOrderByColumns();
+    private static final Set<String> SORT_ORDER_VALUES = Set.of("ASC", "DESC");
 
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
@@ -124,11 +130,9 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
             }
 
             if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+                sqlBuilder.append(" order by ").append(resolveClientOrderByColumn(searchParameters.getOrderBy()));
                 if (searchParameters.hasSortOrder()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                    sqlBuilder.append(' ').append(resolveSortOrder(searchParameters.getSortOrder()));
                 }
             }
 
@@ -142,6 +146,41 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
             }
         }
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), paramList.toArray(), this.clientToDataMapper);
+    }
+
+    private static Map<String, String> buildClientOrderByColumns() {
+        final Map<String, String> apiToColumn = Map.ofEntries(Map.entry("id", "c.id"), Map.entry("accountNo", "c.account_no"),
+                Map.entry("externalId", "c.external_id"), Map.entry("status", "c.status_enum"), Map.entry("officeId", "c.office_id"),
+                Map.entry("officeName", "o.name"), Map.entry("firstname", "c.firstname"), Map.entry("middlename", "c.middlename"),
+                Map.entry("lastname", "c.lastname"), Map.entry("fullname", "c.fullname"), Map.entry("displayName", "c.display_name"),
+                Map.entry("mobileNo", "c.mobile_no"), Map.entry("activationDate", "c.activation_date"),
+                Map.entry("submittedOnDate", "c.submittedon_date"));
+        final Map<String, String> lookup = new HashMap<>();
+        apiToColumn.forEach((apiName, column) -> {
+            lookup.put(apiName.toLowerCase(Locale.ROOT), column);
+            lookup.put(column, column);
+            lookup.put(column.substring(column.indexOf('.') + 1), column);
+        });
+        return Map.copyOf(lookup);
+    }
+
+    static String resolveClientOrderByColumn(final String orderBy) {
+        final String column = CLIENT_ORDER_BY_COLUMNS.get(orderBy.trim().toLowerCase(Locale.ROOT));
+        if (column == null) {
+            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
+                    "validation.msg.clients.orderBy.value.is.not.supported", "The orderBy value is not supported", "orderBy", orderBy)));
+        }
+        return column;
+    }
+
+    static String resolveSortOrder(final String sortOrder) {
+        final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
+        if (!SORT_ORDER_VALUES.contains(normalized)) {
+            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
+                    "validation.msg.clients.sortOrder.value.is.not.supported", "The sortOrder value must be one of " + SORT_ORDER_VALUES,
+                    "sortOrder", sortOrder)));
+        }
+        return normalized;
     }
 
     private String buildSqlStringFromClientCriteria(String schemaSql, final SearchParameters searchParameters, List<Object> paramList) {

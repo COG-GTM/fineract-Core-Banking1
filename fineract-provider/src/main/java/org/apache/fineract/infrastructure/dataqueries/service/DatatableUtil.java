@@ -25,11 +25,15 @@ import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiCon
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
@@ -40,7 +44,6 @@ import org.apache.fineract.infrastructure.dataqueries.exception.DatatableNotFoun
 import org.apache.fineract.infrastructure.dataqueries.exception.DatatableSystemErrorException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.search.service.SearchUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -54,6 +57,7 @@ import org.springframework.stereotype.Service;
 public class DatatableUtil {
 
     private static final String APPLICATION_TABLE_NAME = "application_table_name";
+    private static final Set<String> SORT_ORDER_VALUES = Set.of("ASC", "DESC");
 
     private final SearchUtil searchUtil;
     private final JdbcTemplate jdbcTemplate;
@@ -61,7 +65,6 @@ public class DatatableUtil {
     private final PlatformSecurityContext context;
     private final GenericDataService genericDataService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-    private final ColumnValidator columnValidator;
 
     public boolean isMultirowDatatable(final List<ResultsetColumnHeaderData> columnHeaders) {
         return searchUtil.findFiltered(columnHeaders, e -> e.isNamed(TABLE_FIELD_ID)) != null;
@@ -241,12 +244,29 @@ public class DatatableUtil {
             params.add(id);
         }
         if (StringUtils.isNotBlank(order)) {
-            columnValidator.validateSqlInjection(sql, order);
-            sql = sql + " order by " + order;
+            sql = sql + " order by " + resolveDatatableOrder(order, columnHeaders);
         }
 
         final List<ResultsetRowData> result = genericDataService.fillResultsetRowData(sql, columnHeaders, params.toArray());
         return new GenericResultsetData(columnHeaders, result);
+    }
+
+    private String resolveDatatableOrder(final String order, final List<ResultsetColumnHeaderData> columnHeaders) {
+        final List<String> resolved = new ArrayList<>();
+        for (String term : order.split(",")) {
+            final String[] parts = term.trim().split("\\s+");
+            final String column = columnHeaders.stream().map(ResultsetColumnHeaderData::getColumnName)
+                    .filter(name -> name.equalsIgnoreCase(parts[0])).findFirst().orElse(null);
+            final boolean validDirection = parts.length == 1
+                    || (parts.length == 2 && SORT_ORDER_VALUES.contains(parts[1].toUpperCase(Locale.ROOT)));
+            if (column == null || !validDirection) {
+                throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
+                        "validation.msg.datatable.order.value.is.not.supported",
+                        "The order value must be a datatable column optionally followed by ASC or DESC", "order", order)));
+            }
+            resolved.add(sqlGenerator.escape(column) + (parts.length == 2 ? " " + parts[1].toUpperCase(Locale.ROOT) : ""));
+        }
+        return String.join(", ", resolved);
     }
 
     private boolean isRegisteredDataTable(final String datatable) {
