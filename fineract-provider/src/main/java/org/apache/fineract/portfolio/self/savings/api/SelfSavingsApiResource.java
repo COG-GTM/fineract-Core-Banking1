@@ -191,7 +191,9 @@ public class SelfSavingsApiResource {
             @QueryParam("command") final String commandParam, final String apiRequestBodyAsJson) {
 
         validateAppuserSavingsAccountMapping(accountId);
-        this.dataValidator.validateSavingsApplication(apiRequestBodyAsJson);
+        HashMap<String, Object> parameterMap = this.dataValidator.validateSavingsApplication(apiRequestBodyAsJson);
+        final Long clientId = (Long) parameterMap.get(SelfSavingsAccountConstants.clientIdParameterName);
+        validateAppuserClientsMapping(clientId);
         return this.savingsAccountsApiResource.update(accountId, apiRequestBodyAsJson, commandParam);
     }
 

@@ -103,6 +103,10 @@ public class SelfSavingsDataValidator {
 
         final JsonElement element = this.fromApiJsonHelper.parse(json);
 
+        if (this.fromApiJsonHelper.parameterExists(SelfSavingsAccountConstants.groupIdParameterName, element)) {
+            throw new UnsupportedParameterException(List.of(SelfSavingsAccountConstants.groupIdParameterName));
+        }
+
         final Long clientId = this.fromApiJsonHelper.extractLongNamed(SelfSavingsAccountConstants.clientIdParameterName, element);
         baseDataValidator.reset().parameter(SelfSavingsAccountConstants.clientIdParameterName).value(clientId).notNull()
                 .longGreaterThanZero();
