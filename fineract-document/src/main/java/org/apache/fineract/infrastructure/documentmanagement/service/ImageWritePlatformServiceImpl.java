@@ -30,6 +30,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.contentstore.detector.ContentDetectorContext;
 import org.apache.fineract.infrastructure.contentstore.detector.ContentDetectorManager;
 import org.apache.fineract.infrastructure.contentstore.service.ContentStoreService;
+import org.apache.fineract.infrastructure.contentstore.util.ContentFileNames;
 import org.apache.fineract.infrastructure.documentmanagement.adapter.EntityImageIdAdapter;
 import org.apache.fineract.infrastructure.documentmanagement.data.ImageCreateRequest;
 import org.apache.fineract.infrastructure.documentmanagement.data.ImageCreateResponse;
@@ -152,6 +153,6 @@ public class ImageWritePlatformServiceImpl implements ImageWritePlatformService 
         requireNonNull(fileName);
         requireNonNull(delimiter);
 
-        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), fileName);
+        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), ContentFileNames.sanitize(fileName));
     }
 }

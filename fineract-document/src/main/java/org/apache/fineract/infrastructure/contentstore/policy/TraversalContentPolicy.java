@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.contentstore.exception.ContentPolicyException;
+import org.apache.fineract.infrastructure.contentstore.util.ContentFileNames;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.springframework.stereotype.Component;
 
@@ -30,14 +31,27 @@ import org.springframework.stereotype.Component;
 @Component
 public class TraversalContentPolicy implements ContentPolicy {
 
-    private final Pattern overwriteSiblingsPattern = Pattern.compile(".*((\\.)?\\./+)+(/+)?.*");
+    private final Pattern overwriteSiblingsPattern = Pattern.compile(".*((\\.)?\\./+)+(/+)?.*", Pattern.DOTALL);
+
+    private final Pattern segmentSeparatorPattern = Pattern.compile("[/\\\\]");
 
     private final FineractProperties properties;
 
     @Override
     public void check(ContentPolicyContext ctx) {
-        if (overwriteSiblingsPattern.matcher(ctx.getPath()).matches()) {
-            throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", ctx.getPath()));
+        final var path = ctx.getPath();
+
+        if (path == null || ContentFileNames.containsControlCharacter(path)) {
+            throw new ContentPolicyException("Path contains illegal characters");
+        }
+
+        if (overwriteSiblingsPattern.matcher(path).matches() || hasRelativeSegment(path)) {
+            throw new ContentPolicyException(String.format("Trying to overwrite a sibling file: %s", path));
         }
     }
+
+    private boolean hasRelativeSegment(String path) {
+        return segmentSeparatorPattern.splitAsStream(path).anyMatch(segment -> ".".equals(segment) || "..".equals(segment));
+    }
+
 }

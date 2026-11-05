@@ -21,11 +21,11 @@ package org.apache.fineract.infrastructure.contentstore.service;
 import static java.util.Objects.requireNonNull;
 import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -93,28 +93,41 @@ public class FileContentStoreService implements ContentStoreService {
 
         var safePath = pathSanitizer.sanitize(path);
 
-        final var target = Files.exists(getPath(safePath, false)) ? getPath(safePath, false) : getPath(safePath, true);
+        final var existing = getPath(safePath, false);
+        final var targetExists = Files.exists(existing);
+        final var target = targetExists ? existing : getPath(safePath, true);
 
-        try (var in = is) {
-            IOUtils.copy(in, new FileOutputStream(target.toString()));
+        Path tmp = null;
+
+        try {
+            tmp = Files.createTempFile(target.getParent(), ".upload-", ".tmp");
+
+            try (var in = is; var out = Files.newOutputStream(tmp)) {
+                IOUtils.copy(in, out);
+            }
+
+            try (var check = Files.newInputStream(tmp)) {
+                postUploadContentPolicy.check(ContentPolicyContext.builder().path(path).inputStream(check).mimeType(mimeType).build());
+            }
+
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (ContentPolicyException e) {
+            log.warn("Discard upload because it didn't comply with the post-upload policy check: {} - {}", target, e.getMessage());
+
+            deleteQuietly(tmp);
+
+            if (!targetExists) {
+                deleteEmptyFolder(target.getParent());
+            }
+
+            throw e;
         } catch (Exception e) {
+            deleteQuietly(tmp);
+
             throw new ContentStoreException(e);
         }
 
-        final var relativePath = getRelativePath(target);
-
-        try {
-            postUploadContentPolicy
-                    .check(ContentPolicyContext.builder().path(path).inputStream(getInputStream(target)).mimeType(mimeType).build());
-        } catch (ContentPolicyException e) {
-            log.warn("Delete file because it didn't comply with the post-upload policy check: {} - {}", target, e.getMessage());
-
-            delete(relativePath.toString());
-
-            throw e;
-        }
-
-        return relativePath.toString();
+        return getRelativePath(target).toString();
     }
 
     @Override
@@ -153,7 +166,7 @@ public class FileContentStoreService implements ContentStoreService {
             var tail = Path.of(path);
             var file = tail.getFileName();
 
-            p = getRootPath().resolve(tail.getParent()).resolve(pathRandomizer.randomize()).resolve(file);
+            p = confine(getRootPath().resolve(tail.getParent()).resolve(pathRandomizer.randomize()).resolve(file));
 
             try {
                 if (Files.notExists(p.getParent())) {
@@ -163,27 +176,52 @@ public class FileContentStoreService implements ContentStoreService {
                 throw new ContentStoreException(e);
             }
         } else {
-            p = getRootPath().resolve(path);
+            p = confine(getRootPath().resolve(path));
         }
 
         return p;
     }
 
+    private Path confine(Path p) {
+        final var root = getRootPath().toAbsolutePath().normalize();
+        final var resolved = p.toAbsolutePath().normalize();
+
+        if (resolved.equals(root) || !resolved.startsWith(root)) {
+            throw new ContentPolicyException("Path is outside of the content store root");
+        }
+
+        return resolved;
+    }
+
     private Path getRelativePath(Path fullPath) {
-        return getRootPath().relativize(fullPath);
+        return getRootPath().toAbsolutePath().normalize().relativize(fullPath);
+    }
+
+    private void deleteQuietly(Path p) {
+        if (p == null) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(p);
+        } catch (IOException e) {
+            log.warn("Unable to delete temporary upload file {}", p, e);
+        }
+    }
+
+    private void deleteEmptyFolder(Path folder) {
+        try (Stream<Path> entries = Files.list(folder)) {
+            if (entries.findAny().isEmpty()) {
+                Files.deleteIfExists(folder);
+            }
+        } catch (IOException e) {
+            log.warn("Unable to delete folder {}", folder, e);
+        }
     }
 
     private Path getRootPath() {
         return Path.of(properties.getContent().getFilesystem().getRootFolder(),
                 ThreadLocalContextUtil.getTenant().getName().replaceAll(" ", "").trim());
-    }
-
-    private InputStream getInputStream(Path path) {
-        try {
-            return Files.newInputStream(path);
-        } catch (IOException ioe) {
-            throw new ContentStoreException(ioe);
-        }
     }
 
     boolean hasFiles(Path folder) throws IOException {

@@ -29,6 +29,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 import org.apache.fineract.infrastructure.contentstore.service.ContentStoreService;
+import org.apache.fineract.infrastructure.contentstore.util.ContentFileNames;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentCreateRequest;
@@ -170,6 +171,6 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
         requireNonNull(fileName);
         requireNonNull(delimiter);
 
-        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), fileName);
+        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), ContentFileNames.sanitize(fileName));
     }
 }
