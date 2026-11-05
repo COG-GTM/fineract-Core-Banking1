@@ -44,6 +44,7 @@ import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSer
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentData;
 import org.apache.fineract.infrastructure.documentmanagement.exception.DocumentNotFoundException;
 import org.apache.fineract.infrastructure.documentmanagement.service.DocumentReadPlatformService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.util.StreamResponseUtil;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +54,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class BulkImportApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "IMPORT";
+
+    private final PlatformSecurityContext context;
     private final BulkImportWorkbookService bulkImportWorkbookService;
     private final DocumentReadPlatformService documentReadPlatformService;
     private final DefaultToApiJsonSerializer<ImportData> toApiJsonSerializer;
@@ -62,6 +66,8 @@ public class BulkImportApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public String retrieveImportDocuments(@Context final UriInfo uriInfo, @QueryParam("entityType") final String entityType) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
         Collection<ImportData> importData = new ArrayList<>();
 
         if (entityType.equals(GlobalEntityType.CLIENT.getCode())) {
@@ -91,6 +97,8 @@ public class BulkImportApiResource {
     @GET
     @Path("getOutputTemplateLocation")
     public String retriveOutputTemplateLocation(@QueryParam("importDocumentId") final Long importDocumentId) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
         final var imporData = bulkImportWorkbookService.getImport(importDocumentId);
 
         return Optional.ofNullable(imporData)
@@ -102,12 +110,13 @@ public class BulkImportApiResource {
     @Path("downloadOutputTemplate")
     @Produces("application/vnd.ms-excel")
     public Response getOutputTemplate(@QueryParam("importDocumentId") final Long importDocumentId) {
-        // TODO: can we avoid 2 calls by introducing a new function? clean code more important now
-        final var docs = documentReadPlatformService.retrieveAllDocuments("IMPORT", importDocumentId);
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
-        final var docData = docs.stream().findFirst();
+        final var importData = Optional.ofNullable(importDocumentId).map(bulkImportWorkbookService::getImport)
+                .filter(data -> data.getDocumentId() != null)
+                .orElseThrow(() -> new DocumentNotFoundException(RESOURCE_NAME_FOR_PERMISSIONS, importDocumentId, -1L));
 
-        final var d = docData.orElseThrow(() -> new DocumentNotFoundException("IMPORT", importDocumentId, -1L));
+        final var d = documentReadPlatformService.retrieveDocument(importData.getDocumentId());
         final var content = documentReadPlatformService.retrieveDocumentContent(d.getParentEntityType(), d.getParentEntityId(), d.getId());
         final var streamResponseData = StreamResponseUtil.StreamResponseData.builder().type(content.getContentType())
                 .fileName(content.getFileName()).stream(content.getStream()).dispositionType(DISPOSITION_TYPE_ATTACHMENT).build();
