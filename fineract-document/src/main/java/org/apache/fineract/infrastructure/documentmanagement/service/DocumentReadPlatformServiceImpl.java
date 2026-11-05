@@ -35,9 +35,12 @@ public class DocumentReadPlatformServiceImpl implements DocumentReadPlatformServ
     private final ContentStoreService storeService;
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
+    private final DocumentParentEntityAccessValidator parentEntityAccessValidator;
 
     @Override
     public List<DocumentData> retrieveAllDocuments(final String entityType, final Long entityId) {
+        parentEntityAccessValidator.validate(entityType, entityId);
+
         final var docs = documentRepository.findAllByParentEntityTypeAndParentEntityId(entityType, entityId);
 
         return docs.stream().map(documentMapper::map).toList();
@@ -50,6 +53,8 @@ public class DocumentReadPlatformServiceImpl implements DocumentReadPlatformServ
 
     @Override
     public DocumentContent retrieveDocumentContent(final String entityType, final Long entityId, final Long documentId) {
+        parentEntityAccessValidator.validate(entityType, entityId);
+
         final var doc = documentRepository.findByIdAndParentEntityTypeAndParentEntityId(documentId, entityType, entityId)
                 .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, documentId));
         final var is = storeService.download(doc.getLocation());
@@ -59,6 +64,8 @@ public class DocumentReadPlatformServiceImpl implements DocumentReadPlatformServ
 
     @Override
     public DocumentData retrieveDocument(final String entityType, final Long entityId, final Long documentId) {
+        parentEntityAccessValidator.validate(entityType, entityId);
+
         final var doc = documentRepository.findByIdAndParentEntityTypeAndParentEntityId(documentId, entityType, entityId)
                 .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, documentId));
 
