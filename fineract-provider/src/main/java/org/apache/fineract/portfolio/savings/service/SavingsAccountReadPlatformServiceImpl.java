@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.accounting.common.AccountingRuleType;
 import org.apache.fineract.accounting.glaccount.data.GLAccountData;
@@ -43,7 +44,7 @@ import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
+import org.apache.fineract.infrastructure.security.utils.OrderByAllowlist;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.account.data.AccountTransferData;
 import org.apache.fineract.portfolio.client.data.ClientData;
@@ -97,17 +98,22 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
     private final SavingAccountMapperForInterestPosting savingAccountMapperForInterestPosting;
     // private final SavingsAccountAnnualFeeMapper annualFeeMapper;
 
+    static final OrderByAllowlist SAVINGS_ACCOUNT_ORDER_BY = OrderByAllowlist.of(Map.ofEntries(Map.entry("id", "sa.id"),
+            Map.entry("accountNo", "sa.account_no"), Map.entry("externalId", "sa.external_id"), Map.entry("status", "sa.status_enum"),
+            Map.entry("submittedOnDate", "sa.submittedon_date"), Map.entry("activatedOnDate", "sa.activatedon_date"),
+            Map.entry("clientId", "sa.client_id"), Map.entry("groupId", "sa.group_id"), Map.entry("productId", "sa.product_id"),
+            Map.entry("fieldOfficerId", "sa.field_officer_id"), Map.entry("accountBalance", "sa.account_balance_derived")));
+
     // pagination
     private final PaginationHelper paginationHelper;
 
-    private final ColumnValidator columnValidator;
     private final SavingsAccountAssembler savingAccountAssembler;
 
     private final SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper;
 
     public SavingsAccountReadPlatformServiceImpl(final PlatformSecurityContext context, final JdbcTemplate jdbcTemplate,
-            final SavingsAccountAssembler savingAccountAssembler, PaginationHelper paginationHelper, ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper) {
+            final SavingsAccountAssembler savingAccountAssembler, PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator,
+            SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper) {
         this.context = context;
         this.jdbcTemplate = jdbcTemplate;
         this.sqlGenerator = sqlGenerator;
@@ -116,7 +122,6 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
         this.transactionsMapper = new SavingsAccountTransactionsMapper();
         this.savingsAccountTransactionsForBatchMapper = new SavingsAccountTransactionsForBatchMapper();
         this.savingAccountMapper = new SavingAccountMapper();
-        this.columnValidator = columnValidator;
         this.paginationHelper = paginationHelper;
         this.savingAccountMapperForInterestPosting = new SavingAccountMapperForInterestPosting();
         this.savingAccountAssembler = savingAccountAssembler;
@@ -186,15 +191,7 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
                 sqlBuilder.append(" and c.office_id = ?");
                 objectArray[arrayPos++] = searchParameters.getOfficeId();
             }
-            if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-
-                if (searchParameters.hasSortOrder()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-                }
-            }
+            sqlBuilder.append(SAVINGS_ACCOUNT_ORDER_BY.toOrderByClause(searchParameters.getOrderBy(), searchParameters.getSortOrder()));
 
             if (searchParameters.hasLimit()) {
                 sqlBuilder.append(" ");
