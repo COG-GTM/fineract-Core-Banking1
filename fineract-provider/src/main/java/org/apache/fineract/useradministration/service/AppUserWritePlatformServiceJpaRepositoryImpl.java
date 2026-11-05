@@ -41,6 +41,7 @@ import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.service.PlatformEmailSendException;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformPasswordEncoder;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
@@ -98,6 +99,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             final Long officeId = command.longValueOfParameterNamed(officeIdParamName);
 
             final Office userOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(officeId);
+            this.context.validateAccessRights(userOffice.getHierarchy());
 
             final String[] roles = command.arrayValueOfParameterNamed("roles");
             final Set<Role> allRoles = assembleSetOfRoles(roles);
@@ -163,10 +165,13 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
     @Caching(evict = { @CacheEvict(value = "users", allEntries = true), @CacheEvict(value = "usersByUsername", allEntries = true) })
     public CommandProcessingResult changeUserPassword(final Long userId, final JsonCommand command) {
         try {
-            this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build());
-            this.fromApiJsonDeserializer.validateForChangePassword(command.json(),
-                    this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build()));
+            final AppUser currentUser = this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build());
+            this.fromApiJsonDeserializer.validateForChangePassword(command.json(), currentUser);
             final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+            // validateAccessRights() would reject a user who must reset their password from changing it themselves
+            if (!userToUpdate.getOffice().getHierarchy().startsWith(currentUser.getOffice().getHierarchy())) {
+                throw new NoAuthorizationException("The user doesn't have enough permissions to access the resource.");
+            }
             final AppUserPreviousPassword currentPasswordToSaveAsPreview = getCurrentPasswordToSaveAsPreview(userToUpdate, command);
             final Map<String, Object> changes = userToUpdate.changePassword(command, this.platformPasswordEncoder);
             if (!changes.isEmpty()) {
@@ -200,6 +205,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             this.fromApiJsonDeserializer.validateForUpdate(command.json(), currentUser);
 
             final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+            this.context.validateAccessRights(userToUpdate.getOffice().getHierarchy());
 
             final AppUserPreviousPassword currentPasswordToSaveAsPreview = getCurrentPasswordToSaveAsPreview(userToUpdate, command);
 
@@ -223,6 +229,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             if (changes.containsKey("officeId")) {
                 final Long officeId = (Long) changes.get("officeId");
                 final Office office = this.officeRepositoryWrapper.findOneWithNotFoundDetection(officeId);
+                this.context.validateAccessRights(office.getHierarchy());
                 userToUpdate.changeOffice(office);
             }
 
@@ -324,6 +331,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
         if (user.isDeleted()) {
             throw new UserNotFoundException(userId);
         }
+        this.context.validateAccessRights(user.getOffice().getHierarchy());
 
         user.delete();
         this.appUserRepository.save(user);
