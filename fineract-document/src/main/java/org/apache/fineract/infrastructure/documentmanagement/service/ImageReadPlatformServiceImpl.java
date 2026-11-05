@@ -44,6 +44,8 @@ public class ImageReadPlatformServiceImpl implements ImageReadPlatformService {
 
     @Override
     public DocumentContent retrieveImage(final String entityType, final Long entityId) {
+        validateAccess(entityType, entityId);
+
         return imageIdAdapters.stream().filter(imageIdAdapter -> imageIdAdapter.accept(entityType)).findFirst()
                 .flatMap(imageIdAdapter -> imageIdAdapter.get(entityId))
                 .flatMap(imageIdResult -> imageRepository.findById(imageIdResult.getId()).map(image -> DocumentContent.builder()
@@ -54,5 +56,11 @@ public class ImageReadPlatformServiceImpl implements ImageReadPlatformService {
                                 .getMimeType())
                         .stream(storeService.download(image.getLocation())).build()))
                 .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, -1L));
+    }
+
+    @Override
+    public void validateAccess(final String entityType, final Long entityId) {
+        imageIdAdapters.stream().filter(imageIdAdapter -> imageIdAdapter.accept(entityType)).findFirst()
+                .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, -1L)).validateAccess(entityId);
     }
 }

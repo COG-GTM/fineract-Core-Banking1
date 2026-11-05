@@ -24,7 +24,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.documentmanagement.adapter.EntityImageIdAdapter;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.domain.ClientRepository;
+import org.apache.fineract.portfolio.client.exception.ClientNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ class ClientImageIdAdapter implements EntityImageIdAdapter {
     private static final String ENTITY_TYPE = "clients";
 
     private final ClientRepository repository;
+    private final PlatformSecurityContext context;
 
     @Override
     public boolean accept(String entityType) {
@@ -62,5 +65,15 @@ class ClientImageIdAdapter implements EntityImageIdAdapter {
         }
 
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateAccess(Long entityId) {
+        final String hierarchy = context.officeHierarchy() + "%";
+
+        if (repository.fetchByClientIdAndHierarchy(entityId, hierarchy, hierarchy) == null) {
+            throw new ClientNotFoundException(entityId);
+        }
     }
 }

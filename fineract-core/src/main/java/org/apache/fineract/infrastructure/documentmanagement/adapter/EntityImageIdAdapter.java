@@ -36,6 +36,14 @@ public interface EntityImageIdAdapter {
 
     Optional<ImageIdResult> set(Long entityId, Long imageId);
 
+    /**
+     * Ensures the entity exists and lies within the authenticated user's office hierarchy.
+     *
+     * @throws org.apache.fineract.infrastructure.core.exception.AbstractPlatformResourceNotFoundException
+     *             if the entity does not exist or is outside the user's office hierarchy
+     */
+    void validateAccess(Long entityId);
+
     @Builder
     @Data
     @NoArgsConstructor
