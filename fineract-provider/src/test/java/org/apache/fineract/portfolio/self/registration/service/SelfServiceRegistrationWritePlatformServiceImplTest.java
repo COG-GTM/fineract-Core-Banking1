@@ -137,6 +137,7 @@ public class SelfServiceRegistrationWritePlatformServiceImplTest {
     public void createUserUsesStoredHashAndClearsItFromRequest() {
         String hash = passwordEncoder.encode(RAW_PASSWORD);
         Client client = mock(Client.class);
+        when(client.getId()).thenReturn(10L);
         when(client.getOffice()).thenReturn(mock(Office.class));
         when(client.getFirstname()).thenReturn("Alice");
         when(client.getLastname()).thenReturn("Smith");
