@@ -20,11 +20,16 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.gson.JsonObject;
@@ -34,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.fineract.infrastructure.codes.service.CodeReadPlatformService;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
+import org.apache.fineract.infrastructure.core.api.JsonCommand;
+import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.DatatableCommandFromApiJsonDeserializer;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
@@ -95,6 +102,43 @@ class DatatableWriteServiceImplTest {
 
     @InjectMocks
     private DatatableWriteServiceImpl underTest;
+
+    @Test
+    void testRegisterDatatableRejectsCoreTableBeforeInsertingRegistration() {
+        doThrow(new PlatformDataIntegrityException("error.msg.datatables.datatable.core.table", "core table")).when(datatableUtil)
+                .validateDatatableName("m_appuser");
+
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.registerDatatable("m_appuser", "m_client", null));
+
+        verifyNoInteractions(namedParameterJdbcTemplate, jdbcTemplate);
+    }
+
+    @Test
+    void testRegisterDatatableRejectsReservedNameBeforeInsertingRegistration() {
+        when(datatableReadService.getDataTableName(any())).thenReturn("m_client_notes");
+        doThrow(new PlatformDataIntegrityException("error.msg.datatables.datatable.core.table", "core table")).when(datatableUtil)
+                .validateDatatableNameNotReserved("m_client_notes");
+
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.registerDatatable(JsonCommand.from("{}")));
+
+        verifyNoInteractions(namedParameterJdbcTemplate, jdbcTemplate);
+    }
+
+    @Test
+    void testReRegistrationDuringEntityUpdateSkipsReservedNameCheck() {
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.registerDatatable("m_client_notes", "m_loan", null));
+
+        verify(datatableUtil).validateDatatableName("m_client_notes");
+        verify(datatableUtil, never()).validateDatatableNameNotReserved(anyString());
+    }
+
+    @Test
+    void testDeregisterDatatableAllowsRemovingExistingCoreTableRegistration() {
+        underTest.deregisterDatatable("m_appuser");
+
+        verify(datatableUtil).validateDatatableRegisteredForDeregistration("m_appuser");
+        verify(datatableUtil, never()).validateDatatableRegistered(anyString());
+    }
 
     @Test
     void testDeregisterDatatableUsesParameterizedQueries() {

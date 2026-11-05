@@ -73,19 +73,52 @@ public class DatatableUtil {
 
     public String validateDatatableRegistered(String datatable) {
         validateDatatableName(datatable);
-        if (!isRegisteredDataTable(datatable)) {
-            throw new DatatableNotFoundException(datatable);
-        }
+        assertRegistered(datatable);
+        return datatable;
+    }
+
+    /**
+     * Same as {@link #validateDatatableRegistered(String)} but does not reject core tables, so that a pre-existing
+     * registration of a core table can still be removed.
+     */
+    public String validateDatatableRegisteredForDeregistration(String datatable) {
+        validateDatatableNameSyntax(datatable);
+        assertRegistered(datatable);
         return datatable;
     }
 
     public void validateDatatableName(final String name) {
+        validateDatatableNameSyntax(name);
+        validateNotCoreTable(name);
+    }
+
+    public void validateNotCoreTable(final String name) {
+        if (DatatableCoreTableGuard.isCoreTable(name)) {
+            throw new PlatformDataIntegrityException("error.msg.datatables.datatable.core.table",
+                    "Core Fineract tables cannot be used as data tables: " + name, API_FIELD_NAME, name);
+        }
+    }
+
+    public void validateDatatableNameNotReserved(final String name) {
+        if (DatatableCoreTableGuard.isReservedName(name)) {
+            throw new PlatformDataIntegrityException("error.msg.datatables.datatable.core.table",
+                    "Data table names must not use a reserved Fineract core table prefix: " + name, API_FIELD_NAME, name);
+        }
+    }
+
+    private void validateDatatableNameSyntax(final String name) {
         if (name == null || name.isEmpty()) {
             throw new PlatformDataIntegrityException("error.msg.datatables.datatable.null.name", "Data table name must not be blank.");
         } else if (!name.matches(DATATABLE_NAME_REGEX_PATTERN)) {
             throw new PlatformDataIntegrityException("error.msg.datatables.datatable.invalid.name.regex", "Invalid data table name.", name);
         }
         sqlValidator.validate(name);
+    }
+
+    private void assertRegistered(final String datatable) {
+        if (!isRegisteredDataTable(datatable)) {
+            throw new DatatableNotFoundException(datatable);
+        }
     }
 
     public EntityTables resolveEntity(final String entityName) {
@@ -100,6 +133,7 @@ public class DatatableUtil {
     @NonNull
     public EntityTables queryForApplicationEntity(final String datatable) {
         sqlValidator.validate(datatable);
+        validateNotCoreTable(datatable);
         final String sql = "SELECT application_table_name FROM x_registered_table where registered_table_name = ?";
         final SqlRowSet rowSet = jdbcTemplate.queryForRowSet(sql, datatable); // NOSONAR
 
