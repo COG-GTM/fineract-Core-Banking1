@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,6 +61,7 @@ import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
+import org.apache.fineract.infrastructure.security.utils.SqlSortingUtils;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrency;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
@@ -164,6 +166,10 @@ import org.springframework.util.CollectionUtils;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, LoanReadPlatformServiceCommon {
+
+    private static final String LOAN_RESOURCE_NAME = "loan";
+
+    static final Map<String, String> LOAN_SORTABLE_COLUMNS = loanSortableColumns();
 
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
@@ -381,13 +387,15 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
                 arrayPos = arrayPos + 1;
             }
 
-            if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+            final String orderByColumn = SqlSortingUtils.resolveOrderBy(LOAN_RESOURCE_NAME, searchParameters.getOrderBy(),
+                    LOAN_SORTABLE_COLUMNS);
+            final String sortOrder = SqlSortingUtils.resolveSortOrder(LOAN_RESOURCE_NAME, searchParameters.getSortOrder());
+            if (orderByColumn != null) {
+                sqlBuilder.append(" order by ").append(orderByColumn);
+                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), orderByColumn);
 
-                if (searchParameters.hasSortOrder()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                if (sortOrder != null) {
+                    sqlBuilder.append(' ').append(sortOrder);
                 }
             }
 
@@ -403,6 +411,41 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
         final Object[] objectArray = extraCriterias.toArray();
         final Object[] finalObjectArray = Arrays.copyOf(objectArray, arrayPos);
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, loanMapper);
+    }
+
+    // API orderBy value -> SQL column; legacy qualified column names are kept for backward compatibility
+    private static Map<String, String> loanSortableColumns() {
+        final Map<String, String> columns = new HashMap<>();
+        columns.put("id", "l.id");
+        columns.put("l.id", "l.id");
+        columns.put("accountNo", "l.account_no");
+        columns.put("l.account_no", "l.account_no");
+        columns.put("externalId", "l.external_id");
+        columns.put("l.external_id", "l.external_id");
+        columns.put("clientId", "c.id");
+        columns.put("clientAccountNo", "c.account_no");
+        columns.put("clientName", "c.display_name");
+        columns.put("clientOfficeId", "c.office_id");
+        columns.put("groupId", "g.id");
+        columns.put("groupName", "g.display_name");
+        columns.put("loanProductId", "lp.id");
+        columns.put("loanProductName", "lp.name");
+        columns.put("loanType", "l.loan_type_enum");
+        columns.put("loanOfficerId", "l.loan_officer_id");
+        columns.put("loanOfficerName", "s.display_name");
+        columns.put("status", "l.loan_status_id");
+        columns.put("lifeCycleStatusId", "l.loan_status_id");
+        columns.put("currencyCode", "l.currency_code");
+        columns.put("principal", "l.principal_amount");
+        columns.put("principalOutstanding", "l.principal_outstanding_derived");
+        columns.put("totalOutstanding", "l.total_outstanding_derived");
+        columns.put("submittedOnDate", "l.submittedon_date");
+        columns.put("approvedOnDate", "l.approvedon_date");
+        columns.put("expectedDisbursementDate", "l.expected_disbursedon_date");
+        columns.put("actualDisbursementDate", "l.disbursedon_date");
+        columns.put("expectedMaturityDate", "l.expected_maturedon_date");
+        columns.put("closedOnDate", "l.closedon_date");
+        return SqlSortingUtils.sortableColumns(columns);
     }
 
     @Override
