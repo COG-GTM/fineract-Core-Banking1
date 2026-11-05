@@ -37,6 +37,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.commands.service.CommandWrapperBuilder;
@@ -67,21 +68,18 @@ public class ProductsApiResource {
     private final PlatformSecurityContext platformSecurityContext;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
 
+    private static final Set<String> SUPPORTED_PRODUCT_TYPES = Set.of(ProductsApiConstants.SHARE_PRODUCT_TYPE);
+
     @GET
     @Path("template")
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public String retrieveTemplate(@PathParam("type") @Parameter(description = "type") final String productType,
             @Context final UriInfo uriInfo) {
-        String serviceName = productType + ProductsApiConstants.READPLATFORM_NAME;
-        try {
-            ShareProductReadPlatformService service = (ShareProductReadPlatformService) this.applicationContext.getBean(serviceName);
-            ProductData data = service.retrieveTemplate();
-            final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
-            return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
-        } catch (BeansException e) {
-            throw new ResourceNotFoundException(e);
-        }
+        ShareProductReadPlatformService service = resolveReadPlatformService(productType);
+        ProductData data = service.retrieveTemplate();
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
     }
 
     @GET
@@ -94,15 +92,10 @@ public class ProductsApiResource {
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = ProductsApiResourceSwagger.GetProductsTypeProductIdResponse.class))) })
     public String retrieveProduct(@PathParam("productId") @Parameter(description = "productId") final Long productId,
             @PathParam("type") @Parameter(description = "type") final String productType, @Context final UriInfo uriInfo) {
-        try {
-            String serviceName = productType + ProductsApiConstants.READPLATFORM_NAME;
-            ShareProductReadPlatformService service = (ShareProductReadPlatformService) this.applicationContext.getBean(serviceName);
-            final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
-            ProductData data = service.retrieveOne(productId, settings.isTemplate());
-            return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
-        } catch (BeansException e) {
-            throw new ResourceNotFoundException(e);
-        }
+        ShareProductReadPlatformService service = resolveReadPlatformService(productType);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        ProductData data = service.retrieveOne(productId, settings.isTemplate());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
     }
 
     @GET
@@ -115,15 +108,10 @@ public class ProductsApiResource {
     public String retrieveAllProducts(@PathParam("type") @Parameter(description = "type") final String productType,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit, @Context final UriInfo uriInfo) {
-        try {
-            String serviceName = productType + ProductsApiConstants.READPLATFORM_NAME;
-            ShareProductReadPlatformService service = (ShareProductReadPlatformService) this.applicationContext.getBean(serviceName);
-            Page<ProductData> data = service.retrieveAllProducts(offset, limit);
-            final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
-            return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
-        } catch (BeansException e) {
-            throw new ResourceNotFoundException(e);
-        }
+        ShareProductReadPlatformService service = resolveReadPlatformService(productType);
+        Page<ProductData> data = service.retrieveAllProducts(offset, limit);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
     }
 
     @POST
@@ -175,5 +163,37 @@ public class ProductsApiResource {
                 .withJson(apiRequestBodyAsJson).build();
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         return this.toApiJsonSerializer.serialize(result);
+    }
+
+    public String retrieveShareProductForSelfService(final Long productId, final UriInfo uriInfo) {
+        ShareProductReadPlatformService service = lookupReadPlatformService(ProductsApiConstants.SHARE_PRODUCT_TYPE);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        ProductData data = service.retrieveOne(productId, settings.isTemplate());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
+    }
+
+    public String retrieveAllShareProductsForSelfService(final Integer offset, final Integer limit, final UriInfo uriInfo) {
+        ShareProductReadPlatformService service = lookupReadPlatformService(ProductsApiConstants.SHARE_PRODUCT_TYPE);
+        Page<ProductData> data = service.retrieveAllProducts(offset, limit);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
+    }
+
+    private ShareProductReadPlatformService resolveReadPlatformService(final String productType) {
+        if (productType == null || !SUPPORTED_PRODUCT_TYPES.contains(productType)) {
+            throw new ResourceNotFoundException("error.msg.product.type.not.supported",
+                    "Product type `" + productType + "` is not supported", new Object[] { productType });
+        }
+        this.platformSecurityContext.authenticatedUser().validateHasReadPermission(ProductsApiConstants.SHARE_PRODUCT_RESOURCE_NAME);
+        return lookupReadPlatformService(productType);
+    }
+
+    private ShareProductReadPlatformService lookupReadPlatformService(final String productType) {
+        try {
+            return this.applicationContext.getBean(productType + ProductsApiConstants.READPLATFORM_NAME,
+                    ShareProductReadPlatformService.class);
+        } catch (BeansException e) {
+            throw new ResourceNotFoundException(e);
+        }
     }
 }

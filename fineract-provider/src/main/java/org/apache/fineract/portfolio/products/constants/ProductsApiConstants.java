@@ -22,5 +22,7 @@ public interface ProductsApiConstants {
 
     String READPLATFORM_NAME = "ReadPlatformService";
     String PRODUCT_COMMANDSERVICE = "PRODUCT_COMMANDSERVICE";
+    String SHARE_PRODUCT_TYPE = "share";
+    String SHARE_PRODUCT_RESOURCE_NAME = "SHAREPRODUCT";
 
 }
