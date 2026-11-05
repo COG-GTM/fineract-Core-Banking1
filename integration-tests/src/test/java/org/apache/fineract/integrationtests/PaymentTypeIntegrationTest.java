@@ -97,9 +97,8 @@ public class PaymentTypeIntegrationTest {
 
     @Test
     public void testPaymentTypeWritesRequirePermissions() {
-        Long paymentTypeId = paymentTypeHelper
-                .createPaymentType(new PaymentTypeCreateRequest().name(PaymentTypeHelper.randomNameGenerator("P_T", 5))
-                        .description("permission check").isCashPayment(true).position(1L))
+        Long paymentTypeId = paymentTypeHelper.createPaymentType(new PaymentTypeCreateRequest()
+                .name(PaymentTypeHelper.randomNameGenerator("P_T", 5)).description("permission check").isCashPayment(true).position(1L))
                 .getResourceId();
         String paymentTypeUrl = PAYMENTTYPE_URL + "/" + paymentTypeId + "?" + Utils.TENANT_IDENTIFIER;
         String collectionUrl = PAYMENTTYPE_URL + "?" + Utils.TENANT_IDENTIFIER;
