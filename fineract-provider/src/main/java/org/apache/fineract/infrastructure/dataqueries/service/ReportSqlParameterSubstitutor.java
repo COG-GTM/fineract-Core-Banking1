@@ -133,7 +133,7 @@ public final class ReportSqlParameterSubstitutor {
         if (quoteIndex == 0 || Character.toUpperCase(sql.charAt(quoteIndex - 1)) != 'E') {
             return false;
         }
-        return quoteIndex == 1 || !Character.isLetterOrDigit(sql.charAt(quoteIndex - 2)) && sql.charAt(quoteIndex - 2) != '_';
+        return quoteIndex == 1 || (!Character.isLetterOrDigit(sql.charAt(quoteIndex - 2)) && sql.charAt(quoteIndex - 2) != '_');
     }
 
     private static int indexOrLength(final String sql, final String token, final int from, final int tokenLength) {
