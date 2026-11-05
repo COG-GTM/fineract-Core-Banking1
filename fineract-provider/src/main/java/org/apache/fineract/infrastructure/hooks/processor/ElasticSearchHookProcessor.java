@@ -66,7 +66,7 @@ public class ElasticSearchHookProcessor implements HookProcessor {
     private void sendRequest(final String url, final String contentType, final String payload, final String entityName,
             final String actionName, final FineractContext context) {
 
-        final String fineractEndpointUrl = System.getProperty("baseUrl");
+        final String fineractEndpointUrl = processorHelper.getFineractEndpointUrl();
         final WebHookService service = processorHelper.createWebHookService(url);
 
         @SuppressWarnings("rawtypes")

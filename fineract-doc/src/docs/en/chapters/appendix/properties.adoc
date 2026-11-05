@@ -9,6 +9,8 @@ include::properties-pool.adoc[leveloffset=+1]
 
 include::properties-ssl.adoc[leveloffset=+1]
 
+include::properties-server.adoc[leveloffset=+1]
+
 include::properties-authentication.adoc[leveloffset=+1]
 
 include::properties-tomcat.adoc[leveloffset=+1]
