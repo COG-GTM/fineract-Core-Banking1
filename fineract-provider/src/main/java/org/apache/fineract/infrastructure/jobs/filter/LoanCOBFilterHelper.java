@@ -248,8 +248,8 @@ public class LoanCOBFilterHelper implements InitializingBean {
     }
 
     /**
-     * Hard-lock check for a single batch sub-request whose references have already been resolved by the batch
-     * executor, so the target loan is known even when the original relative URL or body used a reference.
+     * Hard-lock check for a single batch sub-request whose references have already been resolved by the batch executor,
+     * so the target loan is known even when the original relative URL or body used a reference.
      */
     public void checkResolvedBatchRequestNotHardLocked(BatchRequest batchRequest) {
         String method = batchRequest.getMethod();

@@ -28,8 +28,8 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 /**
- * Re-checks the Loan COB hard lock for every batch sub-request after its references (e.g. {@code loans/$.id}) have
- * been resolved, since {@link LoanCOBApiFilter} cannot know those loan ids before the batch executes.
+ * Re-checks the Loan COB hard lock for every batch sub-request after its references (e.g. {@code loans/$.id}) have been
+ * resolved, since {@link LoanCOBApiFilter} cannot know those loan ids before the batch executes.
  */
 @Component
 @RequiredArgsConstructor
