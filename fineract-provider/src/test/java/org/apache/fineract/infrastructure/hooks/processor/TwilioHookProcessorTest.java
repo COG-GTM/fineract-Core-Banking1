@@ -109,7 +109,7 @@ class TwilioHookProcessorTest {
     }
 
     @Test
-    void handshakeToAllowlistedBridgeUsesServiceCredentialNotTriggeringUserToken() throws IOException {
+    void handshakeNeverForwardsTriggeringUserTokenAndWithholdsBridgeTokenOverPlainHttp() throws IOException {
         twilioProperties.setAllowedHosts(List.of("127.0.0.1"));
         twilioProperties.setBridgeToken(BRIDGE_TOKEN);
 
@@ -118,8 +118,38 @@ class TwilioHookProcessorTest {
         final String handshake = receivedBodies.get("/configuration");
         assertTrue(handshake != null, "SMS bridge handshake should be sent to an allowlisted host");
         assertFalse(handshake.contains(USER_TOKEN), "triggering user's auth token must not be forwarded");
-        assertTrue(handshake.contains("\"mifosToken\":\"" + BRIDGE_TOKEN + "\""));
+        assertFalse(handshake.contains(BRIDGE_TOKEN), "bridge token must not be sent without TLS");
         verify(hookConfigurationRepository).save(any(HookConfiguration.class));
+    }
+
+    @Test
+    void redirectFromAllowlistedBridgeIsNotFollowed() throws IOException {
+        final HttpServer redirectTarget = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        final Map<String, String> redirectedBodies = new ConcurrentHashMap<>();
+        redirectTarget.createContext("/", exchange -> {
+            try (InputStream in = exchange.getRequestBody()) {
+                redirectedBodies.put(exchange.getRequestURI().getPath(), new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            }
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        redirectTarget.start();
+        listener.removeContext("/");
+        listener.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("Location",
+                    "http://localhost:" + redirectTarget.getAddress().getPort() + exchange.getRequestURI().getPath());
+            exchange.sendResponseHeaders(307, -1);
+            exchange.close();
+        });
+        twilioProperties.setAllowedHosts(List.of("127.0.0.1"));
+        try {
+            underTest.process(hookWithUrl(listenerUrl), PAYLOAD, "CLIENT", "CREATE", context());
+        } finally {
+            redirectTarget.stop(0);
+        }
+
+        assertEquals(Map.of(), redirectedBodies);
+        verify(hookConfigurationRepository, never()).save(any(HookConfiguration.class));
     }
 
     @Test

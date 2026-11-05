@@ -77,7 +77,7 @@ public class TwilioHookProcessor implements HookProcessor {
     private void sendRequest(final SmsProviderData smsProviderData, final String payload, String entityName, String actionName,
             final Hook hook, final FineractContext context) throws IOException {
 
-        final WebHookService service = processorHelper.createWebHookService(smsProviderData.getUrl());
+        final WebHookService service = processorHelper.createWebHookService(smsProviderData.getUrl(), false);
 
         @SuppressWarnings("rawtypes")
         final Callback callback = processorHelper.createCallback(smsProviderData.getUrl());
@@ -87,8 +87,12 @@ public class TwilioHookProcessor implements HookProcessor {
             smsProviderData.setUrl(null);
             smsProviderData.setEndpoint(System.getProperty("baseUrl"));
             smsProviderData.setTenantId(context.getTenantContext().getTenantIdentifier());
-            smsProviderData.setMifosToken(StringUtils.trimToNull(twilioProperties().getBridgeToken()));
+            smsProviderData.setMifosToken(bridgeTokenFor(hook));
             apiKey = service.sendSmsBridgeConfigRequest(smsProviderData).execute().body();
+            if (StringUtils.isBlank(apiKey)) {
+                log.warn("Twilio hook {}: SMS bridge handshake returned no API key", hook.getId());
+                return;
+            }
             final HookConfiguration apiKeyEntry = HookConfiguration.createNew(hook, "string", apiKeyName, apiKey);
             this.hookConfigurationRepository.save(apiKeyEntry);
         }
@@ -118,6 +122,7 @@ public class TwilioHookProcessor implements HookProcessor {
         try {
             uri = new URI(url.trim());
         } catch (URISyntaxException e) {
+            log.debug("Invalid Twilio bridge URL", e);
             return false;
         }
         final String scheme = uri.getScheme();
@@ -132,6 +137,20 @@ public class TwilioHookProcessor implements HookProcessor {
         final String normalizedHost = host.toLowerCase(Locale.ROOT);
         return allowedHosts.stream().map(StringUtils::trimToNull).filter(Objects::nonNull)
                 .anyMatch(h -> h.toLowerCase(Locale.ROOT).equals(normalizedHost));
+    }
+
+    private String bridgeTokenFor(final Hook hook) {
+        final String bridgeToken = StringUtils.trimToNull(twilioProperties().getBridgeToken());
+        if (bridgeToken != null && !isHttps(hook)) {
+            log.warn("Twilio hook {}: fineract.hooks.twilio.bridge-token is only sent to https bridge URLs", hook.getId());
+            return null;
+        }
+        return bridgeToken;
+    }
+
+    private boolean isHttps(final Hook hook) {
+        final String url = new SmsProviderData(hook.getConfig()).getUrl();
+        return url != null && url.trim().toLowerCase(Locale.ROOT).startsWith("https://");
     }
 
     private FineractTwilioHookProperties twilioProperties() {

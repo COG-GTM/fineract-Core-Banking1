@@ -75,8 +75,8 @@ public final class ProcessorHelper {
         }
     }
 
-    private OkHttpClient createClient() {
-        var okBuilder = new OkHttpClient.Builder();
+    private OkHttpClient createClient(final boolean followRedirects) {
+        var okBuilder = new OkHttpClient.Builder().followRedirects(followRedirects).followSslRedirects(followRedirects);
         if (insecureHttpClient) {
             configureInsecureClient(okBuilder);
         }
@@ -113,7 +113,11 @@ public final class ProcessorHelper {
     }
 
     public WebHookService createWebHookService(final String url) {
-        final OkHttpClient client = createClient();
+        return createWebHookService(url, true);
+    }
+
+    public WebHookService createWebHookService(final String url, final boolean followRedirects) {
+        final OkHttpClient client = createClient(followRedirects);
         final Retrofit.Builder retrofitBuilder = new Retrofit.Builder();
         retrofitBuilder.baseUrl(url);
         retrofitBuilder.client(client);
