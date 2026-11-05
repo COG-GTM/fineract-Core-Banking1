@@ -52,6 +52,9 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.mapstruct:mapstruct-processor'
+    implementation('org.eclipse.persistence:org.eclipse.persistence.jpa') {
+        exclude group: 'org.eclipse.persistence', module: 'jakarta.persistence'
+    }
     implementation('org.dom4j:dom4j') {
         exclude group: 'javax.xml.bind'
     }
