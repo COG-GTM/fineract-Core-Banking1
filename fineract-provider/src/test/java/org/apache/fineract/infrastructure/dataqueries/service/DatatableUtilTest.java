@@ -20,14 +20,18 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
@@ -224,6 +228,56 @@ class DatatableUtilTest {
 
         assertTrue(joinCondition.contains("o.hierarchy like ?"), "Join condition should use ? for hierarchy");
         assertFalse(joinCondition.contains("like '"), "Join condition should not contain literal quote for hierarchy");
+    }
+
+    @Test
+    void testValidateDatatableNameRejectsCoreTables() {
+        List<String> coreTables = List.of("m_appuser", "M_SAVINGS_ACCOUNT", "twofactor_access_token", "acc_gl_account",
+                "x_registered_table");
+        for (String coreTable : coreTables) {
+            PlatformDataIntegrityException e = assertThrows(PlatformDataIntegrityException.class,
+                    () -> underTest.validateDatatableName(coreTable));
+            assertEquals("error.msg.datatables.datatable.core.table", e.getGlobalisationMessageCode());
+        }
+    }
+
+    @Test
+    void testValidateDatatableNameNotReservedRejectsCorePrefixes() {
+        PlatformDataIntegrityException e = assertThrows(PlatformDataIntegrityException.class,
+                () -> underTest.validateDatatableNameNotReserved("m_client_notes"));
+        assertEquals("error.msg.datatables.datatable.core.table", e.getGlobalisationMessageCode());
+        underTest.validateDatatableNameNotReserved("extra_client_details");
+    }
+
+    @Test
+    void testValidateDatatableNameAcceptsExistingCustomTableWithReservedPrefix() {
+        underTest.validateDatatableName("m_client_notes");
+    }
+
+    @Test
+    void testValidateDatatableNameAcceptsCustomDatatables() {
+        underTest.validateDatatableName("extra_client_details");
+        underTest.validateDatatableName("dt_m_client_abcde");
+        underTest.validateDatatableName("ppi_kenya_2005");
+    }
+
+    @Test
+    void testValidateDatatableRegisteredRejectsRegisteredCoreTable() {
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.validateDatatableRegistered("m_appuser"));
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void testValidateDatatableRegisteredForDeregistrationAllowsCoreTableCleanup() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq("m_appuser"))).thenReturn(1);
+
+        assertEquals("m_appuser", underTest.validateDatatableRegisteredForDeregistration("m_appuser"));
+    }
+
+    @Test
+    void testQueryForApplicationEntityRejectsCoreTable() {
+        assertThrows(PlatformDataIntegrityException.class, () -> underTest.queryForApplicationEntity("m_savings_account"));
+        verifyNoInteractions(jdbcTemplate);
     }
 
     private List<ResultsetColumnHeaderData> createMultiRowHeaders() {

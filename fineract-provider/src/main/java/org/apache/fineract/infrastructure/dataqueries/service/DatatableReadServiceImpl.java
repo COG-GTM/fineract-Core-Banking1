@@ -89,6 +89,9 @@ public class DatatableReadServiceImpl implements DatatableReadService {
         while (rowSet.next()) {
             final String appTableName = rowSet.getString(APPLICATION_TABLE_NAME);
             final String registeredDatatableName = rowSet.getString("registered_table_name");
+            if (DatatableCoreTableGuard.isCoreTable(registeredDatatableName)) {
+                continue;
+            }
             final String entitySubType = rowSet.getString("entity_subtype");
             final List<ResultsetColumnHeaderData> columnHeaderData = genericDataService.fillResultsetColumnHeaders(registeredDatatableName);
 
@@ -102,6 +105,9 @@ public class DatatableReadServiceImpl implements DatatableReadService {
     public DatatableData retrieveDatatable(final String datatable) {
         // PERMITTED datatables
         sqlValidator.validate(datatable);
+        if (DatatableCoreTableGuard.isCoreTable(datatable)) {
+            return null;
+        }
         final String sql = "select application_table_name, registered_table_name, entity_subtype from x_registered_table "
                 + " where exists (select 'f' from m_appuser_role ur join m_role r on r.id = ur.role_id"
                 + " left join m_role_permission rp on rp.role_id = r.id left join m_permission p on p.id = rp.permission_id"

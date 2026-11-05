@@ -160,6 +160,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
     public void registerDatatable(final JsonCommand command) {
         final String applicationTableName = datatableReadService.getTableName(command.getUrl());
         final String dataTableName = datatableReadService.getDataTableName(command.getUrl());
+        datatableUtil.validateDatatableNameNotReserved(dataTableName);
         final String entitySubType = command.stringValueOfParameterNamed(ENTITY_SUB_TYPE);
 
         Integer category = this.getCategory(command);
@@ -174,6 +175,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         // permissionSql parameter is kept for interface compatibility but ignored in favor of parameterized queries
         final String applicationTableName = datatableReadService.getTableName(command.getUrl());
         final String dataTableName = datatableReadService.getDataTableName(command.getUrl());
+        datatableUtil.validateDatatableNameNotReserved(dataTableName);
         final String entitySubType = command.stringValueOfParameterNamed(ENTITY_SUB_TYPE);
 
         Integer category = this.getCategory(command);
@@ -186,7 +188,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
     @Transactional
     @Override
     public void deregisterDatatable(final String datatable) {
-        datatableUtil.validateDatatableRegistered(datatable);
+        datatableUtil.validateDatatableRegisteredForDeregistration(datatable);
         final Object[] permissionCodes = { "CREATE_" + datatable, "CREATE_" + datatable + "_CHECKER", "READ_" + datatable,
                 "UPDATE_" + datatable, "UPDATE_" + datatable + "_CHECKER", "DELETE_" + datatable, "DELETE_" + datatable + "_CHECKER" };
         final String placeholders = "(?, ?, ?, ?, ?, ?, ?)";
@@ -223,6 +225,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
             }
 
             datatableUtil.validateDatatableName(datatableName);
+            datatableUtil.validateDatatableNameNotReserved(datatableName);
             EntityTables entityTable = datatableUtil.resolveEntity(entityName);
             final boolean isConstraintApproach = this.configurationDomainService.isConstraintApproachEnabledForDatatables();
             final String fkColumnName = datatableUtil.getFKField(entityTable);
