@@ -21,6 +21,7 @@ package org.apache.fineract.infrastructure.contentstore.service;
 import static java.util.Objects.requireNonNull;
 
 import java.io.InputStream;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.contentstore.data.ContentStoreType;
@@ -32,8 +33,10 @@ import org.apache.fineract.infrastructure.contentstore.policy.DefaultDeleteConte
 import org.apache.fineract.infrastructure.contentstore.policy.DefaultDownloadContentPolicy;
 import org.apache.fineract.infrastructure.contentstore.policy.DefaultPostUploadContentPolicy;
 import org.apache.fineract.infrastructure.contentstore.policy.DefaultPreUploadContentPolicy;
+import org.apache.fineract.infrastructure.contentstore.util.ContentPathRandomizer;
 import org.apache.fineract.infrastructure.contentstore.util.ContentPathSanitizer;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -41,6 +44,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.http.ContentStreamProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -48,8 +52,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 @ConditionalOnProperty(name = "fineract.content.s3.enabled", havingValue = "true")
 public class S3ContentStoreService implements ContentStoreService {
 
+    private static final Pattern TENANT_PREFIX_PATTERN = Pattern.compile("^[A-Za-z0-9_-][A-Za-z0-9._-]*$");
+
     private final S3Client s3Client;
     private final ContentPathSanitizer pathSanitizer;
+    private final ContentPathRandomizer pathRandomizer;
     private final DefaultDownloadContentPolicy downloadContentPolicy;
     private final DefaultPreUploadContentPolicy preUploadContentPolicy;
     private final DefaultPostUploadContentPolicy postUploadContentPolicy;
@@ -65,7 +72,7 @@ public class S3ContentStoreService implements ContentStoreService {
 
         try {
             return s3Client
-                    .getObject(GetObjectRequest.builder().bucket(properties.getContent().getS3().getBucketName()).key(safePath).build(),
+                    .getObject(GetObjectRequest.builder().bucket(getBucketName()).key(getObjectKey(safePath)).build(),
                             ResponseTransformer.toBytes())
                     .asInputStream();
         } catch (Exception e) {
@@ -80,13 +87,20 @@ public class S3ContentStoreService implements ContentStoreService {
 
         preUploadContentPolicy.check(ContentPolicyContext.builder().path(path).mimeType(mimeType).build());
 
-        var safePath = pathSanitizer.sanitize(path);
+        final var requestedPath = pathSanitizer.sanitize(path);
+        final var overwrite = exists(getObjectKey(requestedPath));
+        final var safePath = overwrite ? requestedPath : randomize(requestedPath);
 
         try {
-            final var p = safePath;
+            final var key = getObjectKey(safePath);
 
-            s3Client.putObject(builder -> builder.bucket(properties.getContent().getS3().getBucketName()).key(p),
-                    RequestBody.fromContentProvider(ContentStreamProvider.fromInputStream(is), mimeType));
+            s3Client.putObject(builder -> {
+                builder.bucket(getBucketName()).key(key);
+
+                if (!overwrite) {
+                    builder.ifNoneMatch("*");
+                }
+            }, RequestBody.fromContentProvider(ContentStreamProvider.fromInputStream(is), mimeType));
         } catch (Exception e) {
             throw new ContentStoreException(e);
         }
@@ -113,7 +127,9 @@ public class S3ContentStoreService implements ContentStoreService {
         final var safePath = pathSanitizer.sanitize(path);
 
         try {
-            s3Client.deleteObject(builder -> builder.bucket(properties.getContent().getS3().getBucketName()).key(safePath));
+            final var key = getObjectKey(safePath);
+
+            s3Client.deleteObject(builder -> builder.bucket(getBucketName()).key(key));
         } catch (Exception e) {
             throw new ContentStoreException(e);
         }
@@ -122,5 +138,47 @@ public class S3ContentStoreService implements ContentStoreService {
     @Override
     public ContentStoreType getType() {
         return ContentStoreType.S3;
+    }
+
+    private String getBucketName() {
+        return properties.getContent().getS3().getBucketName();
+    }
+
+    private String getObjectKey(String path) {
+        return String.join(DELIMITER, getTenantPrefix(), path);
+    }
+
+    private String getTenantPrefix() {
+        final var tenant = ThreadLocalContextUtil.getTenant();
+        final var identifier = tenant == null ? null : tenant.getTenantIdentifier();
+
+        if (identifier == null || !TENANT_PREFIX_PATTERN.matcher(identifier).matches()) {
+            throw new ContentStoreException(new IllegalStateException("Missing or invalid tenant identifier for S3 content store"));
+        }
+
+        return identifier;
+    }
+
+    private String randomize(String path) {
+        final var idx = path.lastIndexOf(DELIMITER);
+        final var random = pathRandomizer.randomize();
+
+        if (idx < 0) {
+            return String.join(DELIMITER, random, path);
+        }
+
+        return String.join(DELIMITER, path.substring(0, idx), random, path.substring(idx + 1));
+    }
+
+    private boolean exists(String key) {
+        try {
+            s3Client.headObject(builder -> builder.bucket(getBucketName()).key(key));
+            return true;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return false;
+            }
+            throw new ContentStoreException(e);
+        }
     }
 }

@@ -46,6 +46,8 @@ import org.apache.fineract.infrastructure.event.business.domain.document.Documen
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -112,14 +114,26 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
             if (StringUtils.isNotEmpty(request.getFileName())) {
                 // these two only make sense if we have an actual file
 
-                if (request.getStream() != null && StringUtils.isNotEmpty(path) && !Strings.CI.equals(doc.getLocation(), path)) {
-                    storeService.delete(doc.getLocation());
-                    storeService.upload(path, request.getStream(), request.getType());
-                    doc.setLocation(path);
-                    doc.setFileName(FilenameUtils.getName(path));
+                if (request.getStream() != null && StringUtils.isNotEmpty(path)) {
+                    final var previousLocation = doc.getLocation();
+
+                    if (StringUtils.isNotEmpty(previousLocation)
+                            && StringUtils.equals(FilenameUtils.getName(previousLocation), FilenameUtils.getName(path))) {
+                        doc.setLocation(storeService.upload(previousLocation, request.getStream(), request.getType()));
+                    } else {
+                        final var requestedPath = path;
+                        path = storeService.upload(requestedPath, request.getStream(), request.getType());
+                        doc.setLocation(path);
+                        doc.setFileName(FilenameUtils.getName(path));
+
+                        if (StringUtils.isNotEmpty(previousLocation) && !StringUtils.equals(previousLocation, path)) {
+                            // the store returns the requested path unchanged only when it overwrote an existing object
+                            deleteReplacedContent(previousLocation, StringUtils.equals(requestedPath, path) ? null : path);
+                        }
+                    }
                 }
             } else if (request.getStream() != null) {
-                storeService.upload(doc.getLocation(), request.getStream(), request.getType());
+                doc.setLocation(storeService.upload(doc.getLocation(), request.getStream(), request.getType()));
             }
             if (StringUtils.isNotEmpty(request.getDescription()) && !Strings.CI.equals(doc.getDescription(), request.getDescription())) {
                 doc.setDescription(request.getDescription());
@@ -160,6 +174,33 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
         } catch (final Exception e) {
             throw ErrorHandler.getMappable(e, "error.msg.document.unknown.data.integrity.issue",
                     "Unknown data integrity issue with resource.");
+        }
+    }
+
+    private void deleteReplacedContent(final String previousLocation, final String newLocation) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(previousLocation);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCompletion(final int status) {
+                if (status == STATUS_COMMITTED) {
+                    deleteQuietly(previousLocation);
+                } else if (newLocation != null) {
+                    deleteQuietly(newLocation);
+                }
+            }
+        });
+    }
+
+    private void deleteQuietly(final String location) {
+        try {
+            storeService.delete(location);
+        } catch (final RuntimeException e) {
+            log.warn("Could not delete document content at {}", location, e);
         }
     }
 
