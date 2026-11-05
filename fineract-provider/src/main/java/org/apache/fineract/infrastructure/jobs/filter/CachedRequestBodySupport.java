@@ -53,8 +53,8 @@ final class CachedRequestBodySupport {
     }
 
     static long maxBodySize(FineractProperties fineractProperties) {
-        DataSize limit = fineractProperties == null || fineractProperties.getApi() == null ? null
-                : fineractProperties.getApi().getCachedRequestBodySizeLimit();
+        FineractProperties.FineractApiProperties api = fineractProperties == null ? null : fineractProperties.getApi();
+        DataSize limit = api == null ? null : api.getCachedRequestBodySizeLimit();
         return limit == null ? BodyCachingHttpServletRequestWrapper.DEFAULT_MAX_BODY_SIZE : limit.toBytes();
     }
 
@@ -69,7 +69,7 @@ final class CachedRequestBodySupport {
     static void rejectTooLarge(HttpServletResponse response, RequestBodyTooLargeException e) throws IOException {
         response.setStatus(SC_PAYLOAD_TOO_LARGE);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(ApiGlobalErrorResponse.create(SC_PAYLOAD_TOO_LARGE, "error.msg.request.body.too.large",
-                e.getMessage(), "Request body is too large. Maximum allowed size is " + e.getMaxBodySize() + " bytes.").toJson());
+        response.getWriter().write(ApiGlobalErrorResponse.create(SC_PAYLOAD_TOO_LARGE, "error.msg.request.body.too.large", e.getMessage(),
+                "Request body is too large. Maximum allowed size is " + e.getMaxBodySize() + " bytes.").toJson());
     }
 }
