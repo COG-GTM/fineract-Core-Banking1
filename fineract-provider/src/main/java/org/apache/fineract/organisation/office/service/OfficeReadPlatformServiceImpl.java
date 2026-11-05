@@ -32,7 +32,6 @@ import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.organisation.monetary.service.CurrencyReadPlatformService;
 import org.apache.fineract.organisation.office.data.OfficeData;
@@ -53,7 +52,6 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final PlatformSecurityContext context;
     private final CurrencyReadPlatformService currencyReadPlatformService;
-    private final ColumnValidator columnValidator;
 
     private final OfficeRepository officeRepository;
     private final OfficeDataMapper officeDataMapper;
@@ -159,12 +157,11 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         sqlBuilder.append(rm.officeSchema());
         sqlBuilder.append(" where o.hierarchy like ? ");
         if (searchParameters != null) {
+            final String sortOrder = searchParameters.hasSortOrder() ? OfficeSearchSort.sortOrder(searchParameters.getSortOrder()) : null;
             if (searchParameters.hasOrderBy()) {
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-                sqlBuilder.append("order by ").append(searchParameters.getOrderBy());
-                if (searchParameters.hasSortOrder()) {
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
+                sqlBuilder.append("order by ").append(OfficeSearchSort.orderByColumn(searchParameters.getOrderBy()));
+                if (sortOrder != null) {
+                    sqlBuilder.append(' ').append(sortOrder);
                 }
             } else {
                 sqlBuilder.append("order by o.hierarchy");

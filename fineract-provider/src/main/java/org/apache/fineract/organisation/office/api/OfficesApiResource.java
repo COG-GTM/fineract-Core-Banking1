@@ -61,9 +61,9 @@ import org.apache.fineract.infrastructure.core.serialization.GoogleGsonSerialize
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
-import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
+import org.apache.fineract.organisation.office.service.OfficeSearchSort;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.springframework.stereotype.Component;
@@ -90,7 +90,6 @@ public class OfficesApiResource {
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final BulkImportWorkbookService bulkImportWorkbookService;
     private final BulkImportWorkbookPopulatorService bulkImportWorkbookPopulatorService;
-    private final SqlValidator sqlValidator;
 
     private final Gson gson = GoogleGsonSerializerHelper.createSimpleGson();
 
@@ -105,8 +104,7 @@ public class OfficesApiResource {
             @QueryParam("orderBy") @Parameter(description = "orderBy") final String orderBy,
             @QueryParam("sortOrder") @Parameter(description = "sortOrder") final String sortOrder) {
         context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
-        sqlValidator.validate(orderBy);
-        sqlValidator.validate(sortOrder);
+        OfficeSearchSort.validate(orderBy, sortOrder);
         final SearchParameters searchParameters = SearchParameters.builder().orphansOnly(false).isSelfUser(false).orderBy(orderBy)
                 .sortOrder(sortOrder).build();
         final Collection<OfficeData> offices = readPlatformService.retrieveAllOffices(onlyManualEntries, searchParameters);
