@@ -54,6 +54,19 @@ class MixTaxonomyMappingFormulaEvaluatorTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Division by zero");
     }
 
+    @Test
+    void acceptsDivisionByPlaceholderAtValidationTime() {
+        MixTaxonomyMappingFormulaEvaluator.validate("{1001}/{1002}");
+        MixTaxonomyMappingFormulaEvaluator.validate("{1001}/({1002}-{1003})");
+        assertThat(MixTaxonomyMappingFormulaEvaluator.evaluate("{1001}/{1002}", BALANCES)).isEqualByComparingTo("5.025");
+    }
+
+    @Test
+    void evaluatesGlCodesContainingPunctuation() {
+        final Map<String, BigDecimal> balances = Map.of("ASSET:100", new BigDecimal("3"), "10'+'01", new BigDecimal("4"));
+        assertThat(MixTaxonomyMappingFormulaEvaluator.evaluate("{ASSET:100}+{10'+'01}", balances)).isEqualByComparingTo("7");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = { "{1001}+{1002}", "12000", "-{1}", "((1+2)*3)/4", "{12000}+{11000}", "1.5 * {A-1}" })
     void acceptsArithmeticFormulas(final String formula) {
@@ -62,7 +75,7 @@ class MixTaxonomyMappingFormulaEvaluatorTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "Java.type('java.lang.Runtime').getRuntime().exec('id')", "this.engine", "1;2", "{1001}+", "(1+2", "1+2)",
-            "{10'+'01}", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
+            "{a{b}", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
     void rejectsNonArithmeticFormulas(final String formula) {
         assertThatThrownBy(() -> MixTaxonomyMappingFormulaEvaluator.validate(formula)).isInstanceOf(IllegalArgumentException.class);
     }

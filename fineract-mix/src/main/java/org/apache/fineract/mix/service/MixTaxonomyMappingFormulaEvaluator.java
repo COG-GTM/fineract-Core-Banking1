@@ -21,7 +21,6 @@ package org.apache.fineract.mix.service;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Arithmetic-only evaluator for MIX taxonomy mapping formulas.
@@ -35,18 +34,18 @@ public final class MixTaxonomyMappingFormulaEvaluator {
     public static final int MAX_FORMULA_LENGTH = 2000;
     private static final int MAX_NESTING_DEPTH = 64;
     private static final MathContext MATH_CONTEXT = MathContext.DECIMAL64;
-    private static final Pattern GL_CODE_PATTERN = Pattern.compile("[A-Za-z0-9._-]+");
 
     private MixTaxonomyMappingFormulaEvaluator() {}
 
     /**
-     * Checks that the formula is syntactically valid.
+     * Checks that the formula is syntactically valid. Balances are unknown at this point, so division by a
+     * placeholder that may be zero is only rejected at evaluation time.
      *
      * @throws IllegalArgumentException
      *             if the formula is not a valid arithmetic expression
      */
     public static void validate(final String formula) {
-        new Parser(formula, Map.of()).parse();
+        new Parser(formula, null).parse();
     }
 
     /**
@@ -64,6 +63,7 @@ public final class MixTaxonomyMappingFormulaEvaluator {
 
         private final String input;
         private final Map<String, BigDecimal> balances;
+        private final boolean validateOnly;
         private int pos;
         private int depth;
 
@@ -76,6 +76,7 @@ public final class MixTaxonomyMappingFormulaEvaluator {
             }
             this.input = input;
             this.balances = balances;
+            this.validateOnly = balances == null;
         }
 
         BigDecimal parse() {
@@ -108,11 +109,12 @@ public final class MixTaxonomyMappingFormulaEvaluator {
                 } else if (consume('/')) {
                     final int divisorPos = pos;
                     final BigDecimal divisor = parseFactor();
-                    if (divisor.signum() == 0) {
+                    if (divisor.signum() != 0) {
+                        value = value.divide(divisor, MATH_CONTEXT);
+                    } else if (!validateOnly) {
                         pos = divisorPos;
                         throw error("Division by zero");
                     }
-                    value = value.divide(divisor, MATH_CONTEXT);
                 } else {
                     return value;
                 }
@@ -152,10 +154,13 @@ public final class MixTaxonomyMappingFormulaEvaluator {
                 throw error("Expected '}'");
             }
             final String glCode = input.substring(pos, end);
-            if (!GL_CODE_PATTERN.matcher(glCode).matches()) {
+            if (glCode.isBlank() || glCode.indexOf('{') >= 0 || glCode.chars().anyMatch(Character::isISOControl)) {
                 throw error("Invalid GL code placeholder");
             }
             pos = end + 1;
+            if (validateOnly) {
+                return BigDecimal.ONE;
+            }
             final BigDecimal balance = balances.get(glCode);
             return balance != null ? balance : BigDecimal.ZERO;
         }

@@ -67,7 +67,8 @@ public class MixTaxonomyMappingWriteServiceImpl implements MixTaxonomyMappingWri
             }
             configObject = element.getAsJsonObject();
         } catch (final JsonParseException e) {
-            throw invalidConfig("error.msg.mix.mapping.config.invalid", "Mapping config must be valid JSON");
+            throw new PlatformApiDataValidationException("error.msg.mix.mapping.config.invalid", "Mapping config must be valid JSON",
+                    "config", e);
         }
         for (final Map.Entry<String, JsonElement> entry : configObject.entrySet()) {
             final JsonElement value = entry.getValue();

@@ -57,6 +57,12 @@ class MixTaxonomyMappingWriteServiceImplTest {
         verify(repository).save(any());
     }
 
+    @Test
+    void savesRatioMapping() {
+        assertThat(service.updateMapping(request("{\"1\":\"{1001}/{1002}\"}"))).isNotNull();
+        verify(repository).save(any());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = { "{\"1\":\"Java.type('java.lang.Runtime').getRuntime().exec('id')\"}", "{\"1\":\"{1001}+abc\"}", "{\"1\":5}",
             "{\"1\":[\"{1001}\"]}", "[\"{1001}\"]", "not json" })
