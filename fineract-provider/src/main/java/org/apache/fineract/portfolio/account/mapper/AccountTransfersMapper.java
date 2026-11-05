@@ -105,8 +105,8 @@ public final class AccountTransfersMapper implements RowMapper<AccountTransferDa
     }
 
     /**
-     * Resolves a client supplied orderBy value (a selected alias such as {@code transferDate} or a qualified column such
-     * as {@code att.transaction_date}) to the qualified column it refers to.
+     * Resolves a client supplied orderBy value (a selected alias such as {@code transferDate} or a qualified column
+     * such as {@code att.transaction_date}) to the qualified column it refers to.
      */
     public Optional<String> resolveSortColumn(final String orderBy) {
         if (orderBy == null) {

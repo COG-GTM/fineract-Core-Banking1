@@ -75,9 +75,8 @@ public class AccountConfiguration {
     @ConditionalOnMissingBean(AccountTransfersReadPlatformService.class)
     public AccountTransfersReadPlatformService accountTransfersReadPlatformService(JdbcTemplate jdbcTemplate,
             ClientReadPlatformService clientReadPlatformService, OfficeReadPlatformService officeReadPlatformService,
-            PortfolioAccountReadPlatformService portfolioAccountReadPlatformService,
-            DatabaseSpecificSQLGenerator sqlGenerator, AccountTransfersMapper accountTransfersMapper, PaginationHelper paginationHelper,
-            SqlValidator sqlValidator) {
+            PortfolioAccountReadPlatformService portfolioAccountReadPlatformService, DatabaseSpecificSQLGenerator sqlGenerator,
+            AccountTransfersMapper accountTransfersMapper, PaginationHelper paginationHelper, SqlValidator sqlValidator) {
         return new AccountTransfersReadPlatformServiceImpl(jdbcTemplate, clientReadPlatformService, officeReadPlatformService,
                 portfolioAccountReadPlatformService, sqlGenerator, accountTransfersMapper, paginationHelper, sqlValidator);
     }
