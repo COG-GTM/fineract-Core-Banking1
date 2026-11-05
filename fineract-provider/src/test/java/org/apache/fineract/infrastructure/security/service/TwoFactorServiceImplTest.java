@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.PlatformEmailService;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.constants.TwoFactorConstants;
+import org.apache.fineract.infrastructure.security.data.OTPMetadata;
 import org.apache.fineract.infrastructure.security.data.OTPRequest;
 import org.apache.fineract.infrastructure.security.domain.OTPRequestRepository;
 import org.apache.fineract.infrastructure.security.domain.TFAccessToken;
@@ -54,6 +56,7 @@ class TwoFactorServiceImplTest {
     private static final AtomicLong USER_IDS = new AtomicLong(9_000_000L);
 
     private PlatformEmailService emailService;
+    private OTPRequestRepository otpRequestRepository;
     private TwoFactorServiceImpl twoFactorService;
     private AppUser user;
     private String lastSentToken;
@@ -77,8 +80,9 @@ class TwoFactorServiceImplTest {
             return lastSentToken;
         });
 
+        otpRequestRepository = new OTPRequestRepository();
         twoFactorService = new TwoFactorServiceImpl(accessTokenGenerationService, emailService, mock(SmsMessageScheduledJobService.class),
-                new OTPRequestRepository(), mock(TFAccessTokenRepository.class), mock(SmsMessageRepository.class), configurationService);
+                otpRequestRepository, mock(TFAccessTokenRepository.class), mock(SmsMessageRepository.class), configurationService);
 
         user = mock(AppUser.class);
         when(user.getId()).thenReturn(USER_IDS.incrementAndGet());
@@ -149,6 +153,43 @@ class TwoFactorServiceImplTest {
     }
 
     @Test
+    void failedDeliveryDoesNotStartCooldown() {
+        doThrow(new IllegalStateException("SMTP down")).doNothing().when(emailService).sendDefinedEmail(any(EmailDetail.class));
+
+        assertThrows(IllegalStateException.class, this::requestToken);
+
+        requestToken();
+        assertNotNull(twoFactorService.createAccessTokenFromOTP(user, lastSentToken));
+    }
+
+    @Test
+    void failedDeliveryOfReplacementKeepsPreviousTokenValid() {
+        requestToken();
+        final String previousOtp = lastSentToken;
+        expireCooldown();
+        doThrow(new IllegalStateException("SMTP down")).when(emailService).sendDefinedEmail(any(EmailDetail.class));
+
+        assertThrows(IllegalStateException.class, this::requestToken);
+
+        assertNotNull(twoFactorService.createAccessTokenFromOTP(user, previousOtp));
+    }
+
+    @Test
+    void sameUserIdInAnotherTenantHasSeparateTokens() {
+        requestToken();
+        final String defaultTenantOtp = lastSentToken;
+
+        ThreadLocalContextUtil.setTenant(new FineractPlatformTenant(2L, "other", "Other", "Asia/Kolkata", null));
+        requestToken();
+        for (int i = 0; i < TwoFactorServiceImpl.MAX_OTP_VALIDATION_ATTEMPTS; i++) {
+            assertThrows(OTPTokenInvalidException.class, () -> twoFactorService.createAccessTokenFromOTP(user, wrongToken()));
+        }
+
+        ThreadLocalContextUtil.setTenant(new FineractPlatformTenant(1L, "default", "Default", "Asia/Kolkata", null));
+        assertNotNull(twoFactorService.createAccessTokenFromOTP(user, defaultTenantOtp));
+    }
+
+    @Test
     void generatedTokensUseAllThirtySixAlphanumericCharacters() {
         String token = new RandomOTPGenerator(20_000).generate();
         Set<Character> characters = new HashSet<>();
@@ -162,6 +203,11 @@ class TwoFactorServiceImplTest {
 
     private void requestToken() {
         twoFactorService.createNewOTPToken(user, TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME, false);
+    }
+
+    private void expireCooldown() {
+        OTPMetadata metadata = otpRequestRepository.getOTPRequestForUser(user).getMetadata();
+        metadata.setRequestTime(metadata.getRequestTime().minusSeconds(TwoFactorServiceImpl.OTP_REQUEST_COOLDOWN_SECONDS));
     }
 
     private String wrongToken() {

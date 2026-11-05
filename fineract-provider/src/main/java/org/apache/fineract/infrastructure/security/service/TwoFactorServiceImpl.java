@@ -33,7 +33,6 @@ import org.apache.fineract.infrastructure.security.domain.TFAccessToken;
 import org.apache.fineract.infrastructure.security.domain.TFAccessTokenRepository;
 import org.apache.fineract.infrastructure.security.exception.AccessTokenInvalidIException;
 import org.apache.fineract.infrastructure.security.exception.OTPDeliveryMethodInvalidException;
-import org.apache.fineract.infrastructure.security.exception.OTPRequestTooFrequentException;
 import org.apache.fineract.infrastructure.security.exception.OTPTokenInvalidException;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessage;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageRepository;
@@ -101,12 +100,14 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(smsDelivery, extendedAccessToken);
-            reserveOTPRequest(user, request);
-            final String smsText = configurationService.getFormattedSmsTextFor(user, request);
-            SmsMessage smsMessage = SmsMessage.pendingSms(null, null, null, user.getStaff(), smsText, user.getStaff().mobileNo(), null,
-                    false);
-            this.smsMessageRepository.save(smsMessage);
-            smsMessageScheduledJobService.sendTriggeredMessage(Collections.singleton(smsMessage), configurationService.getSMSProviderId());
+            deliverOTPRequest(user, request, () -> {
+                final String smsText = configurationService.getFormattedSmsTextFor(user, request);
+                SmsMessage smsMessage = SmsMessage.pendingSms(null, null, null, user.getStaff(), smsText, user.getStaff().mobileNo(), null,
+                        false);
+                this.smsMessageRepository.save(smsMessage);
+                smsMessageScheduledJobService.sendTriggeredMessage(Collections.singleton(smsMessage),
+                        configurationService.getSMSProviderId());
+            });
             return request;
         } else if (TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME.equalsIgnoreCase(deliveryMethodName)) {
             OTPDeliveryMethod emailDelivery = getEmailDeliveryMethodForUser(user);
@@ -114,12 +115,13 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(emailDelivery, extendedAccessToken);
-            reserveOTPRequest(user, request);
-            final String emailSubject = configurationService.getFormattedEmailSubjectFor(user, request);
-            final String emailBody = configurationService.getFormattedEmailBodyFor(user, request);
-            final EmailDetail emailData = new EmailDetail(emailSubject, emailBody, user.getEmail(),
-                    user.getFirstname() + " " + user.getLastname());
-            emailService.sendDefinedEmail(emailData);
+            deliverOTPRequest(user, request, () -> {
+                final String emailSubject = configurationService.getFormattedEmailSubjectFor(user, request);
+                final String emailBody = configurationService.getFormattedEmailBodyFor(user, request);
+                final EmailDetail emailData = new EmailDetail(emailSubject, emailBody, user.getEmail(),
+                        user.getFirstname() + " " + user.getLastname());
+                emailService.sendDefinedEmail(emailData);
+            });
             return request;
         }
 
@@ -212,9 +214,13 @@ public class TwoFactorServiceImpl implements TwoFactorService {
         return new OTPDeliveryMethod().setName(TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME).setTarget(user.getEmail());
     }
 
-    private void reserveOTPRequest(final AppUser user, final OTPRequest request) {
-        if (!otpRequestRepository.addOTPRequestIfNotRequestedWithin(user, request, OTP_REQUEST_COOLDOWN_SECONDS)) {
-            throw new OTPRequestTooFrequentException(OTP_REQUEST_COOLDOWN_SECONDS);
+    private void deliverOTPRequest(final AppUser user, final OTPRequest request, final Runnable delivery) {
+        final OTPRequest replaced = otpRequestRepository.replaceOTPRequest(user, request, OTP_REQUEST_COOLDOWN_SECONDS);
+        try {
+            delivery.run();
+        } catch (RuntimeException e) {
+            otpRequestRepository.restoreOTPRequest(user, request, replaced);
+            throw e;
         }
     }
 

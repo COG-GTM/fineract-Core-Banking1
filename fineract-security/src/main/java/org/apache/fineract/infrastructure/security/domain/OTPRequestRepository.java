@@ -19,8 +19,10 @@
 package org.apache.fineract.infrastructure.security.domain;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.data.OTPRequest;
+import org.apache.fineract.infrastructure.security.exception.OTPRequestTooFrequentException;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
@@ -31,36 +33,52 @@ import org.springframework.util.Assert;
 @SuppressWarnings({ "MemberName" })
 public class OTPRequestRepository {
 
-    private static final ConcurrentHashMap<Long, OTPRequest> OTT_REQUESTS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, OTPRequest> OTT_REQUESTS = new ConcurrentHashMap<>();
 
     public OTPRequest getOTPRequestForUser(AppUser user) {
         Assert.notNull(user, "User must not be null");
 
-        return OTT_REQUESTS.get(user.getId());
+        return OTT_REQUESTS.get(keyFor(user));
     }
 
     /**
-     * Stores {@code request} for the user unless the user's current request was created less than
+     * Stores {@code request} for the user, replacing the current request unless that one was created less than
      * {@code cooldownSeconds} ago.
      *
-     * @return {@code true} if the request was stored
+     * @return the replaced request, or {@code null} if there was none
+     * @throws OTPRequestTooFrequentException
+     *             if the current request is still within the cooldown
      */
-    public boolean addOTPRequestIfNotRequestedWithin(AppUser user, OTPRequest request, int cooldownSeconds) {
+    public OTPRequest replaceOTPRequest(AppUser user, OTPRequest request, int cooldownSeconds) {
         Assert.notNull(user, "User must not be null");
         Assert.notNull(request, "Request must not be null");
 
-        final AtomicBoolean added = new AtomicBoolean(false);
-        OTT_REQUESTS.compute(user.getId(), (id, existing) -> {
+        final AtomicReference<OTPRequest> replaced = new AtomicReference<>();
+        final OTPRequest stored = OTT_REQUESTS.compute(keyFor(user), (key, existing) -> {
             if (existing != null && existing.isRequestedWithin(cooldownSeconds)) {
                 return existing;
             }
-            added.set(true);
+            replaced.set(existing);
             return request;
         });
-        return added.get();
+        if (stored != request) {
+            throw new OTPRequestTooFrequentException(cooldownSeconds);
+        }
+        return replaced.get();
+    }
+
+    /**
+     * Puts {@code previous} back if {@code request} is still the user's current request, e.g. when delivering it failed.
+     */
+    public void restoreOTPRequest(AppUser user, OTPRequest request, OTPRequest previous) {
+        OTT_REQUESTS.computeIfPresent(keyFor(user), (key, current) -> current == request ? previous : current);
     }
 
     public boolean deleteOTPRequestForUser(AppUser user, OTPRequest request) {
-        return OTT_REQUESTS.remove(user.getId(), request);
+        return OTT_REQUESTS.remove(keyFor(user), request);
+    }
+
+    private static String keyFor(AppUser user) {
+        return ThreadLocalContextUtil.getTenant().getTenantIdentifier() + ":" + user.getId();
     }
 }
