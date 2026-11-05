@@ -19,9 +19,11 @@
 package org.apache.fineract.infrastructure.documentmanagement.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -31,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Optional;
 import org.apache.fineract.infrastructure.contentstore.data.ContentStoreType;
+import org.apache.fineract.infrastructure.contentstore.exception.ContentStoreException;
 import org.apache.fineract.infrastructure.contentstore.service.ContentStoreService;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentUpdateRequest;
@@ -114,6 +117,34 @@ class DocumentWritePlatformServiceImplTest {
 
         verify(storeService, never()).delete(anyString());
         assertEquals(restoredLocation, document.getLocation());
+    }
+
+    @Test
+    void caseOnlyRenameUsesRenamePathAndUpdatesFileName() {
+        final InputStream stream = new ByteArrayInputStream(new byte[] { 1 });
+        final var newLocation = "documents/clients/17/QrStUvWxYzAbCdEf/Contract.pdf";
+        when(storeService.getDelimiter()).thenReturn("/");
+        when(storeService.upload("documents/clients/17/Contract.pdf", stream, "application/pdf")).thenReturn(newLocation);
+
+        service.updateDocument(request("Contract.pdf", stream));
+
+        verify(storeService).delete(EXISTING_LOCATION);
+        assertEquals(newLocation, document.getLocation());
+        assertEquals("Contract.pdf", document.getFileName());
+    }
+
+    @Test
+    void failedDeleteOfOldObjectRemovesNewUpload() {
+        final InputStream stream = new ByteArrayInputStream(new byte[] { 1 });
+        final var newLocation = "documents/clients/17/QrStUvWxYzAbCdEf/passport.pdf";
+        when(storeService.getDelimiter()).thenReturn("/");
+        when(storeService.upload("documents/clients/17/passport.pdf", stream, "application/pdf")).thenReturn(newLocation);
+        doThrow(new ContentStoreException(new IllegalStateException("denied"))).when(storeService).delete(EXISTING_LOCATION);
+
+        assertThrows(RuntimeException.class, () -> service.updateDocument(request("passport.pdf", stream)));
+
+        verify(storeService).delete(newLocation);
+        verify(documentRepository, never()).save(any(Document.class));
     }
 
     private DocumentUpdateRequest request(String fileName, InputStream stream) {

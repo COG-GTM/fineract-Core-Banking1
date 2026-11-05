@@ -116,15 +116,15 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
                     final var previousLocation = doc.getLocation();
 
                     if (StringUtils.isNotEmpty(previousLocation)
-                            && Strings.CI.equals(FilenameUtils.getName(previousLocation), FilenameUtils.getName(path))) {
+                            && StringUtils.equals(FilenameUtils.getName(previousLocation), FilenameUtils.getName(path))) {
                         doc.setLocation(storeService.upload(previousLocation, request.getStream(), request.getType()));
                     } else {
                         path = storeService.upload(path, request.getStream(), request.getType());
                         doc.setLocation(path);
                         doc.setFileName(FilenameUtils.getName(path));
 
-                        if (StringUtils.isNotEmpty(previousLocation)) {
-                            storeService.delete(previousLocation);
+                        if (StringUtils.isNotEmpty(previousLocation) && !StringUtils.equals(previousLocation, path)) {
+                            deleteReplacedContent(previousLocation, path);
                         }
                     }
                 }
@@ -170,6 +170,19 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
         } catch (final Exception e) {
             throw ErrorHandler.getMappable(e, "error.msg.document.unknown.data.integrity.issue",
                     "Unknown data integrity issue with resource.");
+        }
+    }
+
+    private void deleteReplacedContent(final String previousLocation, final String newLocation) {
+        try {
+            storeService.delete(previousLocation);
+        } catch (final RuntimeException e) {
+            try {
+                storeService.delete(newLocation);
+            } catch (final RuntimeException cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
+            }
+            throw e;
         }
     }
 
