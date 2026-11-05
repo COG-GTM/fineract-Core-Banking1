@@ -77,4 +77,8 @@ public final class ReportParameterUsage extends AbstractPersistableCustom<Long> 
     public String getReportParameterName() {
         return this.reportParameterName;
     }
+
+    public ReportParameter getParameter() {
+        return this.parameter;
+    }
 }

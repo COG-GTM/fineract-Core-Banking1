@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -52,11 +53,15 @@ import org.apache.fineract.infrastructure.reportmailingjob.service.ReportMailing
 import org.apache.fineract.infrastructure.reportmailingjob.util.ReportMailingJobDateUtil;
 import org.apache.fineract.infrastructure.reportmailingjob.validation.ReportMailingJobValidator;
 import org.apache.fineract.portfolio.calendar.service.CalendarUtils;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.glassfish.jersey.internal.util.collection.MultivaluedStringMap;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -111,13 +116,65 @@ public class ExecuteReportMailingJobsTasklet implements Tasklet {
                         }
                     }
 
-                    generateReportOutputStream(reportMailingJob, emailAttachmentFileFormat, reportParams, reportName, errorLog);
+                    if (isAuthorisedToRun(reportMailingJob, stretchyReport, validateStretchyReportParamMap, errorLog)) {
+                        generateReportOutputStreamAsRunAsUser(reportMailingJob, emailAttachmentFileFormat, reportParams, reportName,
+                                errorLog);
+                    }
 
                     updateReportMailingJobAfterJobExecution(reportMailingJob, errorLog, localDateTimeOftenant);
                 }
             }
         }
         return RepeatStatus.FINISHED;
+    }
+
+    private boolean isAuthorisedToRun(final ReportMailingJob reportMailingJob, final Report stretchyReport,
+            final Map<String, String> stretchyReportParamMap, final StringBuilder errorLog) {
+        final AppUser runAsUser = reportMailingJob.getRunAsUser();
+
+        if (stretchyReport == null) {
+            errorLog.append("Report mailing job has no report ---------- ");
+            return false;
+        }
+
+        if (runAsUser == null || runAsUser.isDeleted() || !runAsUser.isEnabled() || !runAsUser.isAccountNonLocked()) {
+            errorLog.append("Run-as user of the report mailing job is missing or inactive ---------- ");
+            return false;
+        }
+
+        if (runAsUser.hasNotPermissionForReport(stretchyReport.getReportName())) {
+            errorLog.append("Run-as user is not authorised to run report: ").append(stretchyReport.getReportName()).append(" ---------- ");
+            return false;
+        }
+
+        if (stretchyReportParamMap == null) {
+            errorLog.append("Invalid stretchy report parameter map ---------- ");
+            return false;
+        }
+
+        final List<String> undeclaredParams = reportMailingJobValidator.findUndeclaredStretchyReportParams(stretchyReportParamMap,
+                stretchyReport);
+        if (!undeclaredParams.isEmpty()) {
+            errorLog.append("Parameters not declared for report: ").append(undeclaredParams).append(" ---------- ");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void generateReportOutputStreamAsRunAsUser(final ReportMailingJob reportMailingJob,
+            final ReportMailingJobEmailAttachmentFileFormat emailAttachmentFileFormat, final MultivaluedMap<String, String> reportParams,
+            final String reportName, final StringBuilder errorLog) {
+        final AppUser runAsUser = reportMailingJob.getRunAsUser();
+        final Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
+
+        try {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(runAsUser, runAsUser.getPassword(), runAsUser.getAuthorities()));
+            generateReportOutputStream(reportMailingJob, emailAttachmentFileFormat, reportParams, reportName, errorLog);
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
+        }
     }
 
     private void generateReportOutputStream(final ReportMailingJob reportMailingJob,

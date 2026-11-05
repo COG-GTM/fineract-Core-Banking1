@@ -35,6 +35,7 @@ import org.apache.fineract.infrastructure.reportmailingjob.domain.ReportMailingJ
 import org.apache.fineract.infrastructure.reportmailingjob.domain.ReportMailingJobRepository;
 import org.apache.fineract.infrastructure.reportmailingjob.domain.ReportMailingJobRepositoryWrapper;
 import org.apache.fineract.infrastructure.reportmailingjob.validation.ReportMailingJobValidator;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.calendar.service.CalendarUtils;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -81,6 +82,11 @@ public class ReportMailingJobWritePlatformServiceImpl implements ReportMailingJo
             // get the stretchy Report object
             final Report stretchyReport = this.reportRepositoryWrapper.findOneThrowExceptionIfNotFound(
                     jsonCommand.longValueOfParameterNamed(ReportMailingJobConstants.STRETCHY_REPORT_ID_PARAM_NAME));
+
+            checkUserPermissionForReport(appUser, stretchyReport);
+            final String stretchyReportParamMap = jsonCommand
+                    .stringValueOfParameterNamed(ReportMailingJobConstants.STRETCHY_REPORT_PARAM_MAP_PARAM_NAME);
+            this.reportMailingJobValidator.validateStretchyReportParamMapForReport(stretchyReportParamMap, stretchyReport);
 
             // create an instance of ReportMailingJob class from the JsonCommand
             // object
@@ -174,6 +180,15 @@ public class ReportMailingJobWritePlatformServiceImpl implements ReportMailingJo
                 reportMailingJob.setNextRunDateTime(nextRecurringDateTime);
             }
 
+            if (!changes.isEmpty() && !isDeactivationOnly(changes)) {
+                // the job will run with the updating user's permissions and office hierarchy
+                final AppUser appUser = this.platformSecurityContext.authenticatedUser();
+                checkUserPermissionForReport(appUser, reportMailingJob.getStretchyReport());
+                this.reportMailingJobValidator.validateStretchyReportParamMapForReport(reportMailingJob.getStretchyReportParamMap(),
+                        reportMailingJob.getStretchyReport());
+                reportMailingJob.setRunAsUser(appUser);
+            }
+
             if (!changes.isEmpty()) {
                 // save and flush immediately so any data integrity exception
                 // can be handled in the "catch" block
@@ -187,6 +202,16 @@ public class ReportMailingJobWritePlatformServiceImpl implements ReportMailingJo
             handleDataIntegrityIssues(jsonCommand, throwable, dve);
 
             return CommandProcessingResult.empty();
+        }
+    }
+
+    private boolean isDeactivationOnly(final Map<String, Object> changes) {
+        return changes.size() == 1 && Boolean.FALSE.equals(changes.get(ReportMailingJobConstants.IS_ACTIVE_PARAM_NAME));
+    }
+
+    private void checkUserPermissionForReport(final AppUser appUser, final Report stretchyReport) {
+        if (appUser.hasNotPermissionForReport(stretchyReport.getReportName())) {
+            throw new NoAuthorizationException("Not authorised to run report: " + stretchyReport.getReportName());
         }
     }
 
