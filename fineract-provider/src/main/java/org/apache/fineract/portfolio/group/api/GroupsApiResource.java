@@ -542,6 +542,7 @@ public class GroupsApiResource {
     public String retrieveglimAccounts(@PathParam("groupId") final Long groupId,
             @QueryParam("parentLoanAccountNo") final String parentLoanAccountNo, @Context final UriInfo uriInfo) {
         context.authenticatedUser().validateHasReadPermission("GROUP");
+        groupReadPlatformService.retrieveOne(groupId);
         List<GLIMContainer> glimContainer = Collections.emptyList();
         if (parentLoanAccountNo == null) {
             glimContainer = (List<GLIMContainer>) glimAccountInfoReadPlatformService.findGlimAccount(groupId);
@@ -567,6 +568,7 @@ public class GroupsApiResource {
             @Context final UriInfo uriInfo) {
         List<GSIMContainer> gsimContainer;
         context.authenticatedUser().validateHasReadPermission("GROUP");
+        groupReadPlatformService.retrieveOne(groupId);
 
         if (parentGSIMAccountNo == null && parentGSIMId != null) {
             gsimContainer = gsimReadPlatformService.findGsimAccountContainerbyGsimAccountId(parentGSIMId);
@@ -576,6 +578,7 @@ public class GroupsApiResource {
             gsimContainer = (List<GSIMContainer>) gsimReadPlatformService.findGSIMAccountContainerByGroupId(groupId);
 
         }
+        validateGsimGroupsInOfficeHierarchy(groupId, gsimContainer);
 
         final Set<String> GSIM_ACCOUNTS_DATA_PARAMETERS = new HashSet<>(
                 Arrays.asList("gsimId", "groupId", "accountNumber", "childGSIMAccounts", "parentBalance", "savingsStatus"));
@@ -583,6 +586,19 @@ public class GroupsApiResource {
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return gsimContainerToApiJsonSerializer.serialize(settings, gsimContainer, GSIM_ACCOUNTS_DATA_PARAMETERS);
 
+    }
+
+    private void validateGsimGroupsInOfficeHierarchy(final Long groupId, final List<GSIMContainer> gsimContainers) {
+        final Set<Long> checkedGroupIds = new HashSet<>();
+        checkedGroupIds.add(groupId);
+        for (final GSIMContainer gsimContainer : gsimContainers) {
+            if (gsimContainer.getGroupId() != null) {
+                final Long owningGroupId = gsimContainer.getGroupId().longValue();
+                if (checkedGroupIds.add(owningGroupId)) {
+                    groupReadPlatformService.retrieveOne(owningGroupId);
+                }
+            }
+        }
     }
 
 }
