@@ -39,10 +39,14 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.fineract.client.models.PostUsersRequest;
+import org.apache.fineract.client.models.PostUsersResponse;
 import org.apache.fineract.infrastructure.creditbureau.data.CreditBureauReportData;
 import org.apache.fineract.integrationtests.common.CreditBureauConfigurationHelper;
 import org.apache.fineract.integrationtests.common.CreditBureauIntegrationHelper;
 import org.apache.fineract.integrationtests.common.Utils;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -180,6 +184,29 @@ public class CreditBureauTest {
 
         Assertions.assertEquals(0, responseData.getClosedAccounts().length);
         Assertions.assertEquals(0, responseData.getOpenAccounts().length);
+    }
+
+    @Test
+    public void savedCreditReportsRequireReadCreditReportPermission() {
+        final String nationalId = Utils.uniqueRandomStringGenerator("NRC", 6);
+        CreditBureauIntegrationHelper.saveCreditReport(this.requestSpec, this.responseSpec, 1L, nationalId, "{\"report\":\"data\"}");
+
+        final String password = UserHelper.SIMPLE_USER_PASSWORD;
+        final PostUsersRequest userRequest = UserHelper.buildUserRequest(this.responseSpec, this.requestSpec, password);
+        final PostUsersResponse userResponse = UserHelper.createUser(this.requestSpec, this.responseSpec, userRequest);
+        Assertions.assertNotNull(userResponse.getResourceId());
+        final Integer roleId = userRequest.getRoles().get(0).intValue();
+
+        final RequestSpecification limitedUserSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        limitedUserSpec.header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(userRequest.getUsername(), password));
+
+        CreditBureauIntegrationHelper.getSavedCreditReports(limitedUserSpec, new ResponseSpecBuilder().expectStatusCode(403).build(), 1L);
+
+        RolesHelper.addPermissionsToRole(this.requestSpec, this.responseSpec, roleId, Map.of("READ_CREDITREPORT", true));
+
+        final String savedReports = CreditBureauIntegrationHelper.getSavedCreditReports(limitedUserSpec, this.responseSpec, 1L);
+        Assertions.assertTrue(savedReports.contains(nationalId), savedReports);
     }
 
 }
