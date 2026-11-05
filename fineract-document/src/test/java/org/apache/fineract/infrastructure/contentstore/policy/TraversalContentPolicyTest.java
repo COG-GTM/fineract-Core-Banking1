@@ -74,9 +74,9 @@ class TraversalContentPolicyTest {
     void controlAndLineSeparatorCharacters() {
         var paths = List.of("documents/clients/1/x\r/../../../../other/documents/clients/1/contract.pdf",
                 "documents/clients/1/x\n/../../../../other/contract.pdf", "documents/clients/1/x\u0085/../../../../other/contract.pdf",
-                "documents/clients/1/x\u2028/../../../../other/contract.pdf",
-                "documents/clients/1/x\u2029/../../../../other/contract.pdf", "documents/clients/1/x\u0000/contract.pdf",
-                "documents/clients/1/x\u007f/contract.pdf", "documents/clients/1/x\tcontract.pdf");
+                "documents/clients/1/x\u2028/../../../../other/contract.pdf", "documents/clients/1/x\u2029/../../../../other/contract.pdf",
+                "documents/clients/1/x\u0000/contract.pdf", "documents/clients/1/x\u007f/contract.pdf",
+                "documents/clients/1/x\tcontract.pdf");
 
         paths.forEach(path -> {
             var exception = assertThrows(ContentPolicyException.class,
