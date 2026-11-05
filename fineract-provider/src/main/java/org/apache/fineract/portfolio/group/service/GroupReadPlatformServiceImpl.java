@@ -21,10 +21,9 @@ package org.apache.fineract.portfolio.group.service;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.codes.data.CodeValueData;
@@ -66,7 +65,9 @@ public class GroupReadPlatformServiceImpl implements GroupReadPlatformService {
     public static final String OFFICE_ID = "officeId";
     public static final String OFFICE_NAME = "officeName";
     private static final AllGroupTypesDataMapper ALL_GROUP_TYPES_DATA_MAPPER = new AllGroupTypesDataMapper();
-    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = new HashSet<>(Arrays.asList(ID, NAME, OFFICE_ID, OFFICE_NAME));
+    private static final Map<String, String> ORDER_BY_COLUMNS = Map.of(ID, "g.id", NAME, "g.display_name", OFFICE_ID, "g.office_id",
+            OFFICE_NAME, "o.name");
+    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = ORDER_BY_COLUMNS.keySet();
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
     private final OfficeReadPlatformService officeReadPlatformService;
@@ -141,11 +142,7 @@ public class GroupReadPlatformServiceImpl implements GroupReadPlatformService {
         final SQLBuilder extraCriteria = getGroupExtraCriteria(searchParameters);
         extraCriteria.addCriteria(" o.hierarchy like ", hierarchySearchString);
         sqlBuilder.append(" ").append(extraCriteria.getSQLTemplate());
-        if (parameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy()).append(' ').append(searchParameters.getSortOrder());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy(),
-                    searchParameters.getSortOrder());
-        }
+        sqlBuilder.append(orderBySql(parameters));
 
         if (parameters.hasLimit()) {
             sqlBuilder.append(" limit ").append(searchParameters.getLimit());
@@ -160,6 +157,9 @@ public class GroupReadPlatformServiceImpl implements GroupReadPlatformService {
 
     @Override
     public Collection<GroupGeneralData> retrieveAll(SearchParameters searchParameters, final PaginationParameters parameters) {
+        if (parameters != null) {
+            this.paginationParametersDataValidator.validateParameterValues(parameters, SUPPORTED_ORDER_BY_VALUES, "audits");
+        }
         final AppUser currentUser = this.context.authenticatedUser();
         final String hierarchy = currentUser.getOffice().getHierarchy();
         final String hierarchySearchString = hierarchy + "%";
@@ -177,10 +177,7 @@ public class GroupReadPlatformServiceImpl implements GroupReadPlatformService {
         }
 
         if (parameters != null) {
-            if (parameters.hasOrderBy()) {
-                sqlBuilder.append(parameters.orderBySql());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), parameters.orderBySql());
-            }
+            sqlBuilder.append(orderBySql(parameters));
 
             if (parameters.hasLimit()) {
                 sqlBuilder.append(parameters.limitSql());
@@ -189,6 +186,18 @@ public class GroupReadPlatformServiceImpl implements GroupReadPlatformService {
         }
 
         return this.jdbcTemplate.query(sqlBuilder.toString(), ALL_GROUP_TYPES_DATA_MAPPER, extraCriteria.getArguments()); // NOSONAR
+    }
+
+    private static String orderBySql(final PaginationParameters parameters) {
+        if (!parameters.hasOrderBy()) {
+            return "";
+        }
+        final String column = ORDER_BY_COLUMNS.get(parameters.getOrderBy());
+        if (column == null) {
+            throw new IllegalArgumentException("Unsupported orderBy value: " + parameters.getOrderBy());
+        }
+        final String direction = parameters.hasSortOrder() && "DESC".equalsIgnoreCase(parameters.getSortOrder()) ? "DESC" : "ASC";
+        return " order by " + column + " " + direction;
     }
 
     // 'g.' preffix because of ERROR 1052 (23000): Column 'column_name' in where
