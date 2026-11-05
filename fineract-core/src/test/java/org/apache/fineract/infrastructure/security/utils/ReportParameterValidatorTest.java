@@ -29,7 +29,7 @@ class ReportParameterValidatorTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "", "1", "-1", "-10", "0", "2013-04-16", "2013-04-16 10:15:30", "2013-04-16T10:15", "USD", "1,2,3", "1.5",
-            "00010001", "Fund", "'Active Loans'", "'Active Loans', 'Client Listing'", "'Pr\u00e9stamos activos'" })
+            "00010001", "Fund", "'Active Loans'", "'Active Loans', 'Client Listing'", "'Préstamos activos'" })
     void acceptsLegitimateValues(String value) {
         assertThat(ReportParameterValidator.isValidValue(value)).isTrue();
     }
