@@ -273,6 +273,8 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
                 handler = applicationContext.getBean("deleteOneToOneDatatableEntryCommandHandler", NewCommandSourceHandler.class);
             } else if (wrapper.isRegisterDatatable()) {
                 handler = applicationContext.getBean("registerDatatableCommandHandler", NewCommandSourceHandler.class);
+            } else if (wrapper.isDeregisterDatatable()) {
+                handler = applicationContext.getBean("deregisterDatatableCommandHandler", NewCommandSourceHandler.class);
             } else {
                 throw new UnsupportedCommandException(wrapper.commandName());
             }

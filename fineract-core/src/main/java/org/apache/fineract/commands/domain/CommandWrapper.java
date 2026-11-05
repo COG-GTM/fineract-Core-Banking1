@@ -197,6 +197,10 @@ public class CommandWrapper {
         return this.actionName.equalsIgnoreCase("REGISTER") && this.href.startsWith("/datatables/") && this.entityId == null;
     }
 
+    public boolean isDeregisterDatatable() {
+        return this.actionName.equalsIgnoreCase("DEREGISTER") && this.href.startsWith("/datatables/") && this.entityId == null;
+    }
+
     public boolean isNoteResource() {
         boolean isnoteResource = false;
         if (this.entityName.equalsIgnoreCase("CLIENTNOTE") || this.entityName.equalsIgnoreCase("LOANNOTE")

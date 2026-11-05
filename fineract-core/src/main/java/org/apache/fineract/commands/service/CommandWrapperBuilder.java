@@ -2668,6 +2668,14 @@ public class CommandWrapperBuilder {
         return this;
     }
 
+    public CommandWrapperBuilder deregisterDBDatatable(final String datatable) {
+        this.actionName = "DEREGISTER";
+        this.entityName = "DATATABLE";
+        this.entityId = null;
+        this.href = "/datatables/deregister/" + datatable;
+        return this;
+    }
+
     public CommandWrapperBuilder registerSurvey(final String datatable, final String apptable) {
         this.actionName = "REGISTER";
         this.entityName = "SURVEY";
