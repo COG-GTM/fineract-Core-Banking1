@@ -71,7 +71,7 @@ class WorkingDaysApiResourceTest {
 
     @Test
     void updateRequiresUpdateWorkingDaysPermission() {
-        doThrow(new NoAuthorizationException("no")).when(user).validateHasPermissionTo(eq("UPDATE_WORKING_DAYS"), anyList());
+        doThrow(new NoAuthorizationException("no")).when(user).validateHasPermissionTo(eq("UPDATE_WORKINGDAYS"), anyList());
 
         assertThrows(NoAuthorizationException.class, () -> resource.update(new WorkingDaysUpdateRequest()));
 
@@ -86,12 +86,13 @@ class WorkingDaysApiResourceTest {
 
         assertSame(expected, resource.update(new WorkingDaysUpdateRequest()));
 
-        verify(user).validateHasPermissionTo("UPDATE_WORKING_DAYS", List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_WRITE", "UPDATE_WORKING_DAYS"));
+        verify(user).validateHasPermissionTo("UPDATE_WORKINGDAYS",
+                List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_WRITE", "UPDATE_WORKINGDAYS", "UPDATE_WORKING_DAYS"));
     }
 
     @Test
     void retrieveAllRequiresReadPermission() {
-        doThrow(new NoAuthorizationException("no")).when(user).validateHasReadPermission("WORKING_DAYS");
+        doThrow(new NoAuthorizationException("no")).when(user).validateHasPermissionTo(eq("READ_WORKINGDAYS"), anyList());
 
         assertThrows(NoAuthorizationException.class, () -> resource.retrieveAll());
 
@@ -100,7 +101,7 @@ class WorkingDaysApiResourceTest {
 
     @Test
     void templateRequiresReadPermission() {
-        doThrow(new NoAuthorizationException("no")).when(user).validateHasReadPermission("WORKING_DAYS");
+        doThrow(new NoAuthorizationException("no")).when(user).validateHasPermissionTo(eq("READ_WORKINGDAYS"), anyList());
 
         assertThrows(NoAuthorizationException.class, () -> resource.template());
 
@@ -113,5 +114,8 @@ class WorkingDaysApiResourceTest {
         when(workingDaysReadPlatformService.retrieve()).thenReturn(data);
 
         assertSame(data, resource.retrieveAll());
+
+        verify(user).validateHasPermissionTo("READ_WORKINGDAYS",
+                List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_READ", "READ_WORKINGDAYS", "READ_WORKING_DAYS"));
     }
 }

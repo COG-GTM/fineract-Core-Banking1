@@ -50,9 +50,14 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class WorkingDaysApiResource {
 
-    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "WORKING_DAYS";
-    private static final String UPDATE_PERMISSION = "UPDATE_" + RESOURCE_NAME_FOR_PERMISSIONS;
-    private static final List<String> UPDATE_ALLOWED_PERMISSIONS = List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_WRITE", UPDATE_PERMISSION);
+    // Persisted permission codes are READ_WORKINGDAYS / UPDATE_WORKINGDAYS; *_WORKING_DAYS is kept for compatibility
+    // with the names historically used in SecurityConfig.
+    private static final String READ_PERMISSION = "READ_WORKINGDAYS";
+    private static final String UPDATE_PERMISSION = "UPDATE_WORKINGDAYS";
+    private static final List<String> READ_ALLOWED_PERMISSIONS = List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_READ", READ_PERMISSION,
+            "READ_WORKING_DAYS");
+    private static final List<String> UPDATE_ALLOWED_PERMISSIONS = List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_WRITE", UPDATE_PERMISSION,
+            "UPDATE_WORKING_DAYS");
 
     private final PlatformSecurityContext context;
     private final WorkingDaysReadPlatformService workingDaysReadPlatformService;
@@ -64,7 +69,7 @@ public class WorkingDaysApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "List Working days", description = "Example Requests:\n" + "\n" + "workingdays")
     public WorkingDaysData retrieveAll() {
-        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        this.context.authenticatedUser().validateHasPermissionTo(READ_PERMISSION, READ_ALLOWED_PERMISSIONS);
         return this.workingDaysReadPlatformService.retrieve();
     }
 
@@ -94,7 +99,7 @@ public class WorkingDaysApiResource {
     @Operation(summary = "Working Days Template", description = "This is a convenience resource. It can be useful when building maintenance user interface screens for working days.\n"
             + "\n" + "Example Request:\n" + "\n" + "workingdays/template")
     public WorkingDaysData template() {
-        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        this.context.authenticatedUser().validateHasPermissionTo(READ_PERMISSION, READ_ALLOWED_PERMISSIONS);
         return this.workingDaysReadPlatformService.repaymentRescheduleType();
     }
 

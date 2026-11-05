@@ -349,11 +349,11 @@ public class SecurityConfig {
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_MIX_REPORT")
                     // working days
                     .requestMatchers(apiMatcher(HttpMethod.GET, "/api/*/workingdays"))
-                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKING_DAYS")
+                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKINGDAYS", "READ_WORKING_DAYS")
                     .requestMatchers(apiMatcher(HttpMethod.GET, "/api/*/workingdays/template"))
-                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKING_DAYS")
+                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKINGDAYS", "READ_WORKING_DAYS")
                     .requestMatchers(apiMatcher(HttpMethod.PUT, "/api/*/workingdays"))
-                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_WORKING_DAYS")
+                    .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_WORKINGDAYS", "UPDATE_WORKING_DAYS")
 
                     .requestMatchers(apiMatcher(HttpMethod.POST, "/api/*/twofactor/validate")).fullyAuthenticated()
                     .requestMatchers(apiMatcher("/api/*/twofactor")).fullyAuthenticated()
