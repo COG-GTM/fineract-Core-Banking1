@@ -70,6 +70,7 @@ public class InterestRateChartSlabsApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public InterestRateChartSlabData template(@PathParam("chartId") @Parameter(description = "chartId") final Long chartId) {
+        this.context.authenticatedUser().validateHasReadPermission(INTERESTRATE_CHART_SLAB_RESOURCE_NAME);
         return this.interestRateChartSlabReadPlatformService.retrieveTemplate();
     }
 
