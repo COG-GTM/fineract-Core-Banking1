@@ -29,6 +29,7 @@ import io.github.resilience4j.retry.annotation.Retry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -144,11 +145,15 @@ public class DefaultCommandAuditor implements CommandAuditor {
      */
     @SuppressWarnings("UnusedMethod")
     void processingFallback(Command<?> command, Throwable t) {
+        final var previousError = command.getError();
+
         setError(command, t);
 
         if (Boolean.TRUE.equals(properties.getFileDeadLetterQueueEnabled())) {
             try {
                 write(command);
+                // the failure is kept in the dead-letter entry; the command itself continues
+                command.setError(previousError);
                 return;
             } catch (Exception e) {
                 t.addSuppressed(e);
@@ -201,7 +206,7 @@ public class DefaultCommandAuditor implements CommandAuditor {
     }
 
     private void write(Command<?> command) throws IOException {
-        var file = Path.of(properties.getFileDeadLetterQueuePath(), command.getCreatedAt().toEpochMilli() + ".json").toFile();
+        var file = Path.of(properties.getFileDeadLetterQueuePath(), command.getCreatedAt().toEpochMilli() + "-" + UUID.randomUUID() + ".json").toFile();
         FileUtils.write(file, objectMapper.writeValueAsString(command), UTF_8);
     }
 }

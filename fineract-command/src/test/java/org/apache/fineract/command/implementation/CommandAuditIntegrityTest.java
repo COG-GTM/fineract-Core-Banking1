@@ -131,6 +131,23 @@ class CommandAuditIntegrityTest {
 
         File[] files = dir.toFile().listFiles();
         assertTrue(files != null && files.length == 1, "Expected one dead-letter queue entry");
+        assertNull(command.getError());
+    }
+
+    @Test
+    void deadLetterQueueEntriesCreatedInSameMillisecondAreKept(@TempDir Path dir) {
+        var auditor = auditor(deadLetterQueue(dir.toString()));
+        var createdAt = Instant.now();
+        var first = new Command<String>();
+        first.setCreatedAt(createdAt);
+        var second = new Command<String>();
+        second.setCreatedAt(createdAt);
+
+        auditor.processingFallback(first, new RuntimeException("insert failed"));
+        auditor.processingFallback(second, new RuntimeException("insert failed"));
+
+        File[] files = dir.toFile().listFiles();
+        assertTrue(files != null && files.length == 2, "Expected two dead-letter queue entries");
     }
 
     @Test
