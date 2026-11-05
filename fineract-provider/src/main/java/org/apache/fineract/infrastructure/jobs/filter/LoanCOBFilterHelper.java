@@ -33,10 +33,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.cob.conditions.LoanCOBEnabledCondition;
 import org.apache.fineract.cob.data.COBIdAndLastClosedBusinessDate;
@@ -61,6 +64,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 @Conditional(LoanCOBEnabledCondition.class)
@@ -77,6 +81,7 @@ public class LoanCOBFilterHelper implements InitializingBean {
     private final LoanRescheduleRequestRepository loanRescheduleRequestRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final String BATCH_REFERENCE_PREFIX = "$.";
     private static final List<HttpMethod> HTTP_METHODS = List.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE);
 
     public static final Pattern IGNORE_LOAN_PATH_PATTERN = Pattern.compile("/v[1-9][0-9]*/loans/catch-up");
@@ -141,13 +146,18 @@ public class LoanCOBFilterHelper implements InitializingBean {
         // since we read body, we have to reset so the upcoming readings are successful
         request.resetStream();
         for (BatchRequest batchRequest : batchRequests) {
-            String pathInfo = "/" + batchRequest.getRelativeUrl();
-            if (!isRelativeUrlVersioned(batchRequest.getRelativeUrl())) {
-                pathInfo = "/v1/" + batchRequest.getRelativeUrl();
-            }
-            batchRequest.setRelativeUrl(pathInfo);
+            batchRequest.setRelativeUrl(toBatchPathInfo(batchRequest.getRelativeUrl()));
         }
         return batchRequests;
+    }
+
+    private static String toBatchPathInfo(String relativeUrl) {
+        return isRelativeUrlVersioned(relativeUrl) ? "/" + relativeUrl : "/v1/" + relativeUrl;
+    }
+
+    private static boolean isLoanSegmentBatchReference(String pathInfo) {
+        Matcher matcher = LOAN_PATH_PATTERN.matcher(pathInfo);
+        return matcher.matches() && matcher.group(1).contains(BATCH_REFERENCE_PREFIX);
     }
 
     private boolean isApiMatching(String method, String pathInfo) {
@@ -219,9 +229,9 @@ public class LoanCOBFilterHelper implements InitializingBean {
         for (BatchRequest batchRequest : getBatchRequests(request)) {
             // check the URL for Loan related ID
             String relativeUrl = batchRequest.getRelativeUrl();
-            if (!relativeUrl.contains("$.resourceId")) {
-                // if resourceId reference is used, we simply don't know the resourceId without executing the requests
-                // first, so skipping it
+            if (!isLoanSegmentBatchReference(relativeUrl)) {
+                // a loan id given as a reference (e.g. loans/$.id) is only resolved while the batch executes; those
+                // sub-requests are checked after resolution by LoanCOBBatchRequestPreprocessor
                 loanIds.addAll(getLoanIdsFromApi(relativeUrl));
             }
 
@@ -236,6 +246,40 @@ public class LoanCOBFilterHelper implements InitializingBean {
             }
         }
         return loanIds;
+    }
+
+    /**
+     * Hard-lock check for a single batch sub-request whose references have already been resolved by the batch executor,
+     * so the target loan is known even when the original relative URL or body used a reference.
+     */
+    public void checkResolvedBatchRequestNotHardLocked(BatchRequest batchRequest) {
+        String method = batchRequest.getMethod();
+        String relativeUrl = batchRequest.getRelativeUrl();
+        if (method == null || relativeUrl == null || !HTTP_METHODS.contains(HttpMethod.valueOf(method))) {
+            return;
+        }
+        String pathInfo = toBatchPathInfo(Strings.CS.removeStart(relativeUrl, "/"));
+        boolean loanApi = isApiMatching(method, pathInfo);
+        Long bodyLoanId = getTopLevelLoanIdFromResolvedBatchRequest(batchRequest);
+        if ((!loanApi && bodyLoanId == null) || isBypassUser()) {
+            return;
+        }
+        if (loanApi) {
+            getLoanIdsFromApi(pathInfo);
+        }
+        if (bodyLoanId != null && isLoanHardLocked(bodyLoanId) && !isLockOverrulable(bodyLoanId)) {
+            throw new LoanIdsHardLockedException(bodyLoanId);
+        }
+    }
+
+    private Long getTopLevelLoanIdFromResolvedBatchRequest(BatchRequest batchRequest) {
+        try {
+            return getTopLevelLoanIdFromBatchRequest(batchRequest);
+        } catch (JsonProcessingException e) {
+            // malformed bodies are rejected by the command itself
+            log.debug("Could not read loanId from body of batch request {}", batchRequest.getRequestId(), e);
+            return null;
+        }
     }
 
     private Long getTopLevelLoanIdFromBatchRequest(BatchRequest batchRequest) throws JsonProcessingException {

@@ -21,16 +21,20 @@ package org.apache.fineract.infrastructure.jobs.filter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.cob.loan.RetrieveLoanIdService;
 import org.apache.fineract.cob.service.InlineLoanCOBExecutorServiceImpl;
 import org.apache.fineract.cob.service.LoanAccountLockService;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletRequestWrapper;
+import org.apache.fineract.infrastructure.jobs.exception.LoanIdsHardLockedException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.loanaccount.domain.GLIMAccountInfoRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
 import org.apache.fineract.portfolio.loanaccount.rescheduleloan.domain.LoanRescheduleRequestRepository;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -123,6 +127,115 @@ public class LoanCOBFilterHelperTest {
         Mockito.when(httpServletRequest.getInputStream()).thenReturn(inputStream);
         List<Long> loanIds = helper.calculateRelevantLoanIds(httpServletRequest);
         Assertions.assertEquals(0, loanIds.size());
+    }
+
+    @Test
+    public void testBatchIdReferenceIsLeftToPostResolutionCheck() throws IOException {
+        String json = """
+                [
+                    {"requestId": 1, "relativeUrl": "clients/5/accounts", "method": "GET"},
+                    {"requestId": 2, "relativeUrl": "loans/$.loanAccounts[0].id/transactions?command=repayment",
+                     "method": "POST", "reference": 1, "body": "{\\"transactionAmount\\": 10}"},
+                    {"requestId": 3, "relativeUrl": "rescheduleloans/$.id?command=approve", "method": "POST", "reference": 1,
+                     "body": "{}"}
+                ]
+                """;
+        List<Long> loanIds = helper.calculateRelevantLoanIds(batchRequest(json));
+        Assertions.assertEquals(List.of(), loanIds);
+        Mockito.verifyNoInteractions(loanRescheduleRequestRepository, loanAccountLockService);
+    }
+
+    @Test
+    public void testBatchReferenceOutsideLoanSegmentKeepsKnownLoanId() throws IOException {
+        String json = """
+                [
+                    {"requestId": 1, "relativeUrl": "clients/5", "method": "GET"},
+                    {"requestId": 2, "relativeUrl": "loans/123/transactions/$.id?command=adjust", "method": "POST",
+                     "reference": 1, "body": "{}"}
+                ]
+                """;
+        List<Long> loanIds = helper.calculateRelevantLoanIds(batchRequest(json));
+        Assertions.assertEquals(List.of(123L), loanIds);
+    }
+
+    @Test
+    public void testResolvedBatchRequestOnHardLockedLoanIsRejected() {
+        mockBypassUser(false);
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(false);
+
+        LoanIdsHardLockedException e = Assertions.assertThrows(LoanIdsHardLockedException.class,
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "loans/123/transactions?command=repayment", "{}")));
+        Assertions.assertEquals(123L, e.getLoanIdFromRequest());
+    }
+
+    @Test
+    public void testResolvedVersionedBatchRequestOnHardLockedLoanIsRejected() {
+        mockBypassUser(false);
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(false);
+
+        Assertions.assertThrows(LoanIdsHardLockedException.class,
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("PUT", "v1/loans/123", "{}")));
+    }
+
+    @Test
+    public void testResolvedBatchRequestWithHardLockedBodyLoanIdIsRejected() {
+        mockBypassUser(false);
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(123L)).thenReturn(false);
+
+        Assertions.assertThrows(LoanIdsHardLockedException.class,
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "rescheduleloans", "{\"loanId\": 123}")));
+    }
+
+    @Test
+    public void testResolvedBatchRequestOnUnlockedOrOverrulableLoanIsAllowed() {
+        mockBypassUser(false);
+        Mockito.when(loanAccountLockService.isLoanHardLocked(123L)).thenReturn(false);
+        Mockito.when(loanAccountLockService.isLoanHardLocked(124L)).thenReturn(true);
+        Mockito.when(loanAccountLockService.isLockOverrulable(124L)).thenReturn(true);
+
+        Assertions.assertDoesNotThrow(
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "loans/123/transactions?command=repayment", "{}")));
+        Assertions.assertDoesNotThrow(
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "loans/124/transactions?command=repayment", "{}")));
+    }
+
+    @Test
+    public void testResolvedBatchRequestSkipsReadsNonLoanWritesAndBypassUser() {
+        Assertions.assertDoesNotThrow(() -> helper.checkResolvedBatchRequestNotHardLocked(resolved("GET", "loans/123", null)));
+        Assertions.assertDoesNotThrow(() -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "clients", "{}")));
+        Assertions.assertDoesNotThrow(() -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "loans/catch-up", null)));
+        Mockito.verifyNoInteractions(loanAccountLockService, context);
+
+        mockBypassUser(true);
+        Assertions.assertDoesNotThrow(
+                () -> helper.checkResolvedBatchRequestNotHardLocked(resolved("POST", "loans/123/transactions?command=repayment", "{}")));
+        Mockito.verifyNoInteractions(loanAccountLockService);
+    }
+
+    private void mockBypassUser(boolean bypass) {
+        AppUser user = Mockito.mock(AppUser.class);
+        Mockito.when(user.isBypassUser()).thenReturn(bypass);
+        Mockito.when(context.authenticatedUser()).thenReturn(user);
+    }
+
+    private static BatchRequest resolved(String method, String relativeUrl, String body) {
+        BatchRequest batchRequest = new BatchRequest();
+        batchRequest.setRequestId(1L);
+        batchRequest.setMethod(method);
+        batchRequest.setRelativeUrl(relativeUrl);
+        batchRequest.setBody(body);
+        return batchRequest;
+    }
+
+    private static BodyCachingHttpServletRequestWrapper batchRequest(String json) throws IOException {
+        BodyCachingHttpServletRequestWrapper httpServletRequest = Mockito.mock(BodyCachingHttpServletRequestWrapper.class);
+        Mockito.when(httpServletRequest.getPathInfo()).thenReturn("/v1/batches");
+        Mockito.when(httpServletRequest.getInputStream()).thenReturn(new BodyCachingHttpServletRequestWrapper.CachedBodyServletInputStream(
+                new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))));
+        return httpServletRequest;
     }
 
 }
