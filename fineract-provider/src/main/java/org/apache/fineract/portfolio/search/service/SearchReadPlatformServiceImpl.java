@@ -41,6 +41,7 @@ import org.apache.fineract.portfolio.loanproduct.service.LoanProductReadPlatform
 import org.apache.fineract.portfolio.savings.data.SavingsAccountStatusEnumData;
 import org.apache.fineract.portfolio.savings.service.SavingsEnumerations;
 import org.apache.fineract.portfolio.search.SearchConstants;
+import org.apache.fineract.portfolio.search.data.AdHocQueryComparisonOperator;
 import org.apache.fineract.portfolio.search.data.AdHocQuerySearchConditions;
 import org.apache.fineract.portfolio.search.data.AdHocSearchQueryData;
 import org.apache.fineract.portfolio.search.data.SearchConditions;
@@ -276,7 +277,9 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
             isWhereClauseAdded = false;
 
             if (searchConditions.getIncludeOutStandingAmountPercentage()) {
-                if (searchConditions.getOutStandingAmountPercentageCondition().equals("between")) {
+                final AdHocQueryComparisonOperator percentageOperator = AdHocQueryComparisonOperator
+                        .fromValue(searchConditions.getOutStandingAmountPercentageCondition());
+                if (percentageOperator == AdHocQueryComparisonOperator.BETWEEN) {
                     checkAndUpdateWhereClause(sql);
                     params.addValue("minOutStandingAmountPercentage", searchConditions.getMinOutStandingAmountPercentage());
                     params.addValue("maxOutStandingAmountPercentage", searchConditions.getMaxOutStandingAmountPercentage());
@@ -284,13 +287,15 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
                 } else {
                     checkAndUpdateWhereClause(sql);
                     params.addValue("outStandingAmountPercentage", searchConditions.getOutStandingAmountPercentage());
-                    sql.append(" a.percentOut ").append(searchConditions.getOutStandingAmountPercentageCondition())
+                    sql.append(" a.percentOut ").append(percentageOperator.getSqlOperator())
                             .append(" :outStandingAmountPercentage ");
                 }
             }
 
             if (searchConditions.getIncludeOutstandingAmount()) {
-                if (searchConditions.getOutstandingAmountCondition().equals("between")) {
+                final AdHocQueryComparisonOperator amountOperator = AdHocQueryComparisonOperator
+                        .fromValue(searchConditions.getOutstandingAmountCondition());
+                if (amountOperator == AdHocQueryComparisonOperator.BETWEEN) {
                     checkAndUpdateWhereClause(sql);
                     params.addValue("minOutstandingAmount", searchConditions.getMinOutstandingAmount());
                     params.addValue("maxOutstandingAmount", searchConditions.getMaxOutstandingAmount());
@@ -298,7 +303,7 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
                 } else {
                     checkAndUpdateWhereClause(sql);
                     params.addValue("outstandingAmount", searchConditions.getOutstandingAmount());
-                    sql.append(" a.outstandingAmt ").append(searchConditions.getOutstandingAmountCondition())
+                    sql.append(" a.outstandingAmt ").append(amountOperator.getSqlOperator())
                             .append(" :outstandingAmount ");
                 }
             }
