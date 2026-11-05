@@ -64,6 +64,7 @@ import org.apache.fineract.infrastructure.dataqueries.domain.ReportRepository;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.dataqueries.service.ReadReportingService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessage;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageRepository;
@@ -385,6 +386,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
         this.smsCampaignValidator.validateActivation(command.json());
 
         final SmsCampaign smsCampaign = smsCampaignRepository.findById(campaignId).orElseThrow(() -> new SmsCampaignNotFound(campaignId));
+        validateUserCanRunCampaignReport(currentUser, smsCampaign.getParamValue());
 
         final Locale locale = command.extractLocale();
         final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
@@ -490,11 +492,12 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
     @Override
     public CampaignPreviewData previewMessage(final JsonQuery query) {
         CampaignPreviewData campaignMessage = null;
-        this.context.authenticatedUser();
+        final AppUser currentUser = this.context.authenticatedUser();
         this.smsCampaignValidator.validatePreviewMessage(query.json());
         final JsonElement smsParamsElement = this.fromJsonHelper.extractJsonObjectNamed(SmsCampaignValidator.paramValue,
                 query.parsedJson());
         String smsParams = smsParamsElement.toString();
+        validateUserCanRunCampaignReport(currentUser, smsParams);
         final String textMessageTemplate = this.fromJsonHelper.extractStringNamed("message", query.parsedJson());
 
         try {
@@ -532,6 +535,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
 
         final SmsCampaign smsCampaign = this.smsCampaignRepository.findById(campaignId)
                 .orElseThrow(() -> new SmsCampaignNotFound(campaignId));
+        validateUserCanRunCampaignReport(currentUser, smsCampaign.getParamValue());
 
         final Locale locale = command.extractLocale();
         final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
@@ -564,5 +568,15 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
         }
         throw ErrorHandler.getMappable(realCause, "error.msg.sms.campaign.unknown.data.integrity.issue",
                 "Unknown data integrity issue with resource: " + realCause.getMessage());
+    }
+
+    private void validateUserCanRunCampaignReport(final AppUser currentUser, final String paramValue) {
+        if (paramValue == null) {
+            return;
+        }
+        final String reportName = this.fromJsonHelper.extractStringNamed("reportName", this.fromJsonHelper.parse(paramValue));
+        if (reportName != null && currentUser.hasNotPermissionForReport(reportName)) {
+            throw new NoAuthorizationException("Not authorised to run report: " + reportName);
+        }
     }
 }

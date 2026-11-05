@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -53,6 +54,7 @@ import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeader
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetRowData;
 import org.apache.fineract.infrastructure.dataqueries.domain.ReportType;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
+import org.apache.fineract.infrastructure.security.exception.SqlValidationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
@@ -70,6 +72,14 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @RequiredArgsConstructor
 public class ReadReportingServiceImpl implements ReadReportingService {
+
+    private static final String CAMPAIGN_REPORT_SQL = "SELECT report_sql AS the_sql FROM stretchy_report"
+            + " WHERE report_name = ? AND report_type IN (?, ?)";
+    private static final String CAMPAIGN_REPORT_TYPE_SMS = "SMS";
+    private static final String CAMPAIGN_REPORT_TYPE_EMAIL = "Email";
+    // Campaign report parameters are spliced into SQL text, so only plain numbers, ISO dates and office hierarchy
+    // patterns (e.g. ".1.%") are accepted.
+    private static final Pattern CAMPAIGN_PARAM_VALUE = Pattern.compile("-?\\d+(\\.\\d+)?|\\d{4}-\\d{2}-\\d{2}|[.\\d%]+");
 
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
@@ -477,7 +487,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         final long startTime = System.currentTimeMillis();
         log.debug("STARTING REPORT: {}   Type: {}", name, type);
 
-        final String sql = sqlToRunForSmsEmailCampaign(name, type, queryParams);
+        final String sql = sqlToRunForSmsEmailCampaign(name, queryParams);
 
         final GenericResultsetData result = this.genericDataService.fillGenericResultSet(sql);
 
@@ -486,16 +496,36 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         return result;
     }
 
-    private String sqlToRunForSmsEmailCampaign(final String name, final String type, final Map<String, String> queryParams) {
-        String sql = getSql(name, type);
+    private String sqlToRunForSmsEmailCampaign(final String name, final Map<String, String> queryParams) {
+        String sql = getCampaignReportSql(name);
 
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, "${" + entry.getKey() + "}", entry.getValue());
+            final String placeholder = "${" + entry.getKey() + "}";
+            if (!sql.contains(placeholder)) {
+                continue;
+            }
+            final String value = entry.getValue();
+            if (value == null || !CAMPAIGN_PARAM_VALUE.matcher(value).matches()) {
+                throw new SqlValidationException("invalid value for campaign report parameter '" + entry.getKey() + "'");
+            }
+            sql = this.genericDataService.replace(sql, placeholder, value);
         }
 
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
+    }
+
+    private String getCampaignReportSql(final String name) {
+        if (name == null) {
+            throw new ReportNotFoundException((String) null);
+        }
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(CAMPAIGN_REPORT_SQL, name, CAMPAIGN_REPORT_TYPE_SMS,
+                CAMPAIGN_REPORT_TYPE_EMAIL);
+        if (rs.next() && rs.getString("the_sql") != null) {
+            return rs.getString("the_sql");
+        }
+        throw new ReportNotFoundException(name);
     }
 
     @Override

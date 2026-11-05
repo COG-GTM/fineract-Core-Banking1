@@ -65,6 +65,7 @@ import org.apache.fineract.infrastructure.dataqueries.domain.ReportRepository;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.dataqueries.service.ReadReportingService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.calendar.service.CalendarUtils;
 import org.apache.fineract.portfolio.client.domain.Client;
@@ -270,6 +271,7 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
 
         final EmailCampaign emailCampaign = this.emailCampaignRepository.findById(campaignId)
                 .orElseThrow(() -> new EmailCampaignNotFound(campaignId));
+        validateUserCanRunCampaignReport(currentUser, emailCampaign.getParamValue());
 
         final Locale locale = command.extractLocale();
         final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
@@ -375,9 +377,10 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
     @Override
     public PreviewCampaignMessage previewMessage(final JsonQuery query) {
         PreviewCampaignMessage campaignMessage = null;
-        this.context.authenticatedUser();
+        final AppUser currentUser = this.context.authenticatedUser();
         this.emailCampaignValidator.validatePreviewMessage(query.json());
         final String emailParams = this.fromJsonHelper.extractStringNamed("paramValue", query.parsedJson());
+        validateUserCanRunCampaignReport(currentUser, emailParams);
         final String textMessageTemplate = this.fromJsonHelper.extractStringNamed("emailMessage", query.parsedJson());
 
         try {
@@ -419,6 +422,7 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
 
         final EmailCampaign emailCampaign = this.emailCampaignRepository.findById(campaignId)
                 .orElseThrow(() -> new EmailCampaignNotFound(campaignId));
+        validateUserCanRunCampaignReport(currentUser, emailCampaign.getParamValue());
 
         final Locale locale = command.extractLocale();
         final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
@@ -455,5 +459,15 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
             final NonTransientDataAccessException dve) {
         throw ErrorHandler.getMappable(dve, "error.msg.email.campaign.unknown.data.integrity.issue",
                 "Unknown data integrity issue with resource: " + realCause.getMessage());
+    }
+
+    private void validateUserCanRunCampaignReport(final AppUser currentUser, final String paramValue) {
+        if (paramValue == null) {
+            return;
+        }
+        final String reportName = this.fromJsonHelper.extractStringNamed("reportName", this.fromJsonHelper.parse(paramValue));
+        if (reportName != null && currentUser.hasNotPermissionForReport(reportName)) {
+            throw new NoAuthorizationException("Not authorised to run report: " + reportName);
+        }
     }
 }
