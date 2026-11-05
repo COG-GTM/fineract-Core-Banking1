@@ -46,6 +46,7 @@ import org.apache.fineract.portfolio.address.data.AddressData;
 import org.apache.fineract.portfolio.address.filter.ClientAddressSearchParam;
 import org.apache.fineract.portfolio.address.service.AddressReadPlatformServiceImpl;
 import org.apache.fineract.portfolio.client.data.ClientAddressRequest;
+import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/client")
@@ -59,6 +60,7 @@ public class ClientAddressApiResource {
     private final AddressReadPlatformServiceImpl readPlatformService;
     private final DefaultToApiJsonSerializer<AddressData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
+    private final ClientRepositoryWrapper clientRepositoryWrapper;
 
     @GET
     @Path("addresses/template")
@@ -96,11 +98,14 @@ public class ClientAddressApiResource {
             client/1/addresses
 
 
-            clients/1/addresses?status=false,true&&type=1,2,3""")
+            clients/1/addresses?status=false,true&&type=1,2,3
+
+            Returns 404 if the client does not exist or is not in the caller's office hierarchy.""")
     public List<AddressData> getAddresses(@QueryParam("status") @Parameter(description = "status") final String status,
             @QueryParam("type") @Parameter(description = "type") final long addressTypeId,
             @PathParam("clientid") @Parameter(description = "clientId") final long clientid) {
         context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientid, context.officeHierarchy() + "%");
         return readPlatformService.retrieveBySearchParam(new ClientAddressSearchParam(clientid, addressTypeId, status));
     }
 
