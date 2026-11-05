@@ -29,6 +29,7 @@ import org.apache.fineract.portfolio.savings.data.SavingsAccountData;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountTransactionData;
 import org.apache.fineract.portfolio.savings.data.SavingsAccrualData;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
+import org.apache.fineract.portfolio.savings.exception.SavingsAccountNotFoundException;
 
 public interface SavingsAccountReadPlatformService {
 
@@ -41,6 +42,14 @@ public interface SavingsAccountReadPlatformService {
     Collection<SavingsAccountData> retrieveActiveForLookup(Long clientId, DepositAccountType depositAccountType, String currencyCode);
 
     SavingsAccountData retrieveOne(Long savingsId);
+
+    boolean isAccountInUserOfficeHierarchy(Long savingsId);
+
+    default void validateAccountInUserOfficeHierarchy(final Long savingsId) {
+        if (!isAccountInUserOfficeHierarchy(savingsId)) {
+            throw new SavingsAccountNotFoundException(savingsId);
+        }
+    }
 
     SavingsAccountTransactionData retrieveDepositTransactionTemplate(Long savingsId, DepositAccountType depositAccountType);
 

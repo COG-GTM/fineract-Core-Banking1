@@ -85,6 +85,8 @@ import org.springframework.jdbc.core.RowMapper;
 
 public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountReadPlatformService {
 
+    private static final String ACCOUNT_OFFICE_JOIN = " join m_office o on o.id = coalesce(c.office_id, g.office_id)";
+
     private final PlatformSecurityContext context;
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
@@ -213,12 +215,26 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
     public SavingsAccountData retrieveOne(final Long accountId) {
 
         try {
-            final String sql = "select " + this.savingAccountMapper.schema() + " where sa.id = ?";
+            final String sql = "select " + this.savingAccountMapper.schema() + ACCOUNT_OFFICE_JOIN
+                    + " where sa.id = ? and o.hierarchy like ?";
 
-            return this.jdbcTemplate.queryForObject(sql, this.savingAccountMapper, new Object[] { accountId }); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, this.savingAccountMapper, // NOSONAR
+                    new Object[] { accountId, userHierarchySearchString() });
         } catch (final EmptyResultDataAccessException e) {
             throw new SavingsAccountNotFoundException(accountId, e);
         }
+    }
+
+    @Override
+    public boolean isAccountInUserOfficeHierarchy(final Long accountId) {
+        final String sql = "select count(*) from m_savings_account sa left join m_client c on c.id = sa.client_id"
+                + " left join m_group g on g.id = sa.group_id" + ACCOUNT_OFFICE_JOIN + " where sa.id = ? and o.hierarchy like ?";
+        final Integer count = this.jdbcTemplate.queryForObject(sql, Integer.class, accountId, userHierarchySearchString());
+        return count != null && count > 0;
+    }
+
+    private String userHierarchySearchString() {
+        return this.context.officeHierarchy() + "%";
     }
 
     @Override

@@ -39,6 +39,7 @@ import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.portfolio.savings.SavingsApiConstants;
 import org.apache.fineract.portfolio.savings.data.DepositAccountOnHoldTransactionData;
 import org.apache.fineract.portfolio.savings.service.DepositAccountOnHoldTransactionReadPlatformService;
+import org.apache.fineract.portfolio.savings.service.SavingsAccountReadPlatformService;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/savingsaccounts/{savingsId}/onholdtransactions")
@@ -51,6 +52,7 @@ public class DepositAccountOnHoldFundTransactionsApiResource {
     private final DefaultToApiJsonSerializer<DepositAccountOnHoldTransactionData> toApiJsonSerializer;
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final DepositAccountOnHoldTransactionReadPlatformService depositAccountOnHoldTransactionReadPlatformService;
+    private final SavingsAccountReadPlatformService savingsAccountReadPlatformService;
     private final SqlValidator sqlValidator;
 
     @GET
@@ -61,6 +63,7 @@ public class DepositAccountOnHoldFundTransactionsApiResource {
             @QueryParam("orderBy") final String orderBy, @QueryParam("sortOrder") final String sortOrder) {
 
         this.context.authenticatedUser().validateHasReadPermission(SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME);
+        this.savingsAccountReadPlatformService.validateAccountInUserOfficeHierarchy(savingsId);
 
         sqlValidator.validate(orderBy);
         sqlValidator.validate(sortOrder);
