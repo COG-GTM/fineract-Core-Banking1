@@ -108,6 +108,13 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
     // allowed column names for sorting the query result
     private static final Set<String> supportedOrderByValues = new HashSet<>(Arrays.asList("id", "accountNumbr", "officeId", "officeName"));
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    // restricts deposit accounts to clients/groups whose office is within the current user's office hierarchy
+    private static final String OFFICE_HIERARCHY_SCOPE_JOINS = " left join m_client scope_client on scope_client.id = sa.client_id"
+            + " left join m_group scope_group on scope_group.id = sa.group_id"
+            + " left join m_office scope_client_office on scope_client_office.id = scope_client.office_id"
+            + " left join m_office scope_group_office on scope_group_office.id = scope_group.office_id ";
+    private static final String OFFICE_HIERARCHY_SCOPE_CONDITION = " and (scope_client_office.hierarchy like ?"
+            + " or scope_group_office.hierarchy like ?) ";
     private final PlatformSecurityContext context;
     private final JdbcTemplate jdbcTemplate;
     private final DepositAccountInterestRateChartReadPlatformService accountChartReadPlatformService;
@@ -133,7 +140,7 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
     public Collection<DepositAccountData> retrieveAll(final DepositAccountType depositAccountType,
             final PaginationParameters paginationParameters) {
 
-        this.context.authenticatedUser();
+        final String hierarchySearchString = officeHierarchySearchString();
         this.paginationParametersDataValidator.validateParameterValues(paginationParameters, supportedOrderByValues,
                 depositAccountType.resourceName());
 
@@ -145,17 +152,21 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
         final StringBuilder sqlBuilder = new StringBuilder(400);
         sqlBuilder.append("select ");
         sqlBuilder.append(depositAccountMapper.schema());
+        sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_JOINS);
         sqlBuilder.append(" where sa.deposit_type_enum = ? ");
+        sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_CONDITION);
         // always append at the end of a sql statement
         sqlBuilder.append(paginationParameters.paginationSql());
 
-        return jdbcTemplate.query(sqlBuilder.toString(), depositAccountMapper, new Object[] { depositAccountType.getValue() }); // NOSONAR
+        return jdbcTemplate.query(sqlBuilder.toString(), depositAccountMapper,
+                new Object[] { depositAccountType.getValue(), hierarchySearchString, hierarchySearchString }); // NOSONAR
     }
 
     @Override
     public Page<DepositAccountData> retrieveAllPaged(final DepositAccountType depositAccountType,
             final PaginationParameters paginationParameters) {
 
+        final String hierarchySearchString = officeHierarchySearchString();
         this.paginationParametersDataValidator.validateParameterValues(paginationParameters, supportedOrderByValues,
                 depositAccountType.resourceName());
 
@@ -167,11 +178,13 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
         final StringBuilder sqlBuilder = new StringBuilder(400);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(depositAccountMapper.schema());
+        sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_JOINS);
         sqlBuilder.append(" where sa.deposit_type_enum = ? ");
+        sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_CONDITION);
         sqlBuilder.append(paginationParameters.paginationSql());
 
-        return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), new Object[] { depositAccountType.getValue() },
-                depositAccountMapper);
+        return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(),
+                new Object[] { depositAccountType.getValue(), hierarchySearchString, hierarchySearchString }, depositAccountMapper);
     }
 
     @Override
@@ -200,6 +213,11 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
 
     @Override
     public DepositAccountData retrieveOne(final DepositAccountType depositAccountType, final Long accountId) {
+        return retrieveOne(depositAccountType, accountId, false);
+    }
+
+    private DepositAccountData retrieveOne(final DepositAccountType depositAccountType, final Long accountId,
+            final boolean scopeToOfficeHierarchy) {
         try {
             this.context.authenticatedUser();
 
@@ -211,9 +229,18 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
             final StringBuilder sqlBuilder = new StringBuilder(400);
             sqlBuilder.append("select ");
             sqlBuilder.append(depositAccountMapper.schema());
-            sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+            if (!scopeToOfficeHierarchy) {
+                sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+                return this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId,
+                        depositAccountType.getValue());
+            }
 
-            return this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId, depositAccountType.getValue());
+            final String hierarchySearchString = officeHierarchySearchString();
+            sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_JOINS);
+            sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+            sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_CONDITION);
+            return this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId, depositAccountType.getValue(),
+                    hierarchySearchString, hierarchySearchString);
 
         } catch (final EmptyResultDataAccessException e) {
             throw new DepositAccountNotFoundException(depositAccountType, accountId, e);
@@ -232,11 +259,14 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
 
             final StringBuilder sqlBuilder = new StringBuilder(400);
             sqlBuilder.append("select ");
+            final String hierarchySearchString = officeHierarchySearchString();
             sqlBuilder.append(depositAccountMapper.schema());
+            sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_JOINS);
             sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+            sqlBuilder.append(OFFICE_HIERARCHY_SCOPE_CONDITION);
 
             DepositAccountData account = this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId,
-                    depositAccountType.getValue());
+                    depositAccountType.getValue(), hierarchySearchString, hierarchySearchString);
             Collection<EnumOptionData> onAccountClosureOptions = SavingsEnumerations
                     .depositAccountOnClosureType(DepositAccountOnClosureType.values());
             final Collection<PaymentTypeData> paymentTypeOptions = this.paymentTypeReadPlatformService.retrieveAllPaymentTypes();
@@ -259,7 +289,7 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
 
     @Override
     public DepositAccountData retrieveOneWithChartSlabs(final DepositAccountType depositAccountType, Long accountId) {
-        DepositAccountData depositAccount = this.retrieveOne(depositAccountType, accountId);
+        DepositAccountData depositAccount = this.retrieveOne(depositAccountType, accountId, true);
         DepositAccountInterestRateChartData chart = this.accountChartReadPlatformService.retrieveOneWithSlabsOnAccountId(accountId);
 
         if (depositAccountType.isFixedDeposit()) {
@@ -282,10 +312,17 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
     public Collection<SavingsAccountTransactionData> retrieveAllTransactions(final DepositAccountType depositAccountType,
             final Long accountId) {
 
-        final String sql = "select " + this.transactionsMapper.schema()
-                + " where sa.id = ? and sa.deposit_type_enum = ? order by tr.transaction_date DESC, tr.id DESC";
+        final String hierarchySearchString = officeHierarchySearchString();
+        final String sql = "select " + this.transactionsMapper.schema() + OFFICE_HIERARCHY_SCOPE_JOINS
+                + " where sa.id = ? and sa.deposit_type_enum = ? " + OFFICE_HIERARCHY_SCOPE_CONDITION
+                + " order by tr.transaction_date DESC, tr.id DESC";
 
-        return this.jdbcTemplate.query(sql, this.transactionsMapper, new Object[] { accountId, depositAccountType.getValue() }); // NOSONAR
+        return this.jdbcTemplate.query(sql, this.transactionsMapper,
+                new Object[] { accountId, depositAccountType.getValue(), hierarchySearchString, hierarchySearchString }); // NOSONAR
+    }
+
+    private String officeHierarchySearchString() {
+        return this.context.officeHierarchy() + "%";
     }
 
     @Override
