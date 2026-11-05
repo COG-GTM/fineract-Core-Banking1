@@ -163,7 +163,7 @@ public class AuthorizationServerConfig {
         http
                 // TODO: Make it configurable
                 .csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(auth -> {
-                    ApiPermissionRules.apply(auth);
+                    ApiPermissionRules.apply(auth, fineractProperties.getSecurity().getTwoFactor().isEnabled());
                     auth.anyRequest().authenticated();
                     if (fineractProperties.getSecurity().getTwoFactor().isEnabled()) {
                         auth.anyRequest().hasAuthority("TWOFACTOR_AUTHENTICATED");

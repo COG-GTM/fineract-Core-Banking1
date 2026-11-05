@@ -95,11 +95,35 @@ class ApiPermissionRulesTest {
         assertEquals(Optional.empty(), findRule(request("GET", "/api/v1/clients")));
     }
 
+    @Test
+    void twoFactorAuthorityIsRequiredWhenEnabled() {
+        String path = "/api/v1/externalevents/configuration/";
+        Authentication withoutTwoFactor = basicAuth("UPDATE_EXTERNAL_EVENT_CONFIGURATION");
+        Authentication withTwoFactor = jwtLike(user("UPDATE_EXTERNAL_EVENT_CONFIGURATION"), ApiPermissionRules.TWOFACTOR_AUTHENTICATED);
+
+        assertTrue(isGranted("PUT", path, withoutTwoFactor, false));
+        assertFalse(isGranted("PUT", path, withoutTwoFactor, true));
+        assertTrue(isGranted("PUT", path, withTwoFactor, true));
+    }
+
+    @Test
+    void legacyPermissionsKeepAccess() {
+        assertTrue(isGranted("GET", "/api/v1/mixmapping", basicAuth("UPDATE_XBRLMAPPING")));
+        assertTrue(isGranted("GET", "/api/v1/clients/1/images", basicAuth("READ_CLIENTIMAGE")));
+        assertTrue(isGranted("GET", "/api/v1/staff/1/images/", basicAuth("READ_STAFFIMAGE")));
+        assertTrue(isGranted("GET", "/api/v1/workingdays", basicAuth("READ_WORKING_DAYS")));
+    }
+
     private static boolean isGranted(String method, String path, Authentication authentication) {
+        return isGranted(method, path, authentication, false);
+    }
+
+    private static boolean isGranted(String method, String path, Authentication authentication, boolean twoFactorEnabled) {
         MockHttpServletRequest request = request(method, path);
         ApiPermissionRules.Rule rule = findRule(request)
                 .orElseThrow(() -> new AssertionError("No permission rule matches " + method + " " + path));
-        return rule.authorizationManager().authorize(() -> authentication, new RequestAuthorizationContext(request)).isGranted();
+        return rule.authorizationManager(twoFactorEnabled).authorize(() -> authentication, new RequestAuthorizationContext(request))
+                .isGranted();
     }
 
     private static Optional<ApiPermissionRules.Rule> findRule(MockHttpServletRequest request) {

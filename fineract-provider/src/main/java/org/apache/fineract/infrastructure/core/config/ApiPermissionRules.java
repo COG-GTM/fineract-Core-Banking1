@@ -45,6 +45,7 @@ public final class ApiPermissionRules {
     private static final String ALL_FUNCTIONS = "ALL_FUNCTIONS";
     private static final String ALL_FUNCTIONS_READ = "ALL_FUNCTIONS_READ";
     private static final String ALL_FUNCTIONS_WRITE = "ALL_FUNCTIONS_WRITE";
+    static final String TWOFACTOR_AUTHENTICATED = "TWOFACTOR_AUTHENTICATED";
 
     static final List<Rule> RULES = List.of(
             // businessdate
@@ -122,12 +123,12 @@ public final class ApiPermissionRules {
             rule(HttpMethod.PUT, "/api/*/import/*/documents", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_DOCUMENT"),
             rule(HttpMethod.DELETE, "/api/*/import/*/documents", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT"),
             // image: clients
-            rule(HttpMethod.GET, "/api/*/clients/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT"),
+            rule(HttpMethod.GET, "/api/*/clients/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT", "READ_CLIENTIMAGE"),
             rule(HttpMethod.POST, "/api/*/clients/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_CLIENTIMAGE"),
             rule(HttpMethod.PUT, "/api/*/clients/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_CLIENTIMAGE"),
             rule(HttpMethod.DELETE, "/api/*/clients/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_CLIENTIMAGE"),
             // image: staff
-            rule(HttpMethod.GET, "/api/*/staff/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT"),
+            rule(HttpMethod.GET, "/api/*/staff/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT", "READ_STAFFIMAGE"),
             rule(HttpMethod.POST, "/api/*/staff/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_STAFFIMAGE"),
             rule(HttpMethod.PUT, "/api/*/staff/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_STAFFIMAGE"),
             rule(HttpMethod.DELETE, "/api/*/staff/*/images", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_STAFFIMAGE"),
@@ -146,8 +147,10 @@ public final class ApiPermissionRules {
             rule(HttpMethod.PUT, "/api/*/mixtaxonomy/*", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_MIX_TAXONOMY"),
             rule(HttpMethod.DELETE, "/api/*/mixtaxonomy/*", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_MIX_TAXONOMY"),
             // mix: mapping
-            rule(HttpMethod.GET, "/api/*/mixmapping", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_MIX_MAPPING"),
-            rule(HttpMethod.GET, "/api/*/mixmapping/*", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_MIX_MAPPING"),
+            rule(HttpMethod.GET, "/api/*/mixmapping", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_MIX_MAPPING", "UPDATE_MIX_MAPPING",
+                    "UPDATE_XBRLMAPPING"),
+            rule(HttpMethod.GET, "/api/*/mixmapping/*", ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_MIX_MAPPING", "UPDATE_MIX_MAPPING",
+                    "UPDATE_XBRLMAPPING"),
             rule(HttpMethod.POST, "/api/*/mixmapping/*", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_MIX_MAPPING"),
             // TODO: "UPDATE_XBRLMAPPING" is the legacy permission name; we should rename for consistency
             rule(HttpMethod.PUT, "/api/*/mixmapping", ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_MIX_MAPPING", "UPDATE_XBRLMAPPING"),
@@ -166,9 +169,14 @@ public final class ApiPermissionRules {
 
     private ApiPermissionRules() {}
 
-    public static void apply(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+    /**
+     * Registers the permission rules. When two-factor authentication is enabled, the rules also require the
+     * {@value #TWOFACTOR_AUTHENTICATED} authority, like the generic {@code /api/**} rule.
+     */
+    public static void apply(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth,
+            boolean twoFactorEnabled) {
         for (Rule rule : RULES) {
-            auth.requestMatchers(rule.matcher()).access(rule.authorizationManager());
+            auth.requestMatchers(rule.matcher()).access(rule.authorizationManager(twoFactorEnabled));
         }
     }
 
@@ -189,8 +197,20 @@ public final class ApiPermissionRules {
      * permission codes rather than the token scopes.
      */
     public static AuthorizationManager<RequestAuthorizationContext> hasAnyPermission(String... permissions) {
+        return hasAnyPermission(false, permissions);
+    }
+
+    private static AuthorizationManager<RequestAuthorizationContext> hasAnyPermission(boolean requireTwoFactor, String... permissions) {
         Set<String> allowed = Set.of(permissions);
-        return (authentication, context) -> new AuthorizationDecision(hasAnyPermission(authentication.get(), allowed));
+        return (authentication, context) -> {
+            Authentication current = authentication.get();
+            boolean granted = hasAnyPermission(current, allowed) && (!requireTwoFactor || isTwoFactorAuthenticated(current));
+            return new AuthorizationDecision(granted);
+        };
+    }
+
+    private static boolean isTwoFactorAuthenticated(Authentication authentication) {
+        return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(TWOFACTOR_AUTHENTICATED::equals);
     }
 
     private static boolean hasAnyPermission(Authentication authentication, Set<String> allowed) {
@@ -213,8 +233,8 @@ public final class ApiPermissionRules {
             return apiMatcher(method, pattern);
         }
 
-        AuthorizationManager<RequestAuthorizationContext> authorizationManager() {
-            return hasAnyPermission(permissions);
+        AuthorizationManager<RequestAuthorizationContext> authorizationManager(boolean requireTwoFactor) {
+            return hasAnyPermission(requireTwoFactor, permissions);
         }
     }
 }

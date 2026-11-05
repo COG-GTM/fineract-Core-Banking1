@@ -51,7 +51,8 @@ public class MixTaxonomyMappingApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public MixTaxonomyMappingData retrieveTaxonomyMapping() {
-        context.authenticatedUser().validateHasPermissionTo("READ_MIX_MAPPING", List.of("ALL_FUNCTIONS_READ", "READ_MIX_MAPPING"));
+        context.authenticatedUser().validateHasPermissionTo("READ_MIX_MAPPING",
+                List.of("ALL_FUNCTIONS_READ", "READ_MIX_MAPPING", "UPDATE_MIX_MAPPING", "UPDATE_XBRLMAPPING"));
         return this.readTaxonomyMappingService.retrieveTaxonomyMapping();
     }
 

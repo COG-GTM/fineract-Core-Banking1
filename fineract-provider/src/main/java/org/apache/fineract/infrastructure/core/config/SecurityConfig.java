@@ -141,7 +141,7 @@ public class SecurityConfig {
                     .requestMatchers(ApiPermissionRules.apiMatcher(HttpMethod.POST, "/api/*/authentication")).permitAll()
                     .requestMatchers(ApiPermissionRules.apiMatcher(HttpMethod.PUT, "/api/*/instance-mode")).permitAll();
 
-            ApiPermissionRules.apply(auth);
+            ApiPermissionRules.apply(auth, fineractProperties.getSecurity().getTwoFactor().isEnabled());
 
             auth.requestMatchers(ApiPermissionRules.apiMatcher(HttpMethod.POST, "/api/*/twofactor/validate")).fullyAuthenticated()
                     .requestMatchers(API_MATCHER.matcher("/api/*/twofactor")).fullyAuthenticated()
