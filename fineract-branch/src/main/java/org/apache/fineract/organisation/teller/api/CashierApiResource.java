@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.teller.data.CashierData;
 import org.apache.fineract.organisation.teller.service.TellerManagementReadPlatformService;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CashierApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "TELLER";
+
+    private final PlatformSecurityContext context;
     private final TellerManagementReadPlatformService readPlatformService;
 
     @GET
@@ -47,6 +51,7 @@ public class CashierApiResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Collection<CashierData> getCashierData(@QueryParam("officeId") final Long officeId, @QueryParam("tellerId") final Long tellerId,
             @QueryParam("staffId") final Long staffId, @QueryParam("date") final String date) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final LocalDate dateRestriction = date != null ? LocalDate.parse(date, DateTimeFormatter.BASIC_ISO_DATE)
                 : DateUtils.getBusinessLocalDate();
         return readPlatformService.getCashierData(officeId, tellerId, staffId, dateRestriction);

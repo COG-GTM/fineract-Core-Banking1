@@ -27,6 +27,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.teller.data.TellerJournalData;
 import org.apache.fineract.organisation.teller.service.TellerManagementReadPlatformService;
 import org.apache.fineract.organisation.teller.util.DateRange;
@@ -38,6 +39,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TellerJournalApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "TELLER";
+
+    private final PlatformSecurityContext context;
     private final TellerManagementReadPlatformService readPlatformService;
 
     @GET
@@ -46,6 +50,7 @@ public class TellerJournalApiResource {
     public Collection<TellerJournalData> getJournalData(@QueryParam("officeId") final Long officeId,
             @QueryParam("tellerId") final Long tellerId, @QueryParam("cashierId") final Long cashierId,
             @QueryParam("dateRange") final String dateRange) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final DateRange dateRangeHolder = DateRange.fromString(dateRange);
 
         return readPlatformService.getJournals(officeId, tellerId, cashierId, dateRangeHolder.getStartDate(), dateRangeHolder.getEndDate());

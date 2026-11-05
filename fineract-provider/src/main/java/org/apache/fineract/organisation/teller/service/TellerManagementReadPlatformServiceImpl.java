@@ -38,7 +38,6 @@ import org.apache.fineract.organisation.monetary.service.CurrencyReadPlatformSer
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.organisation.staff.data.StaffData;
-import org.apache.fineract.organisation.staff.exception.StaffNotFoundException;
 import org.apache.fineract.organisation.staff.service.StaffReadPlatformService;
 import org.apache.fineract.organisation.teller.data.CashierData;
 import org.apache.fineract.organisation.teller.data.CashierTransactionData;
@@ -49,6 +48,8 @@ import org.apache.fineract.organisation.teller.data.TellerJournalData;
 import org.apache.fineract.organisation.teller.data.TellerTransactionData;
 import org.apache.fineract.organisation.teller.domain.CashierTxnType;
 import org.apache.fineract.organisation.teller.domain.TellerStatus;
+import org.apache.fineract.organisation.teller.exception.CashierNotFoundException;
+import org.apache.fineract.organisation.teller.exception.TellerNotFoundException;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -115,16 +116,20 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
         return defaultOfficeId;
     }
 
+    private String userHierarchySearchString() {
+        return this.context.authenticatedUser().getOffice().getHierarchy() + "%";
+    }
+
     @Override
     public TellerData findTeller(final Long tellerId) {
 
         try {
             final TellerMapper tm = new TellerMapper();
-            final String sql = "select " + tm.schema() + " where t.id = ?";
+            final String sql = "select " + tm.schema() + " where t.id = ? and o.hierarchy like ?";
 
-            return this.jdbcTemplate.queryForObject(sql, tm, new Object[] { tellerId }); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, tm, new Object[] { tellerId, userHierarchySearchString() }); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
-            throw new StaffNotFoundException(tellerId, e);
+            throw new TellerNotFoundException(tellerId, e);
         }
     }
 
@@ -141,19 +146,19 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
     @Override
     public Collection<CashierData> retrieveCashiersForTellers(final Long tellerId) {
         final CashierMapper cm = new CashierMapper();
-        String sql = "select " + cm.schema() + " where teller_id = ?";
-        return this.jdbcTemplate.query(sql, cm, tellerId); // NOSONAR
+        String sql = "select " + cm.schema() + " where c.teller_id = ? and o.hierarchy like ?";
+        return this.jdbcTemplate.query(sql, cm, tellerId, userHierarchySearchString()); // NOSONAR
     }
 
     @Override
     public CashierData findCashier(Long cashierId) {
         try {
             final CashierMapper cm = new CashierMapper();
-            final String sql = "select " + cm.schema() + " where c.id = ?";
+            final String sql = "select " + cm.schema() + " where c.id = ? and o.hierarchy like ?";
 
-            return this.jdbcTemplate.queryForObject(sql, cm, new Object[] { cashierId }); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, cm, new Object[] { cashierId, userHierarchySearchString() }); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
-            throw new StaffNotFoundException(cashierId, e);
+            throw new CashierNotFoundException(cashierId);
         }
     }
 
@@ -270,6 +275,7 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
     public CashierTransactionsWithSummaryData retrieveCashierTransactionsWithSummary(final Long cashierId, final boolean includeAllTellers,
             final LocalDate fromDate, final LocalDate toDate, final String currencyCode, final SearchParameters searchParameters) {
 
+        findCashier(cashierId);
         sqlValidator.validate(searchParameters.getOrderBy());
         sqlValidator.validate(searchParameters.getSortOrder());
         final String nextDay = sqlGenerator.incrementDateByOneDay("c.end_date");
@@ -315,6 +321,7 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
     public Page<CashierTransactionData> retrieveCashierTransactions(final Long cashierId, final boolean includeAllTellers,
             final LocalDate fromDate, final LocalDate toDate, final String currencyCode, final SearchParameters searchParameters) {
 
+        findCashier(cashierId);
         sqlValidator.validate(searchParameters.getOrderBy());
         sqlValidator.validate(searchParameters.getSortOrder());
         final String nextDay = sqlGenerator.incrementDateByOneDay("c.end_date");
@@ -344,11 +351,6 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
                 sql += sqlGenerator.limit(searchParameters.getLimit());
             }
         }
-        // return this.jdbcTemplate.query(sql, ctm, new Object[] { cashierId,
-        // currencyCode, hierarchySearchString, cashierId, currencyCode,
-        // hierarchySearchString, cashierId, currencyCode,
-        // hierarchySearchString, cashierId, currencyCode, hierarchySearchString
-        // });
         Object[] params = new Object[] { cashierId, currencyCode, cashierId, currencyCode, cashierId, currencyCode, cashierId,
                 currencyCode, };
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sql, params, ctm);
@@ -366,6 +368,7 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
             sqlBuilder.append("c.full_day as full_day, c.start_time as start_time, c.end_time as end_time ");
             sqlBuilder.append("from m_cashiers c ");
             sqlBuilder.append("join m_tellers t on t.id = c.teller_id ");
+            sqlBuilder.append("join m_office o on o.id = t.office_id ");
             sqlBuilder.append("join m_staff s on s.id = c.staff_id ");
 
             return sqlBuilder.toString();

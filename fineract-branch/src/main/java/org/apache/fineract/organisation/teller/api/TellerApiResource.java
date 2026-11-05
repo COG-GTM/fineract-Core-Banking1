@@ -48,6 +48,7 @@ import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSer
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.teller.data.CashierData;
 import org.apache.fineract.organisation.teller.data.CashierTransactionData;
 import org.apache.fineract.organisation.teller.data.CashierTransactionsWithSummaryData;
@@ -58,6 +59,7 @@ import org.apache.fineract.organisation.teller.domain.model.CashiersForTeller;
 import org.apache.fineract.organisation.teller.domain.model.request.CashierRequest;
 import org.apache.fineract.organisation.teller.domain.model.request.CashierTransactionRequest;
 import org.apache.fineract.organisation.teller.domain.model.request.TellerRequest;
+import org.apache.fineract.organisation.teller.exception.CashierNotFoundException;
 import org.apache.fineract.organisation.teller.service.TellerManagementReadPlatformService;
 import org.apache.fineract.organisation.teller.util.DateRange;
 import org.springframework.stereotype.Component;
@@ -68,6 +70,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TellerApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "TELLER";
+
+    private final PlatformSecurityContext context;
     private final TellerManagementReadPlatformService readPlatformService;
     private final PortfolioCommandSourceWritePlatformService commandWritePlatformService;
     private final DefaultToApiJsonSerializer<String> apiJsonSerializer;
@@ -78,6 +83,7 @@ public class TellerApiResource {
     @Operation(summary = "List all tellers", description = "Retrieves list tellers")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = TellerApiResourceSwagger.GetTellersResponse.class))))
     public Collection<TellerData> getTellerData(@QueryParam("officeId") @Parameter(description = "officeId") final Long officeId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return readPlatformService.getTellers(officeId);
     }
 
@@ -88,6 +94,7 @@ public class TellerApiResource {
     @Operation(summary = "Retrieve tellers", description = "")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = TellerApiResourceSwagger.GetTellersResponse.class)))
     public TellerData findTeller(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return readPlatformService.findTeller(tellerId);
     }
 
@@ -140,6 +147,7 @@ public class TellerApiResource {
     public CashiersForTeller getCashierData(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId,
             @QueryParam("fromdate") @Parameter(description = "fromdate") final String fromDateStr,
             @QueryParam("todate") @Parameter(description = "todate") final String toDateStr) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final DateTimeFormatter dateFormatter = DateTimeFormatter.BASIC_ISO_DATE;
 
         final LocalDate fromDate = fromDateStr != null ? LocalDate.parse(fromDateStr, dateFormatter) : DateUtils.getBusinessLocalDate();
@@ -159,7 +167,12 @@ public class TellerApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = TellerApiResourceSwagger.GetTellersTellerIdCashiersCashierIdResponse.class)))
     public CashierData findCashierData(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId,
             @PathParam("cashierId") @Parameter(description = "cashierId") final Long cashierId) {
-        return readPlatformService.findCashier(cashierId);
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        final CashierData cashier = readPlatformService.findCashier(cashierId);
+        if (!cashier.getTellerId().equals(tellerId)) {
+            throw new CashierNotFoundException(cashierId);
+        }
+        return cashier;
     }
 
     @GET
@@ -169,6 +182,7 @@ public class TellerApiResource {
     @Operation(summary = "Find Cashiers", description = "")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = TellerApiResourceSwagger.GetTellersTellerIdCashiersTemplateResponse.class)))
     public CashierData getCashierTemplate(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final TellerData teller = this.readPlatformService.findTeller(tellerId);
         Long officeId = teller.getOfficeId();
@@ -276,6 +290,8 @@ public class TellerApiResource {
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit,
             @QueryParam("orderBy") @Parameter(description = "orderBy") final String orderBy,
             @QueryParam("sortOrder") @Parameter(description = "sortOrder") final String sortOrder) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateCashierBelongsToTeller(tellerId, cashierId);
 
         final SearchParameters searchParameters = SearchParameters.builder().limit(limit).offset(offset).orderBy(orderBy)
                 .sortOrder(sortOrder).build();
@@ -296,6 +312,8 @@ public class TellerApiResource {
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit,
             @QueryParam("orderBy") @Parameter(description = "orderBy") final String orderBy,
             @QueryParam("sortOrder") @Parameter(description = "sortOrder") final String sortOrder) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateCashierBelongsToTeller(tellerId, cashierId);
 
         final SearchParameters searchParameters = SearchParameters.builder().limit(limit).offset(offset).orderBy(orderBy)
                 .sortOrder(sortOrder).build();
@@ -312,6 +330,8 @@ public class TellerApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = TellerApiResourceSwagger.GetTellersTellerIdCashiersCashiersIdTransactionsTemplateResponse.class)))
     public CashierTransactionData getCashierTxnTemplate(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId,
             @PathParam("cashierId") @Parameter(description = "cashierId") final Long cashierId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateCashierBelongsToTeller(tellerId, cashierId);
 
         return this.readPlatformService.retrieveCashierTxnTemplate(cashierId);
     }
@@ -323,6 +343,7 @@ public class TellerApiResource {
     public Collection<TellerTransactionData> getTransactionData(
             @PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId,
             @QueryParam("dateRange") @Parameter(description = "dateRange") final String dateRange) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final DateRange dateRangeHolder = DateRange.fromString(dateRange);
 
         return this.readPlatformService.fetchTellerTransactionsByTellerId(tellerId, dateRangeHolder.getStartDate(),
@@ -335,6 +356,7 @@ public class TellerApiResource {
     @Produces(MediaType.APPLICATION_JSON)
     public TellerTransactionData findTransactionData(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerid,
             @PathParam("transactionId") @Parameter(description = "transactionId") final Long transactionId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return this.readPlatformService.findTellerTransaction(transactionId);
     }
 
@@ -345,9 +367,17 @@ public class TellerApiResource {
     public Collection<TellerJournalData> getJournalData(@PathParam("tellerId") @Parameter(description = "tellerId") final Long tellerId,
             @QueryParam("cashierId") @Parameter(description = "cashierId") final Long cashierDate,
             @QueryParam("dateRange") @Parameter(description = "dateRange") final String dateRange) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final DateRange dateRangeHolder = DateRange.fromString(dateRange);
 
         return this.readPlatformService.fetchTellerJournals(tellerId, cashierDate, dateRangeHolder.getStartDate(),
                 dateRangeHolder.getEndDate());
+    }
+
+    private void validateCashierBelongsToTeller(final Long tellerId, final Long cashierId) {
+        final CashierData cashier = readPlatformService.findCashier(cashierId);
+        if (!cashier.getTellerId().equals(tellerId)) {
+            throw new CashierNotFoundException(cashierId);
+        }
     }
 }
