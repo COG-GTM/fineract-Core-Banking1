@@ -67,6 +67,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequiredArgsConstructor
 public class CreditBureauIntegrationApiResource {
 
+    public static final String UPLOAD_CREDIT_REPORT_PERMISSION = "UPLOAD_CREDITREPORT";
     private static final Set<String> RESPONSE_DATA_PARAMETERS = new HashSet<>(Arrays.asList("id", "creditBureauId", "nrc", "creditReport"));
 
     private final PlatformSecurityContext context;
@@ -104,6 +105,8 @@ public class CreditBureauIntegrationApiResource {
     public String addCreditReport(@FormDataParam("file") final File creditReport, @FormDataParam("file") InputStream uploadedInputStream,
             @FormDataParam("file") final UriInfo uriInfo, @FormDataParam("file") FormDataContentDisposition fileDetail,
             @QueryParam("creditBureauId") @Parameter(description = "creditBureauId") final Long creditBureauId) {
+
+        this.context.authenticatedUser().validateHasPermissionTo(UPLOAD_CREDIT_REPORT_PERMISSION);
 
         final String responseMessage = this.creditReportWritePlatformService.addCreditReport(creditBureauId, creditReport, fileDetail);
         return this.toCreditReportApiJsonSerializer.serialize(responseMessage);
