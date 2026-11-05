@@ -20,6 +20,7 @@ package org.apache.fineract.portfolio.client.domain;
 
 import org.apache.fineract.organisation.monetary.domain.OrganisationCurrencyRepositoryWrapper;
 import org.apache.fineract.portfolio.charge.exception.ChargeNotFoundException;
+import org.apache.fineract.portfolio.client.exception.ClientChargeNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +40,13 @@ public class ClientChargeRepositoryWrapper {
     public ClientCharge findOneWithNotFoundDetection(final Long id) {
         final ClientCharge clientCharge = this.repository.findById(id).orElseThrow(() -> new ChargeNotFoundException(id));
         // enrich Client charge with details of Organizational currency
+        clientCharge.setCurrency(organisationCurrencyRepository.findOneWithNotFoundDetection(clientCharge.getCharge().getCurrencyCode()));
+        return clientCharge;
+    }
+
+    public ClientCharge findOneWithNotFoundDetection(final Long id, final Long clientId) {
+        final ClientCharge clientCharge = this.repository.findByIdAndClientId(id, clientId)
+                .orElseThrow(() -> new ClientChargeNotFoundException(id, clientId));
         clientCharge.setCurrency(organisationCurrencyRepository.findOneWithNotFoundDetection(clientCharge.getCharge().getCurrencyCode()));
         return clientCharge;
     }

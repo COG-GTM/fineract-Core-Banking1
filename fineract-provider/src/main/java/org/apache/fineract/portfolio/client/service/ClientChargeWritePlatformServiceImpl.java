@@ -133,7 +133,7 @@ public class ClientChargeWritePlatformServiceImpl implements ClientChargeWritePl
 
             final Client client = this.clientRepository.getActiveClientInUserScope(clientId);
 
-            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId);
+            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId, client.getId());
 
             final Locale locale = command.extractLocale();
             final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
@@ -187,7 +187,7 @@ public class ClientChargeWritePlatformServiceImpl implements ClientChargeWritePl
     public CommandProcessingResult waiveCharge(Long clientId, Long clientChargeId) {
         try {
             final Client client = this.clientRepository.getActiveClientInUserScope(clientId);
-            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId);
+            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId, client.getId());
             final LocalDate transactionDate = DateUtils.getBusinessLocalDate();
 
             // Validate business rules for payment
@@ -221,7 +221,7 @@ public class ClientChargeWritePlatformServiceImpl implements ClientChargeWritePl
     public CommandProcessingResult deleteCharge(Long clientId, Long clientChargeId) {
         try {
             final Client client = this.clientRepository.getActiveClientInUserScope(clientId);
-            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId);
+            final ClientCharge clientCharge = this.clientChargeRepository.findOneWithNotFoundDetection(clientChargeId, client.getId());
 
             // Validate business rules for charge deletion
             validateChargeDeletion(client, clientCharge);
