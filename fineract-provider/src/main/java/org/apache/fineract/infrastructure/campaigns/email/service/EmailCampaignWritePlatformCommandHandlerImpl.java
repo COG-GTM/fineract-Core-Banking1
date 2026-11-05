@@ -51,6 +51,7 @@ import org.apache.fineract.infrastructure.campaigns.email.domain.EmailMessageRep
 import org.apache.fineract.infrastructure.campaigns.email.exception.EmailCampaignMustBeClosedToBeDeletedException;
 import org.apache.fineract.infrastructure.campaigns.email.exception.EmailCampaignMustBeClosedToEditException;
 import org.apache.fineract.infrastructure.campaigns.email.exception.EmailCampaignNotFound;
+import org.apache.fineract.infrastructure.campaigns.helper.CampaignReportPermissionValidator;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.api.JsonQuery;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
@@ -91,6 +92,7 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
     private final ReadReportingService readReportingService;
     private final GenericDataService genericDataService;
     private final FromJsonHelper fromJsonHelper;
+    private final CampaignReportPermissionValidator campaignReportPermissionValidator;
 
     @Transactional
     @Override
@@ -98,6 +100,8 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
         final AppUser currentUser = this.context.authenticatedUser();
 
         this.emailCampaignValidator.validateCreate(command.json());
+        this.campaignReportPermissionValidator
+                .validateReportPermission(command.stringValueOfParameterNamed(EmailCampaignValidator.paramValue));
 
         final Long businessRuleId = command.longValueOfParameterNamed(EmailCampaignValidator.businessRuleId);
 
@@ -136,6 +140,10 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
         try {
             this.context.authenticatedUser();
             this.emailCampaignValidator.validateForUpdate(command.json());
+            if (command.parameterExists(EmailCampaignValidator.paramValue)) {
+                this.campaignReportPermissionValidator
+                        .validateReportPermission(command.stringValueOfParameterNamed(EmailCampaignValidator.paramValue));
+            }
             final EmailCampaign emailCampaign = this.emailCampaignRepository.findById(resourceId)
                     .orElseThrow(() -> new EmailCampaignNotFound(resourceId));
 
@@ -378,6 +386,7 @@ public class EmailCampaignWritePlatformCommandHandlerImpl implements EmailCampai
         this.context.authenticatedUser();
         this.emailCampaignValidator.validatePreviewMessage(query.json());
         final String emailParams = this.fromJsonHelper.extractStringNamed("paramValue", query.parsedJson());
+        this.campaignReportPermissionValidator.validateReportPermission(emailParams);
         final String textMessageTemplate = this.fromJsonHelper.extractStringNamed("emailMessage", query.parsedJson());
 
         try {
