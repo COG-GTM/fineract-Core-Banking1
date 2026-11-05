@@ -49,6 +49,7 @@ import org.apache.fineract.infrastructure.survey.data.ClientScoresOverview;
 import org.apache.fineract.infrastructure.survey.data.SurveyData;
 import org.apache.fineract.infrastructure.survey.data.SurveyDataTableData;
 import org.apache.fineract.infrastructure.survey.service.ReadSurveyService;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Component;
 
 /**
@@ -138,7 +139,9 @@ public class SurveyApiResource {
     public String getSurveyEntry(@PathParam("surveyName") final String surveyName, @PathParam("clientId") final Long clientId,
             @PathParam("entryId") final Long entryId) {
 
-        this.context.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SURVEY_RESOURCE_NAME);
+        final AppUser user = this.context.authenticatedUser();
+        user.validateHasReadPermission(SurveyApiConstants.SURVEY_RESOURCE_NAME);
+        user.validateHasDatatableReadPermission(surveyName);
 
         final GenericResultsetData results = this.readSurveyService.retrieveSurveyEntry(surveyName, clientId, entryId);
 
