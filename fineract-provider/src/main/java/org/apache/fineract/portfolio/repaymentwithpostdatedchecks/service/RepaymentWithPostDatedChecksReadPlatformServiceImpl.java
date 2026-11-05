@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepaymentScheduleInstallmentRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
@@ -40,10 +42,11 @@ public class RepaymentWithPostDatedChecksReadPlatformServiceImpl implements Repa
     private final PostDatedChecksRepository postDatedChecksRepository;
     private final LoanRepository loanRepository;
     private final LoanRepaymentScheduleInstallmentRepository loanRepaymentScheduleInstallmentRepository;
+    private final PlatformSecurityContext context;
 
     @Override
     public List<PostDatedChecksData> getPostDatedChecks(final Long id) {
-        final Loan loan = this.loanRepository.findById(id).orElseThrow(() -> new LoanNotFoundException(id));
+        final Loan loan = retrieveLoanWithinUserHierarchy(id);
         final List<PostDatedChecks> postDatedChecks = loan.getPostDatedChecks();
         List<PostDatedChecksData> postDatedChecksDataList = new ArrayList<>();
         for (PostDatedChecks postDatedCheckObject : postDatedChecks) {
@@ -71,7 +74,7 @@ public class RepaymentWithPostDatedChecksReadPlatformServiceImpl implements Repa
 
     @Override
     public PostDatedChecksData getPostDatedCheckByInstallmentId(final Integer id, final Long loanId) {
-        final Loan loan = this.loanRepository.findById(loanId).orElseThrow(() -> new LoanNotFoundException(loanId));
+        final Loan loan = retrieveLoanWithinUserHierarchy(loanId);
         final List<PostDatedChecks> postDatedChecks = loan.getPostDatedChecks();
 
         if (postDatedChecks == null || postDatedChecks.size() == 0) {
@@ -86,5 +89,19 @@ public class RepaymentWithPostDatedChecksReadPlatformServiceImpl implements Repa
                 postDatedChecksData.getLoanRepaymentScheduleInstallment().getInstallmentNumber(), postDatedChecksData.getAccountNo(),
                 postDatedChecksData.getAmount(), postDatedChecksData.getBankName(), postDatedChecksData.getCheckNo(),
                 postDatedChecksData.getStatus());
+    }
+
+    private Loan retrieveLoanWithinUserHierarchy(final Long loanId) {
+        final Loan loan = this.loanRepository.findById(loanId).orElseThrow(() -> new LoanNotFoundException(loanId));
+        final String userHierarchy = this.context.officeHierarchy();
+        final Office transferToOffice = loan.getClient() != null ? loan.getClient().getTransferToOffice() : null;
+        if (!isWithinHierarchy(loan.getOffice(), userHierarchy) && !isWithinHierarchy(transferToOffice, userHierarchy)) {
+            throw new LoanNotFoundException(loanId);
+        }
+        return loan;
+    }
+
+    private static boolean isWithinHierarchy(final Office office, final String userHierarchy) {
+        return office != null && office.getHierarchy() != null && office.getHierarchy().startsWith(userHierarchy);
     }
 }

@@ -55,6 +55,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RepaymentWithPostDatedChecksApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "LOAN";
+
     private final PlatformSecurityContext context;
     private final FromJsonHelper fromJsonHelper;
     private final DefaultToApiJsonSerializer<PostDatedChecksData> apiJsonSerializer;
@@ -68,7 +70,7 @@ public class RepaymentWithPostDatedChecksApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = PostDatedChecksApiResourceSwagger.GetPostDatedChecks.class)))) })
     public String getPostDatedChecks(@PathParam("loanId") @Parameter(description = "loanId") final Long loanId) {
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final List<PostDatedChecksData> postDatedChecksDataList = this.repaymentWithPostDatedChecksReadPlatformService
                 .getPostDatedChecks(loanId);
         return this.apiJsonSerializer.serialize(postDatedChecksDataList);
@@ -83,7 +85,7 @@ public class RepaymentWithPostDatedChecksApiResource {
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = PostDatedChecksApiResourceSwagger.GetPostDatedChecks.class)))) })
     public String getPostDatedCheck(@PathParam("installmentId") @Parameter(description = "installmentId") final Integer installmentId,
             @PathParam("loanId") @Parameter(description = "loanId") final Long loanId) {
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final PostDatedChecksData postDatedChecksData = this.repaymentWithPostDatedChecksReadPlatformService
                 .getPostDatedCheckByInstallmentId(installmentId, loanId);
         return this.apiJsonSerializer.serialize(postDatedChecksData);
