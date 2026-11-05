@@ -33,6 +33,7 @@ import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.commands.service.CommandWrapperBuilder;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.collateralmanagement.data.LoanCollateralResponseData;
 import org.apache.fineract.portfolio.collateralmanagement.service.LoanCollateralManagementReadPlatformService;
 import org.springframework.stereotype.Component;
@@ -45,6 +46,7 @@ public class LoanCollateralManagementApiResource {
 
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final LoanCollateralManagementReadPlatformService loanCollateralManagementReadPlatformService;
+    private final PlatformSecurityContext context;
 
     @DELETE
     @Path("{id}")
@@ -65,6 +67,8 @@ public class LoanCollateralManagementApiResource {
     @Operation(description = "Get Loan Collateral Details", summary = "Get Loan Collateral Details")
     public LoanCollateralResponseData getLoanCollateral(
             @PathParam("collateralId") @Parameter(description = "collateralId") final Long collateralId) {
+        this.context.authenticatedUser()
+                .validateHasReadPermission(CollateralManagementJsonInputParams.LOAN_COLLATERAL_PRODUCT_READ_PERMISSION.getValue());
         return this.loanCollateralManagementReadPlatformService.getLoanCollateralResponseData(collateralId);
     }
 
