@@ -53,6 +53,7 @@ import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeader
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetRowData;
 import org.apache.fineract.infrastructure.dataqueries.domain.ReportType;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
+import org.apache.fineract.infrastructure.report.service.AbstractReportingProcessService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
@@ -133,10 +134,8 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
         String sql = getSql(name, type);
 
-        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
-        }
-
+        // Session-derived placeholders are substituted before any caller-supplied parameter so they cannot be
+        // overridden from the request.
         final AppUser currentUser = this.context.authenticatedUser();
         // Allows sql query to restrict data by office hierarchy if required
         sql = this.genericDataService.replace(sql, "${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
@@ -146,6 +145,14 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         sql = this.genericDataService.replace(sql, "${currentUserId}", currentUser.getId().toString());
         sql = this.genericDataService.replace(sql, "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
         sql = this.genericDataService.replace(sql, "${currentDate}", sqlGenerator.currentBusinessDate());
+
+        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
+            if (AbstractReportingProcessService.isReservedReportPlaceholder(entry.getKey())) {
+                continue;
+            }
+            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
+        }
+
         sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
         sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());

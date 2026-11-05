@@ -28,12 +28,16 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Map;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.dataqueries.service.export.DatatableReportExportService;
 import org.apache.fineract.infrastructure.dataqueries.service.export.ResponseHolder;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.glassfish.jersey.internal.util.collection.MultivaluedStringMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 class DatatableReportingProcessServiceTest {
@@ -82,6 +86,33 @@ class DatatableReportingProcessServiceTest {
         queryParams.put("exportS3", List.of("true"));
 
         assertDoesNotThrow(() -> datatableReportingProcessService.processRequest("clientListing", queryParams));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "R_currentUserHierarchy", "R_currentUserId", "R_isSelfServiceUser", "R_currentDate",
+            "R_CURRENTUSERHIERARCHY" })
+    void reservedReportParametersAreRejected(String parameterName) {
+        DatatableReportingProcessService service = new DatatableReportingProcessService(List.of(), Mockito.mock(SqlValidator.class));
+        MultivaluedMap<String, String> queryParams = new MultivaluedStringMap();
+        queryParams.put("R_officeId", List.of("1"));
+        queryParams.put(parameterName, List.of("."));
+
+        PlatformApiDataValidationException exception = assertThrows(PlatformApiDataValidationException.class,
+                () -> service.getReportParams(queryParams));
+
+        assertEquals("error.msg.report.parameter.reserved", exception.getErrors().get(0).getUserMessageGlobalisationCode());
+        assertEquals(parameterName, exception.getErrors().get(0).getParameterName());
+    }
+
+    @Test
+    void regularReportParametersAreMappedToPlaceholders() {
+        DatatableReportingProcessService service = new DatatableReportingProcessService(List.of(), Mockito.mock(SqlValidator.class));
+        MultivaluedMap<String, String> queryParams = new MultivaluedStringMap();
+        queryParams.put("R_officeId", List.of("1"));
+        queryParams.put("R_currencyId", List.of("-1"));
+        queryParams.put("genericResultSet", List.of("false"));
+
+        assertEquals(Map.of("${officeId}", "1", "${currencyId}", "-1"), service.getReportParams(queryParams));
     }
 
 }
