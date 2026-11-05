@@ -23,12 +23,18 @@ import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import jakarta.persistence.PersistenceException;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +50,7 @@ import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.GmailBackedPlatformEmailService;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessage;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageRepository;
@@ -71,6 +78,7 @@ import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServiceRegistrationWritePlatformService {
@@ -90,6 +98,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     private static final SecureRandom secureRandom = new SecureRandom();
 
     @Override
+    @Transactional
     public SelfServiceRegistration createRegistrationRequest(String apiRequestBodyAsJson) {
         Gson gson = new Gson();
         final Type typeOfMap = new TypeToken<Map<String, Object>>() {}.getType();
@@ -143,9 +152,9 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         String authenticationToken = randomAuthorizationTokenGeneration();
         Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
         SelfServiceRegistration selfServiceRegistration = SelfServiceRegistration.instance(client, accountNumber, firstName, lastName,
-                mobileNumber, email, authenticationToken, username, password);
+                mobileNumber, email, hashAuthorizationToken(authenticationToken), username, password);
         this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
-        sendAuthorizationToken(selfServiceRegistration, isEmailAuthenticationMode);
+        sendAuthorizationToken(selfServiceRegistration, authenticationToken, isEmailAuthenticationMode);
         return selfServiceRegistration;
 
     }
@@ -160,15 +169,16 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         }
     }
 
-    public void sendAuthorizationToken(SelfServiceRegistration selfServiceRegistration, Boolean isEmailAuthenticationMode) {
+    public void sendAuthorizationToken(SelfServiceRegistration selfServiceRegistration, String authenticationToken,
+            Boolean isEmailAuthenticationMode) {
         if (isEmailAuthenticationMode) {
-            sendAuthorizationMail(selfServiceRegistration);
+            sendAuthorizationMail(selfServiceRegistration, authenticationToken);
         } else {
-            sendAuthorizationMessage(selfServiceRegistration);
+            sendAuthorizationMessage(selfServiceRegistration, authenticationToken);
         }
     }
 
-    private void sendAuthorizationMessage(SelfServiceRegistration selfServiceRegistration) {
+    private void sendAuthorizationMessage(SelfServiceRegistration selfServiceRegistration, String authenticationToken) {
         Collection<SmsProviderData> smsProviders = this.smsCampaignDropdownReadPlatformService.retrieveSmsProviders();
         if (smsProviders.isEmpty()) {
             throw new PlatformDataIntegrityException("error.msg.mobile.service.provider.not.available",
@@ -177,7 +187,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         Long providerId = new ArrayList<>(smsProviders).get(0).getId();
         final String message = "Hi  " + selfServiceRegistration.getFirstName() + "," + "\n"
                 + "To create user, please use following details \n" + "Request Id : " + selfServiceRegistration.getId()
-                + "\n Authentication Token : " + selfServiceRegistration.getAuthenticationToken();
+                + "\n Authentication Token : " + authenticationToken;
         String externalId = null;
         Group group = null;
         Staff staff = null;
@@ -189,11 +199,10 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         this.smsMessageScheduledJobService.sendTriggeredMessage(new ArrayList<>(Arrays.asList(smsMessage)), providerId);
     }
 
-    private void sendAuthorizationMail(SelfServiceRegistration selfServiceRegistration) {
+    private void sendAuthorizationMail(SelfServiceRegistration selfServiceRegistration, String authenticationToken) {
         final String subject = "Authorization token ";
         final String body = "Hi  " + selfServiceRegistration.getFirstName() + "," + "\n" + "To create user, please use following details\n"
-                + "Request Id : " + selfServiceRegistration.getId() + "\n Authentication Token : "
-                + selfServiceRegistration.getAuthenticationToken();
+                + "Request Id : " + selfServiceRegistration.getId() + "\n Authentication Token : " + authenticationToken;
 
         final EmailDetail emailDetail = new EmailDetail(subject, body, selfServiceRegistration.getEmail(),
                 selfServiceRegistration.getFirstName());
@@ -213,8 +222,51 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     public static String randomAuthorizationTokenGeneration() {
-        Integer randomPIN = (int) (secureRandom.nextDouble() * 9000) + 1000;
-        return randomPIN.toString();
+        final String alphabet = SelfServiceApiConstants.AUTHENTICATION_TOKEN_ALPHABET;
+        final StringBuilder token = new StringBuilder(SelfServiceApiConstants.AUTHENTICATION_TOKEN_LENGTH);
+        for (int i = 0; i < SelfServiceApiConstants.AUTHENTICATION_TOKEN_LENGTH; i++) {
+            token.append(alphabet.charAt(secureRandom.nextInt(alphabet.length())));
+        }
+        return token.toString();
+    }
+
+    public static String hashAuthorizationToken(String authenticationToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(authenticationToken.trim().toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private SelfServiceRegistration verifyAuthorizationToken(Long id, String authenticationToken) {
+        int reserved = this.selfServiceRegistrationRepository.reserveVerificationAttempt(id,
+                SelfServiceApiConstants.MAX_AUTHENTICATION_TOKEN_ATTEMPTS);
+        if (reserved == 0) {
+            throw new SelfServiceRegistrationNotFoundException(id);
+        }
+        SelfServiceRegistration selfServiceRegistration = this.selfServiceRegistrationRepository.findById(id)
+                .orElseThrow(() -> new SelfServiceRegistrationNotFoundException(id));
+        String storedHash = selfServiceRegistration.getAuthenticationToken();
+        if (storedHash == null) {
+            throw new SelfServiceRegistrationNotFoundException(id);
+        }
+        LocalDateTime expiresAt = selfServiceRegistration.getCreatedDate()
+                .plusMinutes(SelfServiceApiConstants.AUTHENTICATION_TOKEN_VALIDITY_MINUTES);
+        if (!DateUtils.isBefore(DateUtils.getLocalDateTimeOfSystem(), expiresAt)) {
+            this.selfServiceRegistrationRepository.invalidateAuthenticationToken(id);
+            throw new SelfServiceRegistrationNotFoundException(id);
+        }
+        boolean matches = MessageDigest.isEqual(storedHash.getBytes(StandardCharsets.UTF_8),
+                hashAuthorizationToken(authenticationToken).getBytes(StandardCharsets.UTF_8));
+        if (!matches) {
+            this.selfServiceRegistrationRepository.invalidateExhaustedAuthenticationToken(id,
+                    SelfServiceApiConstants.MAX_AUTHENTICATION_TOKEN_ATTEMPTS);
+            throw new SelfServiceRegistrationNotFoundException(id);
+        }
+        this.selfServiceRegistrationRepository.releaseVerificationAttempt(id);
+        return selfServiceRegistration;
     }
 
     @Override
@@ -242,11 +294,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                 throw new PlatformApiDataValidationException(dataValidationErrors);
             }
 
-            SelfServiceRegistration selfServiceRegistration = this.selfServiceRegistrationRepository
-                    .getRequestByIdAndAuthenticationToken(id, authenticationToken);
-            if (selfServiceRegistration == null) {
-                throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
-            }
+            SelfServiceRegistration selfServiceRegistration = verifyAuthorizationToken(id, authenticationToken);
             username = selfServiceRegistration.getUsername();
             Client client = selfServiceRegistration.getClient();
             final boolean passwordNeverExpire = true;
@@ -265,6 +313,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             AppUser appUser = new AppUser(client.getOffice(), user, allRoles, selfServiceRegistration.getEmail(), client.getFirstname(),
                     client.getLastname(), null, passwordNeverExpire, isSelfServiceUser, clients, null);
             this.userDomainService.create(appUser, true);
+            this.selfServiceRegistrationRepository.invalidateAuthenticationToken(id);
             return appUser;
 
         } catch (final JpaSystemException | DataIntegrityViolationException dve) {
