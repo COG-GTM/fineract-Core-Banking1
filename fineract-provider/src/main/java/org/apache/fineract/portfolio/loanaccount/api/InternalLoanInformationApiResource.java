@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.api.ApiRequestParameterHelper;
 import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransaction;
@@ -50,6 +51,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class InternalLoanInformationApiResource implements InitializingBean {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "LOAN";
+
+    private final PlatformSecurityContext context;
     private final LoanRepositoryWrapper loanRepositoryWrapper;
     private final LoanTransactionRepository loanTransactionRepository;
     private final ApiRequestParameterHelper apiRequestParameterHelper;
@@ -74,6 +78,7 @@ public class InternalLoanInformationApiResource implements InitializingBean {
     @Produces({ MediaType.APPLICATION_JSON })
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public AuditData getLoanAuditFields(@Context final UriInfo uriInfo, @PathParam("loanId") Long loanId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Fetching loan with {}", loanId);
@@ -92,6 +97,7 @@ public class InternalLoanInformationApiResource implements InitializingBean {
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public AuditData getLoanTransactionAuditFields(@Context final UriInfo uriInfo, @PathParam("loanId") Long loanId,
             @PathParam("transactionId") Long transactionId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Fetching loan transaction with loanId {}, transactionId {}", loanId, transactionId);
@@ -109,6 +115,7 @@ public class InternalLoanInformationApiResource implements InitializingBean {
     @Produces({ MediaType.APPLICATION_JSON })
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public List<Long> getLoansByStatus(@Context final UriInfo uriInfo, @PathParam("statusId") Integer statusId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Fetching loans by status {}", statusId);
@@ -125,6 +132,7 @@ public class InternalLoanInformationApiResource implements InitializingBean {
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public List<AdvancedPaymentData> getAdvancedPaymentAllocationRulesOfLoan(@Context final UriInfo uriInfo,
             @PathParam("loanId") Long loanId) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Fetching advanced payment allocation rules by loanId {}", loanId);

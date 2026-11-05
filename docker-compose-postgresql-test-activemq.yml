@@ -43,3 +43,4 @@ services:
       - ./config/docker/env/fineract-common.env
       - ./config/docker/env/fineract-postgresql.env
       - ./config/docker/env/activemq.env
+      - ./config/docker/env/fineract-test.env

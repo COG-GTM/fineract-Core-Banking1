@@ -85,6 +85,7 @@ services:
       - ./config/docker/env/prometheus.env
       # - ./config/docker/env/cloudwatch.env
       - ./config/docker/env/debug.env
+      - ./config/docker/env/fineract-test.env
     logging: *default-logging
     networks:
      default:

@@ -40,6 +40,9 @@ jobs:
       - name: Build the image
         run: ./gradlew --no-daemon --console=plain :fineract-provider:jibDockerBuild -Djib.to.image=$IMAGE_NAME -x test -x cucumber
 
+      - name: Enable test-only internal endpoints for the smoke test
+        run: sed -i "s/^SPRING_PROFILES_ACTIVE=.*/SPRING_PROFILES_ACTIVE=test,diagnostics/" config/docker/env/fineract-common.env
+
       - name: Start the ${{ matrix.messaging }} Stack
         run: docker compose -f ${{ matrix.compose_file }} up --scale fineract-worker=1 -d
 
