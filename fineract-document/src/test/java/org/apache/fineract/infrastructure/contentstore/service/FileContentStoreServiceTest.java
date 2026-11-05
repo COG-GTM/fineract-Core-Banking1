@@ -19,12 +19,17 @@
 package org.apache.fineract.infrastructure.contentstore.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.TestConfiguration;
+import org.apache.fineract.infrastructure.contentstore.exception.ContentPolicyException;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -60,6 +65,52 @@ class FileContentStoreServiceTest {
         log.info("Complete path: {}", p);
 
         assertTrue(Files.exists(p));
+    }
+
+    @Test
+    void uploadRejectsTraversalHiddenBehindLineEndCharacters() throws IOException {
+        setTenant();
+
+        var rootFolder = getRootFolder();
+        var escapedFolder = rootFolder.resolveSibling("OtherTenant").resolve("documents").resolve("clients").resolve("1").normalize();
+
+        for (var separator : List.of("\r", "\n", "\u0085", "\u2028", "\u2029")) {
+            var path = "documents/clients/1/x" + separator + "/../../../../../OtherTenant/documents/clients/1/contract.jpg";
+
+            assertThrows(ContentPolicyException.class, () -> fileContentStoreService.upload(path,
+                    FileContentStoreServiceTest.class.getClassLoader().getResourceAsStream("test.jpg"), "image/jpeg"));
+        }
+
+        assertFalse(Files.exists(escapedFolder));
+    }
+
+    @Test
+    void uploadRejectsPathsResolvingOutsideTenantRoot() {
+        setTenant();
+
+        var paths = List.of("documents/../../OtherTenant/contract.jpg", "../OtherTenant/contract.jpg", "documents/..",
+                "documents\\..\\..\\OtherTenant\\contract.jpg");
+
+        paths.forEach(path -> assertThrows(RuntimeException.class, () -> fileContentStoreService.upload(path,
+                FileContentStoreServiceTest.class.getClassLoader().getResourceAsStream("test.jpg"), "image/jpeg")));
+
+        assertFalse(Files.exists(getRootFolder().resolveSibling("OtherTenant")));
+    }
+
+    @Test
+    void uploadDeletesFileRejectedByPostUploadPolicy() throws IOException {
+        setTenant();
+
+        var folder = getRootFolder().resolve("documents").resolve("clients").resolve("99");
+
+        assertThrows(ContentPolicyException.class, () -> fileContentStoreService.upload("documents/clients/99/fake.jpg",
+                FileContentStoreServiceTest.class.getClassLoader().getResourceAsStream("test.png"), "image/jpeg"));
+
+        if (Files.exists(folder)) {
+            try (var files = Files.walk(folder)) {
+                assertTrue(files.noneMatch(Files::isRegularFile));
+            }
+        }
     }
 
     @Test
