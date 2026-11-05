@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -41,7 +42,6 @@ import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
@@ -67,8 +67,18 @@ import org.springframework.util.CollectionUtils;
 
 public class StandingInstructionReadPlatformServiceImpl implements StandingInstructionReadPlatformService {
 
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.ofEntries(Map.entry("id", "atsi.id"), Map.entry("atsi.id", "atsi.id"),
+            Map.entry("name", "atsi.name"), Map.entry("atsi.name", "atsi.name"), Map.entry("priority", "atsi.priority"),
+            Map.entry("atsi.priority", "atsi.priority"), Map.entry("status", "atsi.status"), Map.entry("atsi.status", "atsi.status"),
+            Map.entry("instructiontype", "atsi.instruction_type"), Map.entry("atsi.instruction_type", "atsi.instruction_type"),
+            Map.entry("amount", "atsi.amount"), Map.entry("atsi.amount", "atsi.amount"), Map.entry("validfrom", "atsi.valid_from"),
+            Map.entry("atsi.valid_from", "atsi.valid_from"), Map.entry("validtill", "atsi.valid_till"),
+            Map.entry("atsi.valid_till", "atsi.valid_till"), Map.entry("transfertype", "atd.transfer_type"),
+            Map.entry("atd.transfer_type", "atd.transfer_type"), Map.entry("fromclientname", "fromclient.display_name"),
+            Map.entry("toclientname", "toclient.display_name"), Map.entry("fromofficename", "fromoff.name"),
+            Map.entry("toofficename", "tooff.name"));
+
     private final JdbcTemplate jdbcTemplate;
-    private final ColumnValidator columnValidator;
     private final ClientReadPlatformService clientReadPlatformService;
     private final OfficeReadPlatformService officeReadPlatformService;
     private final PortfolioAccountReadPlatformService portfolioAccountReadPlatformService;
@@ -84,8 +94,8 @@ public class StandingInstructionReadPlatformServiceImpl implements StandingInstr
     public StandingInstructionReadPlatformServiceImpl(final JdbcTemplate jdbcTemplate,
             final ClientReadPlatformService clientReadPlatformService, final OfficeReadPlatformService officeReadPlatformService,
             final PortfolioAccountReadPlatformService portfolioAccountReadPlatformService,
-            final DropdownReadPlatformService dropdownReadPlatformService, final ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, PaginationHelper paginationHelper) {
+            final DropdownReadPlatformService dropdownReadPlatformService, DatabaseSpecificSQLGenerator sqlGenerator,
+            PaginationHelper paginationHelper) {
         this.jdbcTemplate = jdbcTemplate;
         this.clientReadPlatformService = clientReadPlatformService;
         this.officeReadPlatformService = officeReadPlatformService;
@@ -93,7 +103,6 @@ public class StandingInstructionReadPlatformServiceImpl implements StandingInstr
         this.dropdownReadPlatformService = dropdownReadPlatformService;
         this.sqlGenerator = sqlGenerator;
         this.standingInstructionMapper = new StandingInstructionMapper();
-        this.columnValidator = columnValidator;
         this.paginationHelper = paginationHelper;
     }
 
@@ -306,14 +315,7 @@ public class StandingInstructionReadPlatformServiceImpl implements StandingInstr
         }
 
         final SearchParameters searchParameters = standingInstructionDTO.searchParameters();
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-            }
-        }
+        sqlBuilder.append(StandingInstructionSortSupport.orderByClause(searchParameters, SORTABLE_COLUMNS, "standinginstruction"));
 
         if (searchParameters.hasLimit()) {
             sqlBuilder.append(" ");
