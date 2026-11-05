@@ -138,10 +138,20 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         }
         validateForDuplicateUsername(username);
 
-        throwExceptionIfValidationError(dataValidationErrors, accountNumber, firstName, lastName, mobileNumber, isEmailAuthenticationMode);
+        throwExceptionIfValidationError(dataValidationErrors, accountNumber, firstName, lastName, mobileNumber, email,
+                isEmailAuthenticationMode);
+
+        Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
+        throwExceptionIfSelfServiceUserExistsForClient(client);
+
+        // the token must only ever be delivered to contact details already stored on the client record
+        if (isEmailAuthenticationMode) {
+            email = client.getEmailAddress();
+        } else {
+            mobileNumber = client.getMobileNo();
+        }
 
         String authenticationToken = randomAuthorizationTokenGeneration();
-        Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
         SelfServiceRegistration selfServiceRegistration = SelfServiceRegistration.instance(client, accountNumber, firstName, lastName,
                 mobileNumber, email, authenticationToken, username, password);
         this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
@@ -201,14 +211,21 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     private void throwExceptionIfValidationError(final List<ApiParameterError> dataValidationErrors, String accountNumber, String firstName,
-            String lastName, String mobileNumber, boolean isEmailAuthenticationMode) {
+            String lastName, String mobileNumber, String email, boolean isEmailAuthenticationMode) {
         if (!dataValidationErrors.isEmpty()) {
             throw new PlatformApiDataValidationException(dataValidationErrors);
         }
         boolean isClientExist = this.selfServiceRegistrationReadPlatformService.isClientExist(accountNumber, firstName, lastName,
-                mobileNumber, isEmailAuthenticationMode);
+                mobileNumber, email, isEmailAuthenticationMode);
         if (!isClientExist) {
             throw new ClientNotFoundException();
+        }
+    }
+
+    private void throwExceptionIfSelfServiceUserExistsForClient(Client client) {
+        if (this.selfServiceRegistrationReadPlatformService.isSelfServiceUserExistForClient(client.getId())) {
+            throw new PlatformDataIntegrityException("error.msg.self.service.user.already.exists.for.client",
+                    "A self service user already exists for this client.");
         }
     }
 
@@ -249,6 +266,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             }
             username = selfServiceRegistration.getUsername();
             Client client = selfServiceRegistration.getClient();
+            throwExceptionIfSelfServiceUserExistsForClient(client);
             final boolean passwordNeverExpire = true;
             final boolean isSelfServiceUser = true;
             final Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();

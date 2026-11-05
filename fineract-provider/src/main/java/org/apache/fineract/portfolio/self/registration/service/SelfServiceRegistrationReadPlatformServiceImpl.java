@@ -27,15 +27,25 @@ public class SelfServiceRegistrationReadPlatformServiceImpl implements SelfServi
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public boolean isClientExist(String accountNumber, String firstName, String lastName, String mobileNumber,
+    public boolean isClientExist(String accountNumber, String firstName, String lastName, String mobileNumber, String email,
             boolean isEmailAuthenticationMode) {
         String sql = "select count(*) from m_client where account_no = ? and firstname = ? and lastname = ?";
-        Object[] params = new Object[] { accountNumber, firstName, lastName };
-        if (!isEmailAuthenticationMode) {
+        Object[] params;
+        if (isEmailAuthenticationMode) {
+            sql = sql + " and email_address is not null and lower(email_address) = lower(?)";
+            params = new Object[] { accountNumber, firstName, lastName, email };
+        } else {
             sql = sql + " and mobile_no = ?";
             params = new Object[] { accountNumber, firstName, lastName, mobileNumber };
         }
         int count = this.jdbcTemplate.queryForObject(sql, Integer.class, params);
+        return count != 0;
+    }
+
+    @Override
+    public boolean isSelfServiceUserExistForClient(Long clientId) {
+        String sql = "select count(*) from m_selfservice_user_client_mapping where client_id = ?";
+        int count = this.jdbcTemplate.queryForObject(sql, Integer.class, clientId);
         return count != 0;
     }
 
