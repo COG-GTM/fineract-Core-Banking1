@@ -253,29 +253,43 @@ public class DatatableUtil {
     String buildOrderByClause(final String order, final List<ResultsetColumnHeaderData> columnHeaders) {
         final List<String> orderParts = new ArrayList<>();
         for (String item : order.split(",", -1)) {
-            final String[] tokens = item.trim().split("\\s+");
-            if (tokens.length < 1 || tokens.length > 2 || tokens[0].isEmpty()) {
+            final String trimmed = item.trim();
+            String columnName = findColumnName(trimmed, columnHeaders);
+            String direction = null;
+            if (columnName == null) {
+                final String[] tokens = trimmed.split("\\s+");
+                final String lastToken = tokens[tokens.length - 1].toUpperCase(Locale.ROOT);
+                if (tokens.length > 1 && (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken))) {
+                    columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
+                    direction = lastToken;
+                }
+            }
+            if (columnName == null) {
                 throw invalidOrderBy(order);
             }
-            final String columnName = columnHeaders.stream().filter(e -> e.isNamed(tokens[0])).findFirst()
-                    .map(ResultsetColumnHeaderData::getColumnName).orElseThrow(() -> invalidOrderBy(order));
-            String part = sqlGenerator.escape(columnName);
-            if (tokens.length == 2) {
-                final String direction = tokens[1].toUpperCase(Locale.ROOT);
-                if (!ORDER_ASC.equals(direction) && !ORDER_DESC.equals(direction)) {
-                    throw invalidOrderBy(order);
-                }
-                part = part + " " + direction;
-            }
-            orderParts.add(part);
+            orderParts.add(direction == null ? sqlGenerator.escape(columnName) : sqlGenerator.escape(columnName) + " " + direction);
         }
         return String.join(", ", orderParts);
     }
 
+    private static String findColumnName(final String name, final List<ResultsetColumnHeaderData> columnHeaders) {
+        String unquoted = name;
+        if (unquoted.length() >= 2 && ((unquoted.startsWith("`") && unquoted.endsWith("`"))
+                || (unquoted.startsWith("\"") && unquoted.endsWith("\"")))) {
+            unquoted = unquoted.substring(1, unquoted.length() - 1);
+        }
+        if (unquoted.isEmpty()) {
+            return null;
+        }
+        final String candidate = unquoted;
+        return columnHeaders.stream().filter(e -> e.isNamed(candidate)).findFirst().map(ResultsetColumnHeaderData::getColumnName)
+                .orElse(null);
+    }
+
     private static PlatformApiDataValidationException invalidOrderBy(final String order) {
         return new PlatformApiDataValidationException("error.msg.datatable.order.invalid",
-                "Order must be a comma separated list of datatable column names, each optionally followed by ASC or DESC.", "order",
-                order);
+                "Order must be a comma separated list of datatable column names (optionally quoted), each optionally followed by ASC or DESC.",
+                "order", order);
     }
 
     private boolean isRegisteredDataTable(final String datatable) {

@@ -44,6 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -242,11 +243,31 @@ class DatatableUtilTest {
     }
 
     @ParameterizedTest
+    @CsvSource(delimiter = '|', value = { "`Date of Birth` desc|`Date of Birth` DESC", "date of birth|`Date of Birth`",
+            "\"DATE OF BIRTH\" Asc, `id`|`Date of Birth` ASC, `id`", "id desc|`id` DESC" })
+    void testOrderBySupportsSpacedAndQuotedColumnNames(String order, String expectedOrderBy) {
+        List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
+        headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
+        when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
+
+        underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "dt_loan", APP_TABLE_ID, order, null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(genericDataService).fillResultsetRowData(sqlCaptor.capture(), any(), any(Object[].class));
+        assertTrue(sqlCaptor.getValue().endsWith(" order by " + expectedOrderBy), sqlCaptor.getValue());
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = { "(select sleep(5))", "(select case when (select 1) regexp '1' then id else 0 end)", "id desc, (select 1)",
-            "unknown_column", "id sideways", "id desc nulls first", "id,", ",id", "`id`", "id;select 1", "id--", "1" })
+            "unknown_column", "id sideways", "id desc nulls first", "id,", ",id", "`id", "id``", "\"id`", "``", "`id desc`", "id;select 1",
+            "id--", "1", "date of birth desc desc", "date of", "`date of birth`desc" })
     void testOrderByRejectsAnythingButColumnAndDirection(String order) {
         when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
-        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(createMultiRowHeaders());
+        List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
+        headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
 
         PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
                 () -> underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "dt_loan", APP_TABLE_ID, order, null));
