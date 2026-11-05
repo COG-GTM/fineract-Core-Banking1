@@ -37,6 +37,7 @@ import java.util.HashMap;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.portfolio.self.client.service.AppuserClientMapperReadService;
 import org.apache.fineract.portfolio.self.config.SelfServiceModuleIsEnabledCondition;
 import org.apache.fineract.portfolio.self.device.domain.DeviceRegistration;
 import org.apache.fineract.portfolio.self.device.domain.DeviceRegistrationData;
@@ -56,6 +57,7 @@ public class DeviceRegistrationApiResource {
     private final DeviceRegistrationWritePlatformService deviceRegistrationWritePlatformService;
     private final DefaultToApiJsonSerializer<DeviceRegistrationData> toApiJsonSerializer;
     private final DeviceRegistrationReadPlatformService deviceRegistrationReadPlatformService;
+    private final AppuserClientMapperReadService appuserClientMapperReadService;
 
     @POST
     @Consumes({ MediaType.APPLICATION_JSON })
@@ -66,6 +68,7 @@ public class DeviceRegistrationApiResource {
         JsonObject json = new Gson().fromJson(apiRequestBodyAsJson, JsonObject.class);
         Long clientId = json.get(DeviceRegistrationApiConstants.clientIdParamName).getAsLong();
         String registrationId = json.get(DeviceRegistrationApiConstants.registrationIdParamName).getAsString();
+        this.appuserClientMapperReadService.validateAppuserClientsMapping(clientId);
         DeviceRegistration deviceRegistration = this.deviceRegistrationWritePlatformService.registerDevice(clientId, registrationId);
         return gson.toJson(deviceRegistration.getId());
     }
@@ -90,6 +93,7 @@ public class DeviceRegistrationApiResource {
     public String retrieveDeviceRegistrationByClientId(@PathParam("clientId") final Long clientId, @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser();
+        this.appuserClientMapperReadService.validateAppuserClientsMapping(clientId);
 
         DeviceRegistrationData deviceRegistrationData = this.deviceRegistrationReadPlatformService
                 .retrieveDeviceRegiistrationByClientId(clientId);
@@ -122,6 +126,7 @@ public class DeviceRegistrationApiResource {
         JsonObject json = new Gson().fromJson(apiRequestBodyAsJson, JsonObject.class);
         Long clientId = json.get(DeviceRegistrationApiConstants.clientIdParamName).getAsLong();
         String registrationId = json.get(DeviceRegistrationApiConstants.registrationIdParamName).getAsString();
+        this.appuserClientMapperReadService.validateAppuserClientsMapping(clientId);
         DeviceRegistration deviceRegistration = this.deviceRegistrationWritePlatformService.updateDeviceRegistration(id, clientId,
                 registrationId);
         return gson.toJson(deviceRegistration.getId());
