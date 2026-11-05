@@ -28,12 +28,15 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -45,8 +48,36 @@ import org.springframework.stereotype.Component;
 @Component
 public class ColumnValidator {
 
+    private static final Pattern ORDER_BY_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$");
+    private static final Set<String> SORT_ORDER_VALUES = Set.of("ASC", "DESC");
+
     private final SqlValidator sqlValidator;
     private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * Accepts only a single plain column reference ({@code column} or {@code alias.column}) so the value can be safely
+     * appended to an ORDER BY clause.
+     */
+    public void validateOrderBy(final String orderBy) {
+        if (StringUtils.isBlank(orderBy)) {
+            return;
+        }
+        if (!ORDER_BY_IDENTIFIER.matcher(orderBy).matches()) {
+            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
+                    "validation.msg.orderBy.value.is.not.supported", "The orderBy value is not a valid column name", "orderBy", orderBy)));
+        }
+    }
+
+    public void validateSortOrder(final String sortOrder) {
+        if (StringUtils.isBlank(sortOrder)) {
+            return;
+        }
+        if (!SORT_ORDER_VALUES.contains(sortOrder.toUpperCase(Locale.ROOT))) {
+            throw new PlatformApiDataValidationException(
+                    List.of(ApiParameterError.parameterErrorWithValue("validation.msg.sortOrder.value.is.not.supported",
+                            "The sortOrder value must be one of " + SORT_ORDER_VALUES, "sortOrder", sortOrder)));
+        }
+    }
 
     @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "TODO: fix this!")
     private void validateColumn(Map<String, Set<String>> tableColumnMap) {

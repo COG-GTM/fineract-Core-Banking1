@@ -193,7 +193,8 @@ public class AuditReadPlatformServiceImpl implements AuditReadPlatformService {
         sqlBuilder.append(' ').append(extraCriteria.getSQLTemplate());
         if (parameters.hasOrderBy()) {
             sqlBuilder.append(' ').append(parameters.orderBySql());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), parameters.orderBySql());
+            this.columnValidator.validateOrderBy(parameters.getOrderBy());
+            this.columnValidator.validateSortOrder(parameters.getSortOrder());
         } else {
             sqlBuilder.append(' ').append(' ').append(" order by aud.id DESC");
         }
