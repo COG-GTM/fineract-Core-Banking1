@@ -18,6 +18,8 @@
  */
 package org.apache.fineract.infrastructure.security.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -128,7 +130,7 @@ public class TwoFactorServiceImpl implements TwoFactorService {
     public TFAccessToken createAccessTokenFromOTP(final AppUser user, final String otpToken) {
 
         OTPRequest otpRequest = otpRequestRepository.getOTPRequestForUser(user);
-        if (otpRequest == null || !otpRequest.isValid() || !otpRequest.getToken().equalsIgnoreCase(otpToken)) {
+        if (otpRequest == null || !otpRequest.isValid() || !tokensMatch(otpRequest.getToken(), otpToken)) {
             throw new OTPTokenInvalidException();
         }
 
@@ -206,6 +208,23 @@ public class TwoFactorServiceImpl implements TwoFactorService {
         }
 
         return new OTPDeliveryMethod().setName(TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME).setTarget(user.getEmail());
+    }
+
+    private static boolean tokensMatch(final String expected, final String provided) {
+        if (expected == null || provided == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(asciiUpperCase(expected), asciiUpperCase(provided));
+    }
+
+    private static byte[] asciiUpperCase(final String value) {
+        final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] >= 'a' && bytes[i] <= 'z') {
+                bytes[i] = (byte) (bytes[i] - ('a' - 'A'));
+            }
+        }
+        return bytes;
     }
 
     private OTPRequest generateNewToken(final OTPDeliveryMethod deliveryMethod, final boolean extendedAccessToken) {
