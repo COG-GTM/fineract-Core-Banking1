@@ -26,6 +26,7 @@ import org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant;
 import org.apache.fineract.infrastructure.dataqueries.data.DatatableData;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
+import org.apache.fineract.infrastructure.dataqueries.exception.DatatableNotFoundException;
 import org.apache.fineract.infrastructure.dataqueries.service.DatatableReadService;
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
@@ -182,6 +183,12 @@ public class ReadSurveyServiceImpl implements ReadSurveyService {
 
     @Override
     public GenericResultsetData retrieveSurveyEntry(String surveyName, Long clientId, Long entryId) {
+        final Long surveyTables = this.jdbcTemplate.queryForObject(
+                "select count(*) from x_registered_table where registered_table_name = ? and category = ?", Long.class, surveyName,
+                DataTableApiConstant.CATEGORY_PPI);
+        if (surveyTables == null || surveyTables == 0L) {
+            throw new DatatableNotFoundException(surveyName);
+        }
 
         return datatableReadService.retrieveDataTableGenericResultSet(surveyName, clientId, null, entryId);
 
