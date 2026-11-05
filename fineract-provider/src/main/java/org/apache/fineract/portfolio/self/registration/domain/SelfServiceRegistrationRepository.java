@@ -53,4 +53,10 @@ public interface SelfServiceRegistrationRepository
             + "where request.id = :id and request.verificationAttempts >= :maxAttempts")
     int invalidateExhaustedAuthenticationToken(@Param("id") Long id, @Param("maxAttempts") int maxAttempts);
 
+    @Modifying
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Query("update SelfServiceRegistration request set request.verificationAttempts = request.verificationAttempts - 1 "
+            + "where request.id = :id and request.verificationAttempts > 0")
+    int releaseVerificationAttempt(@Param("id") Long id);
+
 }

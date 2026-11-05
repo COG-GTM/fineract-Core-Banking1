@@ -265,6 +265,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                     SelfServiceApiConstants.MAX_AUTHENTICATION_TOKEN_ATTEMPTS);
             throw new SelfServiceRegistrationNotFoundException(id);
         }
+        this.selfServiceRegistrationRepository.releaseVerificationAttempt(id);
         return selfServiceRegistration;
     }
 

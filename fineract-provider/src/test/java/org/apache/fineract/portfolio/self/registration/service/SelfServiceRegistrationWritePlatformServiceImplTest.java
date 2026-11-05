@@ -118,6 +118,7 @@ class SelfServiceRegistrationWritePlatformServiceImplTest {
         verify(userDomainService, never()).create(any(), any());
         verify(repository, never()).invalidateAuthenticationToken(anyLong());
         verify(repository).invalidateExhaustedAuthenticationToken(REQUEST_ID, SelfServiceApiConstants.MAX_AUTHENTICATION_TOKEN_ATTEMPTS);
+        verify(repository, never()).releaseVerificationAttempt(anyLong());
     }
 
     @Test
@@ -159,6 +160,7 @@ class SelfServiceRegistrationWritePlatformServiceImplTest {
         assertEquals("alice", user.getUsername());
         verify(userDomainService).create(eq(user), eq(true));
         verify(repository).invalidateAuthenticationToken(REQUEST_ID);
+        verify(repository).releaseVerificationAttempt(REQUEST_ID);
     }
 
     private SelfServiceRegistration stubPendingRequest(LocalDateTime createdDate) {
