@@ -29,7 +29,10 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -155,18 +158,20 @@ public class ProgressiveLoanModelCheckerHelper implements InitializingBean {
     public List<Long> calculateRelevantLoanIds(BodyCachingHttpServletRequestWrapper request) throws IOException {
         String pathInfo = request.getPathInfo();
         if (isBatchApi(pathInfo)) {
-            return getLoanIdsFromBatchApi(request);
+            return new ArrayList<>(getLoanIdsFromBatchApi(request));
         } else {
             return getLoanIdsFromApi(pathInfo);
         }
     }
 
-    private List<Long> getLoanIdsFromBatchApi(BodyCachingHttpServletRequestWrapper request) throws IOException {
-        List<Long> loanIds = new ArrayList<>();
+    private Set<Long> getLoanIdsFromBatchApi(BodyCachingHttpServletRequestWrapper request) throws IOException {
+        Set<Long> loanIds = new LinkedHashSet<>();
+        Set<String> processedRelativeUrls = new HashSet<>();
         for (BatchRequest batchRequest : getBatchRequests(request)) {
             // check the URL for Loan related ID
             String relativeUrl = batchRequest.getRelativeUrl();
-            if (!relativeUrl.contains("$.resourceId")) {
+            // the same URL always resolves to the same loan IDs, so look each distinct URL up only once
+            if (!relativeUrl.contains("$.resourceId") && processedRelativeUrls.add(relativeUrl)) {
                 // if resourceId reference is used, we simply don't know the resourceId without executing the requests
                 // first, so skipping it
                 loanIds.addAll(getLoanIdsFromApi(relativeUrl));
