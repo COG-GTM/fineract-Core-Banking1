@@ -53,7 +53,7 @@ public class WebHookUrlValidator {
 
     /**
      * @throws IllegalArgumentException
-     *             if the URL is malformed, uses a scheme that is not allowed, or targets a non-public IP literal
+     *             if the URL is malformed, uses a scheme that is not allowed, or its host does not resolve to public addresses only
      */
     public HttpUrl validate(final String url) {
         final HttpUrl httpUrl = url == null ? null : HttpUrl.parse(url.trim());
@@ -61,9 +61,11 @@ public class WebHookUrlValidator {
             throw new IllegalArgumentException("Hook URL is not allowed");
         }
         final String host = httpUrl.host();
-        if (!isHostAllowlisted(host) && isIpLiteral(host)) {
+        // Also resolves hostnames here: when a JVM proxy is configured OkHttp resolves only the proxy, so dns() never
+        // sees the destination. With a proxy the address is checked once, before the request (no rebinding protection).
+        if (!isHostAllowlisted(host)) {
             try {
-                checkAddresses(host, List.of(InetAddress.getByName(host)));
+                checkAddresses(host, List.of(InetAddress.getAllByName(host)));
             } catch (UnknownHostException e) {
                 throw new IllegalArgumentException("Hook URL is not allowed", e);
             }
