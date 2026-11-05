@@ -18,7 +18,10 @@
  */
 package org.apache.fineract.infrastructure.security.config;
 
+import static org.apache.fineract.infrastructure.security.vote.SelfServiceUserAuthorizationManager.selfServiceUserAuthManager;
+
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -56,6 +59,10 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationDetailsSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -77,6 +84,7 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenResolv
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
@@ -162,10 +170,15 @@ public class AuthorizationServerConfig {
         http
                 // TODO: Make it configurable
                 .csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(auth -> {
-                    auth.anyRequest().authenticated();
+                    List<AuthorizationManager<RequestAuthorizationContext>> authorizationManagers = new ArrayList<>();
+                    authorizationManagers.add(AuthenticatedAuthorizationManager.authenticated());
                     if (fineractProperties.getSecurity().getTwoFactor().isEnabled()) {
-                        auth.anyRequest().hasAuthority("TWOFACTOR_AUTHENTICATED");
+                        authorizationManagers.add(AuthorityAuthorizationManager.hasAuthority("TWOFACTOR_AUTHENTICATED"));
                     }
+                    if (fineractProperties.getModule().getSelfService().isEnabled()) {
+                        authorizationManagers.add(selfServiceUserAuthManager());
+                    }
+                    auth.anyRequest().access(AuthorizationManagers.allOf(authorizationManagers.toArray(new AuthorizationManager[0])));
                 }).formLogin(form -> form.loginPage("/login").authenticationDetailsSource(tenantAuthDetailsSource()).permitAll())
                 .oauth2ResourceServer(
                         resourceServer -> resourceServer.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))

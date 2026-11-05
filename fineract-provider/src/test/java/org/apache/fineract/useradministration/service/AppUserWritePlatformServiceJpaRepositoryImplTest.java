@@ -21,10 +21,12 @@ package org.apache.fineract.useradministration.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +40,7 @@ import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDoma
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.service.PlatformPasswordEncoder;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
@@ -104,9 +107,9 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         authenticatedUser = mock(AppUser.class);
 
         when(command.json()).thenReturn("{}");
-        when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        lenient().when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(context.authenticatedUser(any(CommandWrapper.class))).thenReturn(authenticatedUser);
-        doNothing().when(fromApiJsonDeserializer).validateForChangePassword(anyString(), nullable(AppUser.class));
+        lenient().doNothing().when(fromApiJsonDeserializer).validateForChangePassword(anyString(), nullable(AppUser.class));
     }
 
     @AfterEach
@@ -147,5 +150,28 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         assertEquals(USER_ID, result.getResourceId());
         verify(appUserRepository).saveAndFlush(user);
         verify(appUserPreviewPasswordRepository).save(any(AppUserPreviousPassword.class));
+    }
+
+    @Test
+    void updateUserRejectsClientsChangeWithoutUpdateUserPermission() {
+        when(authenticatedUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")).thenReturn(false);
+        when(command.hasParameter(AppUserConstants.CLIENTS)).thenReturn(true);
+
+        PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
+                () -> underTest.updateUser(USER_ID, command));
+
+        assertEquals("not.enough.permission.to.update.fields", ex.getErrors().get(0).getUserMessageGlobalisationCode());
+        verify(clientRepositoryWrapper, never()).findAll(anyCollection());
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void updateUserRejectsSelfServiceFlagChangeWithoutUpdateUserPermission() {
+        when(authenticatedUser.hasAnyPermission("ALL_FUNCTIONS", "UPDATE_USER")).thenReturn(false);
+        when(command.hasParameter(AppUserConstants.IS_SELF_SERVICE_USER)).thenReturn(true);
+
+        assertThrows(PlatformApiDataValidationException.class, () -> underTest.updateUser(USER_ID, command));
+
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
     }
 }
