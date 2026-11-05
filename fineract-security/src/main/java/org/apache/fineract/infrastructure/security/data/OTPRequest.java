@@ -18,9 +18,16 @@
  */
 package org.apache.fineract.infrastructure.security.data;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.ZonedDateTime;
+import java.util.Locale;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 
@@ -31,6 +38,16 @@ public class OTPRequest {
 
     private String token;
     private OTPMetadata metadata;
+
+    @Setter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private int failedAttempts;
+
+    @Setter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private boolean consumed;
 
     public static OTPRequest create(String token, int tokenLiveTimeInSec, boolean extendedAccessToken, OTPDeliveryMethod deliveryMethod) {
         final OTPMetadata metadata = new OTPMetadata()
@@ -43,5 +60,31 @@ public class OTPRequest {
     public boolean isValid() {
         ZonedDateTime expireTime = metadata.getRequestTime().plusSeconds(metadata.getTokenLiveTimeInSec());
         return ZonedDateTime.now(DateUtils.getDateTimeZoneOfTenant()).isBefore(expireTime);
+    }
+
+    public boolean isRequestedWithin(int seconds) {
+        ZonedDateTime cooldownEnd = metadata.getRequestTime().plusSeconds(seconds);
+        return ZonedDateTime.now(DateUtils.getDateTimeZoneOfTenant()).isBefore(cooldownEnd);
+    }
+
+    /**
+     * Checks a submitted token against this request. Every mismatch counts as a failed attempt; once
+     * {@code maxFailedAttempts} is reached, or after a successful match, this request never verifies again.
+     */
+    public synchronized boolean verify(String candidate, int maxFailedAttempts) {
+        if (consumed || failedAttempts >= maxFailedAttempts || !isValid()) {
+            return false;
+        }
+        if (candidate != null && tokensMatch(token, candidate)) {
+            consumed = true;
+            return true;
+        }
+        failedAttempts++;
+        return false;
+    }
+
+    private static boolean tokensMatch(String expected, String candidate) {
+        return MessageDigest.isEqual(expected.toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8),
+                candidate.toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
     }
 }

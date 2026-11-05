@@ -49,6 +49,9 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty("fineract.security.2fa.enabled")
 public class TwoFactorServiceImpl implements TwoFactorService {
 
+    static final int MAX_OTP_VALIDATION_ATTEMPTS = 5;
+    static final int OTP_REQUEST_COOLDOWN_SECONDS = 30;
+
     private final AccessTokenGenerationService accessTokenGenerationService;
     private final PlatformEmailService emailService;
     private final SmsMessageScheduledJobService smsMessageScheduledJobService;
@@ -97,12 +100,14 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(smsDelivery, extendedAccessToken);
-            final String smsText = configurationService.getFormattedSmsTextFor(user, request);
-            SmsMessage smsMessage = SmsMessage.pendingSms(null, null, null, user.getStaff(), smsText, user.getStaff().mobileNo(), null,
-                    false);
-            this.smsMessageRepository.save(smsMessage);
-            smsMessageScheduledJobService.sendTriggeredMessage(Collections.singleton(smsMessage), configurationService.getSMSProviderId());
-            otpRequestRepository.addOTPRequest(user, request);
+            deliverOTPRequest(user, request, () -> {
+                final String smsText = configurationService.getFormattedSmsTextFor(user, request);
+                SmsMessage smsMessage = SmsMessage.pendingSms(null, null, null, user.getStaff(), smsText, user.getStaff().mobileNo(), null,
+                        false);
+                this.smsMessageRepository.save(smsMessage);
+                smsMessageScheduledJobService.sendTriggeredMessage(Collections.singleton(smsMessage),
+                        configurationService.getSMSProviderId());
+            });
             return request;
         } else if (TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME.equalsIgnoreCase(deliveryMethodName)) {
             OTPDeliveryMethod emailDelivery = getEmailDeliveryMethodForUser(user);
@@ -110,12 +115,13 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(emailDelivery, extendedAccessToken);
-            final String emailSubject = configurationService.getFormattedEmailSubjectFor(user, request);
-            final String emailBody = configurationService.getFormattedEmailBodyFor(user, request);
-            final EmailDetail emailData = new EmailDetail(emailSubject, emailBody, user.getEmail(),
-                    user.getFirstname() + " " + user.getLastname());
-            emailService.sendDefinedEmail(emailData);
-            otpRequestRepository.addOTPRequest(user, request);
+            deliverOTPRequest(user, request, () -> {
+                final String emailSubject = configurationService.getFormattedEmailSubjectFor(user, request);
+                final String emailBody = configurationService.getFormattedEmailBodyFor(user, request);
+                final EmailDetail emailData = new EmailDetail(emailSubject, emailBody, user.getEmail(),
+                        user.getFirstname() + " " + user.getLastname());
+                emailService.sendDefinedEmail(emailData);
+            });
             return request;
         }
 
@@ -128,11 +134,11 @@ public class TwoFactorServiceImpl implements TwoFactorService {
     public TFAccessToken createAccessTokenFromOTP(final AppUser user, final String otpToken) {
 
         OTPRequest otpRequest = otpRequestRepository.getOTPRequestForUser(user);
-        if (otpRequest == null || !otpRequest.isValid() || !otpRequest.getToken().equalsIgnoreCase(otpToken)) {
+        if (otpRequest == null || !otpRequest.verify(otpToken, MAX_OTP_VALIDATION_ATTEMPTS)) {
             throw new OTPTokenInvalidException();
         }
 
-        otpRequestRepository.deleteOTPRequestForUser(user);
+        otpRequestRepository.deleteOTPRequestForUser(user, otpRequest);
 
         String token = accessTokenGenerationService.generateRandomToken();
         int liveTime;
@@ -206,6 +212,16 @@ public class TwoFactorServiceImpl implements TwoFactorService {
         }
 
         return new OTPDeliveryMethod().setName(TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME).setTarget(user.getEmail());
+    }
+
+    private void deliverOTPRequest(final AppUser user, final OTPRequest request, final Runnable delivery) {
+        final OTPRequest replaced = otpRequestRepository.replaceOTPRequest(user, request, OTP_REQUEST_COOLDOWN_SECONDS);
+        try {
+            delivery.run();
+        } catch (RuntimeException e) {
+            otpRequestRepository.restoreOTPRequest(user, request, replaced);
+            throw e;
+        }
     }
 
     private OTPRequest generateNewToken(final OTPDeliveryMethod deliveryMethod, final boolean extendedAccessToken) {
