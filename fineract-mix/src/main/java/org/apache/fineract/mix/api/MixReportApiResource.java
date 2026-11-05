@@ -26,6 +26,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.sql.Date;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.mix.service.MixReportXBRLBuilder;
 import org.apache.fineract.mix.service.MixReportXBRLResultService;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class MixReportApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "MIX_REPORT";
+
+    private final PlatformSecurityContext context;
     private final MixReportXBRLResultService xbrlResultService;
     private final MixReportXBRLBuilder xbrlBuilder;
 
@@ -44,6 +48,7 @@ public class MixReportApiResource {
     @Produces({ MediaType.APPLICATION_XML })
     public String retrieveXBRLReport(@QueryParam("startDate") final Date startDate, @QueryParam("endDate") final Date endDate,
             @QueryParam("currency") final String currency) {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final var data = xbrlResultService.getXBRLResult(startDate, endDate, currency);
 
