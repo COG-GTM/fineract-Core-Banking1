@@ -46,6 +46,8 @@ import org.apache.fineract.infrastructure.event.business.domain.document.Documen
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -174,15 +176,25 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
     }
 
     private void deleteReplacedContent(final String previousLocation, final String newLocation) {
-        try {
-            storeService.delete(previousLocation);
-        } catch (final RuntimeException e) {
-            try {
-                storeService.delete(newLocation);
-            } catch (final RuntimeException cleanupFailure) {
-                e.addSuppressed(cleanupFailure);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(previousLocation);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCompletion(final int status) {
+                deleteQuietly(status == STATUS_COMMITTED ? previousLocation : newLocation);
             }
-            throw e;
+        });
+    }
+
+    private void deleteQuietly(final String location) {
+        try {
+            storeService.delete(location);
+        } catch (final RuntimeException e) {
+            log.warn("Could not delete document content at {}", location, e);
         }
     }
 

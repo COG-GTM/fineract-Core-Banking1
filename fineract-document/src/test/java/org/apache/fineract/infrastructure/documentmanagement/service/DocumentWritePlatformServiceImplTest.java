@@ -19,7 +19,6 @@
 package org.apache.fineract.infrastructure.documentmanagement.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -47,6 +46,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentWritePlatformServiceImplTest {
@@ -134,17 +135,52 @@ class DocumentWritePlatformServiceImplTest {
     }
 
     @Test
-    void failedDeleteOfOldObjectRemovesNewUpload() {
+    void failedDeleteOfOldObjectKeepsNewUpload() {
         final InputStream stream = new ByteArrayInputStream(new byte[] { 1 });
         final var newLocation = "documents/clients/17/QrStUvWxYzAbCdEf/passport.pdf";
         when(storeService.getDelimiter()).thenReturn("/");
         when(storeService.upload("documents/clients/17/passport.pdf", stream, "application/pdf")).thenReturn(newLocation);
         doThrow(new ContentStoreException(new IllegalStateException("denied"))).when(storeService).delete(EXISTING_LOCATION);
 
-        assertThrows(RuntimeException.class, () -> service.updateDocument(request("passport.pdf", stream)));
+        service.updateDocument(request("passport.pdf", stream));
+
+        verify(storeService, never()).delete(newLocation);
+        verify(documentRepository).save(document);
+        assertEquals(newLocation, document.getLocation());
+    }
+
+    @Test
+    void renameDeletesOldObjectOnlyAfterCommit() {
+        final var newLocation = renameInsideTransaction(TransactionSynchronization.STATUS_COMMITTED);
+
+        verify(storeService).delete(EXISTING_LOCATION);
+        verify(storeService, never()).delete(newLocation);
+    }
+
+    @Test
+    void renameRemovesNewObjectOnRollback() {
+        final var newLocation = renameInsideTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(storeService).delete(newLocation);
-        verify(documentRepository, never()).save(any(Document.class));
+        verify(storeService, never()).delete(EXISTING_LOCATION);
+    }
+
+    private String renameInsideTransaction(int status) {
+        final InputStream stream = new ByteArrayInputStream(new byte[] { 1 });
+        final var newLocation = "documents/clients/17/QrStUvWxYzAbCdEf/passport.pdf";
+        when(storeService.getDelimiter()).thenReturn("/");
+        when(storeService.upload("documents/clients/17/passport.pdf", stream, "application/pdf")).thenReturn(newLocation);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.updateDocument(request("passport.pdf", stream));
+            verify(storeService, never()).delete(anyString());
+
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(status));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        return newLocation;
     }
 
     private DocumentUpdateRequest request(String fileName, InputStream stream) {
