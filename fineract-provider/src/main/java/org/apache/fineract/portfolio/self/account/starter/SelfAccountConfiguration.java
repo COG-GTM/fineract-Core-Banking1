@@ -25,6 +25,7 @@ import org.apache.fineract.portfolio.self.account.data.SelfBeneficiariesTPTDataV
 import org.apache.fineract.portfolio.self.account.domain.SelfBeneficiariesTPTRepository;
 import org.apache.fineract.portfolio.self.account.service.SelfAccountTransferReadService;
 import org.apache.fineract.portfolio.self.account.service.SelfAccountTransferReadServiceImpl;
+import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTAddThrottle;
 import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTReadPlatformService;
 import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTReadPlatformServiceImpl;
 import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTWritePlatformService;
@@ -51,11 +52,18 @@ public class SelfAccountConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(SelfBeneficiariesTPTAddThrottle.class)
+    public SelfBeneficiariesTPTAddThrottle selfBeneficiariesTPTAddThrottle() {
+        return new SelfBeneficiariesTPTAddThrottle();
+    }
+
+    @Bean
     @ConditionalOnMissingBean(SelfBeneficiariesTPTWritePlatformService.class)
     public SelfBeneficiariesTPTWritePlatformService selfBeneficiariesTPTWritePlatformService(PlatformSecurityContext context,
             SelfBeneficiariesTPTRepository repository, SelfBeneficiariesTPTDataValidator validator,
-            LoanRepositoryWrapper loanRepositoryWrapper, SavingsAccountRepositoryWrapper savingRepositoryWrapper) {
+            LoanRepositoryWrapper loanRepositoryWrapper, SavingsAccountRepositoryWrapper savingRepositoryWrapper,
+            SelfBeneficiariesTPTAddThrottle addThrottle) {
         return new SelfBeneficiariesTPTWritePlatformServiceImpl(context, repository, validator, loanRepositoryWrapper,
-                savingRepositoryWrapper);
+                savingRepositoryWrapper, addThrottle);
     }
 }
