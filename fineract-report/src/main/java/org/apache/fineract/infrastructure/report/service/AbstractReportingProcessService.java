@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
+import org.apache.fineract.infrastructure.security.utils.ReportParameterValidator;
 
 public abstract class AbstractReportingProcessService implements ReportingProcessService {
 
@@ -37,8 +38,10 @@ public abstract class AbstractReportingProcessService implements ReportingProces
         final Map<String, String> reportParams = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : queryParams.entrySet()) {
             if (entry.getKey().startsWith("R_")) {
-                String pKey = "${" + entry.getKey().substring(2) + "}";
+                String pName = entry.getKey().substring(2);
+                String pKey = "${" + pName + "}";
                 String pValue = entry.getValue().get(0);
+                ReportParameterValidator.validate(pName, pValue);
                 sqlValidator.validate(pValue);
                 reportParams.put(pKey, pValue);
             }

@@ -32,9 +32,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -43,6 +46,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
@@ -56,6 +60,7 @@ import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundEx
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
+import org.apache.fineract.infrastructure.security.utils.ReportParameterValidator;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.openpdf.text.Document;
 import org.openpdf.text.PageSize;
@@ -77,6 +82,8 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     private final SqlInjectionPreventerService sqlInjectionPreventerService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final FineractProperties fineractProperties;
+
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
 
     @Override
     public StreamingOutput retrieveReportCSV(final String name, final String type, final Map<String, String> queryParams,
@@ -133,25 +140,52 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
         String sql = getSql(name, type);
 
+        // Server side tokens are resolved on the stored SQL before any user value is inserted so that user values are
+        // never re-processed.
+        sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
+        sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
+        sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());
+
+        final Map<String, String> placeholderValues = new HashMap<>();
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
+            final Matcher keyMatcher = PLACEHOLDER_PATTERN.matcher(entry.getKey());
+            if (!keyMatcher.matches()) {
+                throw new PlatformApiDataValidationException("validation.msg.report.parameter.name.invalid",
+                        "Invalid report parameter name", "reportParameter");
+            }
+            ReportParameterValidator.validate(keyMatcher.group(1), entry.getValue());
+            placeholderValues.put(entry.getKey(), entry.getValue());
         }
 
         final AppUser currentUser = this.context.authenticatedUser();
         // Allows sql query to restrict data by office hierarchy if required
-        sql = this.genericDataService.replace(sql, "${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
+        placeholderValues.put("${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
         // Allows sql query to restrict data by current user Id if required
         // (typically used to return report lists containing only reports
         // permitted to be run by the user
-        sql = this.genericDataService.replace(sql, "${currentUserId}", currentUser.getId().toString());
-        sql = this.genericDataService.replace(sql, "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
-        sql = this.genericDataService.replace(sql, "${currentDate}", sqlGenerator.currentBusinessDate());
-        sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
-        sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
-        sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());
+        placeholderValues.put("${currentUserId}", currentUser.getId().toString());
+        placeholderValues.put("${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
+        placeholderValues.put("${currentDate}", sqlGenerator.currentBusinessDate());
+
+        sql = replacePlaceholders(sql, placeholderValues);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
+    }
+
+    /**
+     * Replaces every ${name} placeholder in a single pass, so substituted values are never scanned for further
+     * placeholders. Unknown placeholders are left untouched.
+     */
+    private static String replacePlaceholders(final String sql, final Map<String, String> values) {
+        final Matcher matcher = PLACEHOLDER_PATTERN.matcher(sql);
+        final StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            final String value = values.get(matcher.group());
+            matcher.appendReplacement(result, Matcher.quoteReplacement(value != null ? value : matcher.group()));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private String getSql(final String name, final String type) {
@@ -207,6 +241,25 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     private String getQuotedColumnName(ReportType reportType, String suffix) {
         String fullColumnName = reportType.getValue() + suffix;
         return sqlInjectionPreventerService.quoteIdentifier(fullColumnName);
+    }
+
+    @Override
+    public boolean isSpecialParameter(final String parameterName) {
+        final String sql = "SELECT special FROM stretchy_parameter WHERE parameter_name = ?";
+        final List<String> special = this.jdbcTemplate.queryForList(sql, String.class, parameterName);
+        return !special.isEmpty() && "Y".equalsIgnoreCase(special.get(0));
+    }
+
+    @Override
+    public List<String> retrieveReportNamesUsingParameter(final String parameterName, final boolean selfServiceReportsOnly) {
+        String sql = "SELECT DISTINCT r.report_name FROM stretchy_report r"
+                + " JOIN stretchy_report_parameter rp ON rp.report_id = r.id"
+                + " JOIN stretchy_parameter p ON p.id = rp.parameter_id WHERE p.parameter_name = ?";
+        if (selfServiceReportsOnly) {
+            sql += " AND r.self_service_user_report = ?";
+            return this.jdbcTemplate.queryForList(sql, String.class, parameterName, true);
+        }
+        return this.jdbcTemplate.queryForList(sql, String.class, parameterName);
     }
 
     @Override

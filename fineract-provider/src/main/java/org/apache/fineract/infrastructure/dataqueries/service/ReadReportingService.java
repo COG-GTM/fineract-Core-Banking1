@@ -21,6 +21,7 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 import jakarta.ws.rs.core.StreamingOutput;
 import java.io.ByteArrayOutputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
@@ -35,6 +36,10 @@ public interface ReadReportingService {
     ReportData retrieveReport(Long id);
 
     String getReportType(String reportName, boolean isSelfServiceUserReport, boolean isParameterType);
+
+    boolean isSpecialParameter(String parameterName);
+
+    List<String> retrieveReportNamesUsingParameter(String parameterName, boolean selfServiceReportsOnly);
 
     Collection<ReportParameterData> getAllowedParameters();
 

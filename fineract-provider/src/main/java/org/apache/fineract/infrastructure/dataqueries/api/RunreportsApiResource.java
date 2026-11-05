@@ -138,7 +138,7 @@ public class RunreportsApiResource {
 
         final boolean parameterTypeValue = ApiParameterHelper.parameterType(queryParams);
 
-        checkUserPermissionForReport(reportName, parameterTypeValue);
+        checkUserPermissionForReport(reportName, parameterTypeValue, isSelfServiceUserReport);
 
         // Pass through isSelfServiceUserReport so that ReportingProcessService implementations can use it
         queryParams.putSingle(IS_SELF_SERVICE_USER_REPORT_PARAMETER, Boolean.toString(isSelfServiceUserReport));
@@ -152,14 +152,28 @@ public class RunreportsApiResource {
         return reportingProcessService.processRequest(reportName, queryParams);
     }
 
-    private void checkUserPermissionForReport(final String reportName, final boolean parameterType) {
-        // Anyone can run a 'report' that is simply getting possible parameter
-        // (dropdown listbox) values.
+    private void checkUserPermissionForReport(final String reportName, final boolean parameterType,
+            final boolean isSelfServiceUserReport) {
+        final AppUser currentUser = this.context.authenticatedUser();
         if (!parameterType) {
-            final AppUser currentUser = this.context.authenticatedUser();
             if (currentUser.hasNotPermissionForReport(reportName)) {
                 throw new NoAuthorizationException("Not authorised to run report: " + reportName);
             }
+            return;
+        }
+
+        // Special parameters (report/parameter listings) filter their own results by the current user and are only
+        // available to staff users.
+        if (!isSelfServiceUserReport && readExtraDataAndReportingService.isSpecialParameter(reportName)) {
+            return;
+        }
+
+        // Parameter (dropdown listbox) values can only be retrieved for parameters attached to a report the user is
+        // allowed to run; self service users are restricted to self service reports.
+        final boolean permitted = readExtraDataAndReportingService.retrieveReportNamesUsingParameter(reportName, isSelfServiceUserReport)
+                .stream().anyMatch(report -> !currentUser.hasNotPermissionForReport(report));
+        if (!permitted) {
+            throw new NoAuthorizationException("Not authorised to run report parameter: " + reportName);
         }
     }
 }
