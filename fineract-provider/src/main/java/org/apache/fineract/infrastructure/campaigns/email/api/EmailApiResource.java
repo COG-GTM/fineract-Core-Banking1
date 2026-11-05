@@ -161,6 +161,7 @@ public class EmailApiResource {
     @Path("{resourceId}")
     public String retrieveOne(@PathParam("resourceId") final Long resourceId, @Context final UriInfo uriInfo) {
 
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         final EmailData emailMessage = readPlatformService.retrieveOne(resourceId);
 
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
