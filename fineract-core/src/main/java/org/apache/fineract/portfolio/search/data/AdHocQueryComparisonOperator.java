@@ -21,8 +21,8 @@ package org.apache.fineract.portfolio.search.data;
 import java.util.Arrays;
 
 /**
- * Comparison operators accepted by the ad hoc search query. The SQL operator is a fixed literal so that request input is
- * never appended to the generated SQL.
+ * Comparison operators accepted by the ad hoc search query. The SQL operator is a fixed literal so that request input
+ * is never appended to the generated SQL.
  */
 public enum AdHocQueryComparisonOperator {
 

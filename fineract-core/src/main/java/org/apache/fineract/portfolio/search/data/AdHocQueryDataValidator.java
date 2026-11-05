@@ -172,9 +172,8 @@ public class AdHocQueryDataValidator {
             baseDataValidator.reset().parameter(AdHocQuerySearchConstants.includeOutstandingAmountParamName)
                     .value(includeOutstandingAmountParamName).notNull();
             if (Boolean.TRUE.equals(includeOutstandingAmountParamName)) {
-                baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outstandingAmountConditionParamName)
-                        .value(this.fromApiJsonHelper.extractStringNamed(AdHocQuerySearchConstants.outstandingAmountConditionParamName,
-                                element))
+                baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outstandingAmountConditionParamName).value(
+                        this.fromApiJsonHelper.extractStringNamed(AdHocQuerySearchConstants.outstandingAmountConditionParamName, element))
                         .notNull();
             }
         }
