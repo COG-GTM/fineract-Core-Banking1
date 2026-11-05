@@ -24,9 +24,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant;
 import org.apache.fineract.infrastructure.dataqueries.data.DatatableData;
+import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
 import org.apache.fineract.infrastructure.dataqueries.service.DatatableReadService;
+import org.apache.fineract.infrastructure.dataqueries.service.DatatableUtil;
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
@@ -47,6 +49,7 @@ public class ReadSurveyServiceImpl implements ReadSurveyService {
     private final SqlValidator sqlValidator;
     private final GenericDataService genericDataService;
     private final DatatableReadService datatableReadService;
+    private final DatatableUtil datatableUtil;
 
     @Override
     public List<SurveyDataTableData> retrieveAllSurveys() {
@@ -115,6 +118,8 @@ public class ReadSurveyServiceImpl implements ReadSurveyService {
     @Override
     public List<ClientScoresOverview> retrieveClientSurveyScoreOverview(String surveyName, Long clientId) {
 
+        this.datatableUtil.checkMainResourceExistsWithinScope(EntityTables.CLIENT, clientId);
+
         final String sql = "SELECT  tz.id, lkh.name, lkh.code, poverty_line, tz.date, tz.score FROM ? tz"
                 + " JOIN ppi_likelihoods_ppi lkp on lkp.ppi_name = ? AND enabled = ? "
                 + " JOIN ppi_scores sc on score_from  <= tz.score AND score_to >=tz.score"
@@ -136,6 +141,8 @@ public class ReadSurveyServiceImpl implements ReadSurveyService {
 
     @Override
     public List<ClientScoresOverview> retrieveClientSurveyScoreOverview(Long clientId) {
+        this.datatableUtil.checkMainResourceExistsWithinScope(EntityTables.CLIENT, clientId);
+
         final String surveyNameSql = retrieveAllSurveyNameSQL();
         final SqlRowSet surveyNames = this.jdbcTemplate.queryForRowSet(surveyNameSql);
 
