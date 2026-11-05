@@ -43,6 +43,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
@@ -133,22 +134,17 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
         String sql = getSql(name, type);
 
-        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
-        }
-
-        final AppUser currentUser = this.context.authenticatedUser();
-        // Allows sql query to restrict data by office hierarchy if required
-        sql = this.genericDataService.replace(sql, "${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
-        // Allows sql query to restrict data by current user Id if required
-        // (typically used to return report lists containing only reports
-        // permitted to be run by the user
-        sql = this.genericDataService.replace(sql, "${currentUserId}", currentUser.getId().toString());
-        sql = this.genericDataService.replace(sql, "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
-        sql = this.genericDataService.replace(sql, "${currentDate}", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
         sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());
+
+        final AppUser currentUser = this.context.authenticatedUser();
+        // ${currentUserHierarchy} restricts data by office hierarchy, ${currentUserId} restricts report lists to
+        // reports the user may run. Trusted values take precedence over request parameters with the same name.
+        final Map<String, String> trustedParams = Map.of("${currentUserHierarchy}", currentUser.getOffice().getHierarchy(),
+                "${currentUserId}", currentUser.getId().toString(), "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport),
+                "${currentDate}", sqlGenerator.currentBusinessDate());
+        sql = ReportSqlParameterSubstitutor.substitute(sql, queryParams, trustedParams, sqlGenerator.getDialect() == DatabaseType.MYSQL);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
@@ -225,6 +221,17 @@ public class ReadReportingServiceImpl implements ReadReportingService {
             return rs.getString("report_type");
         }
         throw new ReportNotFoundException(reportName);
+    }
+
+    @Override
+    public Collection<String> retrieveReportNamesUsingParameter(final String parameterName, final boolean selfServiceReportsOnly) {
+        final String sql = "SELECT DISTINCT r.report_name FROM stretchy_report r" //
+                + " JOIN stretchy_report_parameter rp ON rp.report_id = r.id" //
+                + " JOIN stretchy_parameter p ON p.id = rp.parameter_id" //
+                + " LEFT JOIN stretchy_parameter pp ON pp.id = p.parent_id" //
+                + " WHERE (p.parameter_name = ? OR pp.parameter_name = ?)" //
+                + (selfServiceReportsOnly ? " AND r.self_service_user_report = true" : "");
+        return this.jdbcTemplate.queryForList(sql, String.class, parameterName, parameterName);
     }
 
     @Override
