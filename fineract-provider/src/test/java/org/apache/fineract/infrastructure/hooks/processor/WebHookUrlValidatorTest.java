@@ -44,8 +44,8 @@ class WebHookUrlValidatorTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "https://127.0.0.1:8443/", "https://169.254.169.254/latest/meta-data/", "https://10.0.0.12:9200/",
-            "https://localhost/", "https://172.16.5.4/", "https://192.168.1.1/", "https://100.64.0.1/", "https://0.0.0.0/", "https://[::1]/",
-            "https://[fd00::1]/", "https://[fe80::1]/", "https://[::ffff:169.254.169.254]/", "https://2130706433/", "not a url", "" })
+            "https://localhost/", "https://172.16.5.4/", "https://192.168.1.1/", "https://100.64.0.1/", "https://0.0.0.0/",
+            "https://[::1]/", "https://[fd00::1]/", "https://[fe80::1]/", "https://[::ffff:169.254.169.254]/", "https://2130706433/", "not a url", "" })
     void rejectsNonPublicOrMalformedUrls(final String url) {
         assertThrows(IllegalArgumentException.class, () -> validator(List.of("https"), List.of()).validate(url));
     }
