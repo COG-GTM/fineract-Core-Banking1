@@ -121,6 +121,8 @@ public final class TemplatePopulateImportConstants {
     public static final String USER_ENTITY_TYPE = "USER";
     public static final String GROUP_ENTITY_TYPE = "GROUP";
     public static final String CLIENT_ENTITY_TYPE = "CLIENT";
+    public static final String LOAN_ENTITY_TYPE = "LOAN";
+    public static final String SAVINGS_ACCOUNT_ENTITY_TYPE = "SAVINGSACCOUNT";
     public static final String LOAN_PRODUCT_ENTITY_TYPE = "LOANPRODUCT";
     public static final String FUNDS_ENTITY_TYPE = "FUNDS";
     public static final String PAYMENT_TYPE_ENTITY_TYPE = "PAYMENTTYPE";

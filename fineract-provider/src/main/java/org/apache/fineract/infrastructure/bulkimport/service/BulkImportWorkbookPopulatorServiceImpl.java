@@ -469,6 +469,9 @@ public class BulkImportWorkbookPopulatorServiceImpl implements BulkImportWorkboo
     private WorkbookPopulator populateGuarantorWorkbook(Long officeId) {
         this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.OFFICE_ENTITY_TYPE);
         this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.STAFF_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.CLIENT_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.LOAN_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.SAVINGS_ACCOUNT_ENTITY_TYPE);
         List<OfficeData> offices = fetchOffices(officeId);
         List<ClientData> clients = fetchClients(officeId);
         List<LoanAccountData> loans = fetchLoanAccounts(officeId);
@@ -513,6 +516,8 @@ public class BulkImportWorkbookPopulatorServiceImpl implements BulkImportWorkboo
     private WorkbookPopulator populateSharedAccountsWorkbook(Long officeId) {
         this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.CLIENT_ENTITY_TYPE);
         this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.SHARED_ACCOUNT_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.OFFICE_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.SAVINGS_ACCOUNT_ENTITY_TYPE);
         List<ShareProductData> shareProductDataList = fetchSharedProducts();
         List<ChargeData> chargesForShares = fetchChargesForShares();
         List<ClientData> clientDataList = fetchClients(officeId);
@@ -638,6 +643,8 @@ public class BulkImportWorkbookPopulatorServiceImpl implements BulkImportWorkboo
 
     private WorkbookPopulator populateUserWorkbook(Long officeId, Long staffId) {
         this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.USER_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.OFFICE_ENTITY_TYPE);
+        this.context.authenticatedUser().validateHasReadPermission(TemplatePopulateImportConstants.STAFF_ENTITY_TYPE);
         List<OfficeData> offices = fetchOffices(officeId);
         List<StaffData> staff = fetchStaff(staffId);
         List<RoleData> roles = fetchRoles();
