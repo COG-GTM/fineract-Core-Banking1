@@ -19,6 +19,8 @@
 package org.apache.fineract.infrastructure.security.domain;
 
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.data.OTPRequest;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,21 +32,30 @@ import org.springframework.util.Assert;
 @SuppressWarnings({ "MemberName" })
 public class OTPRequestRepository {
 
-    private static final ConcurrentHashMap<Long, OTPRequest> OTT_REQUESTS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<OTPRequestKey, OTPRequest> OTT_REQUESTS = new ConcurrentHashMap<>();
 
     public OTPRequest getOTPRequestForUser(AppUser user) {
-        Assert.notNull(user, "User must not be null");
-
-        return OTT_REQUESTS.get(user.getId());
+        return OTT_REQUESTS.get(keyFor(user));
     }
 
     public void addOTPRequest(AppUser user, OTPRequest request) {
-        Assert.notNull(user, "User must not be null");
         Assert.notNull(request, "Request must not be null");
-        OTT_REQUESTS.put(user.getId(), request);
+        OTT_REQUESTS.put(keyFor(user), request);
     }
 
     public void deleteOTPRequestForUser(AppUser user) {
-        OTT_REQUESTS.remove(user.getId());
+        OTT_REQUESTS.remove(keyFor(user));
+    }
+
+    private static OTPRequestKey keyFor(AppUser user) {
+        Assert.notNull(user, "User must not be null");
+        Assert.notNull(user.getId(), "User id must not be null");
+        final FineractPlatformTenant tenant = ThreadLocalContextUtil.getTenant();
+        Assert.notNull(tenant, "Tenant must not be null");
+        Assert.hasText(tenant.getTenantIdentifier(), "Tenant identifier must not be empty");
+        return new OTPRequestKey(tenant.getTenantIdentifier(), user.getId());
+    }
+
+    private record OTPRequestKey(String tenantIdentifier, Long userId) {
     }
 }
