@@ -72,8 +72,7 @@ public class ExternalAssetOwnerLoanProductAttributesApiResourceTest {
 
     @Test
     public void getAttributesRequiresReadPermission() {
-        doThrow(new NoAuthorizationException("User has no authority to READ " + RESOURCE)).when(user)
-                .validateHasReadPermission(RESOURCE);
+        doThrow(new NoAuthorizationException("User has no authority to READ " + RESOURCE)).when(user).validateHasReadPermission(RESOURCE);
 
         assertThrows(NoAuthorizationException.class, () -> underTest.getExternalAssetOwnerLoanProductAttributes(null, 999L, null));
         verifyNoInteractions(readService);
