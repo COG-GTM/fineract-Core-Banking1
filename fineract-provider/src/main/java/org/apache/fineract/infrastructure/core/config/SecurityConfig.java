@@ -73,6 +73,8 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 import org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -164,15 +166,15 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/currencies"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_CURRENCY")
                     // notes: read
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/clients/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/clients/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_CLIENTNOTE")
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/loans/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/loans/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_LOANNOTE")
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/loanTransactions/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/loanTransactions/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_LOANTRANSACTIONNOTE")
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/savings/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/savings/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_SAVINGNOTE")
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/groups/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/groups/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_GROUPNOTE")
                     // notes: create
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/clients/*/notes/**"))
@@ -208,11 +210,11 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/groups/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_GROUPNOTE")
                     // notes: other resource types (e.g. savingsTransactions) have no dedicated permission
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/*/*/notes/**"))
+                    .requestMatchers(readMatcher("/api/*/*/*/notes/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ)
                     .requestMatchers(API_MATCHER.matcher("/api/*/*/*/notes/**")).hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE)
                     // document: clients
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/clients/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/clients/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/clients/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -221,7 +223,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/clients/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: client_identifiers
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/client_identifiers/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/client_identifiers/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/client_identifiers/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -230,7 +232,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/client_identifiers/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: staff
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/staff/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/staff/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/staff/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -239,7 +241,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/staff/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: loans
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/loans/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/loans/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/loans/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -248,7 +250,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/loans/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: savings
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/savings/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/savings/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/savings/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -257,7 +259,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/savings/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: groups
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/groups/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/groups/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/groups/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -266,7 +268,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/groups/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: import
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/import/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/import/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/import/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -275,7 +277,7 @@ public class SecurityConfig {
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.DELETE, "/api/*/import/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "DELETE_DOCUMENT")
                     // document: any other entity type
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/*/*/documents/**"))
+                    .requestMatchers(readMatcher("/api/*/*/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_DOCUMENT")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/*/*/documents/**"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "CREATE_DOCUMENT")
@@ -471,5 +473,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    // Jersey serves HEAD via the GET resource method, so HEAD must be authorized like GET.
+    private static RequestMatcher readMatcher(String pattern) {
+        return new OrRequestMatcher(API_MATCHER.matcher(HttpMethod.GET, pattern), API_MATCHER.matcher(HttpMethod.HEAD, pattern));
     }
 }

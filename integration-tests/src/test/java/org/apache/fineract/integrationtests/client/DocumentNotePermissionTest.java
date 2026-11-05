@@ -80,6 +80,7 @@ class DocumentNotePermissionTest extends IntegrationTest {
 
         assertStatus(403, "GET", document);
         assertStatus(403, "GET", document + "/attachment");
+        assertStatus(403, "HEAD", document);
         assertStatus(403, "PUT", document);
         assertStatus(403, "DELETE", document);
         assertStatus(403, "GET", note);
@@ -101,6 +102,8 @@ class DocumentNotePermissionTest extends IntegrationTest {
         assertStatus(200, "GET", document);
         assertStatus(200, "GET", document + "/attachment");
         assertStatus(200, "GET", note);
+        assertStatus(200, "HEAD", document);
+        assertStatus(200, "HEAD", note);
         assertStatus(403, "DELETE", document);
         assertStatus(403, "DELETE", note);
         assertStatus(403, "PUT", note);
