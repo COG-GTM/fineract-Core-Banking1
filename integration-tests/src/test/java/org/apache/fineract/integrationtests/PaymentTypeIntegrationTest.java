@@ -23,16 +23,23 @@ import io.restassured.builder.ResponseSpecBuilder;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
+import java.util.Map;
 import org.apache.fineract.client.models.PaymentTypeCreateRequest;
 import org.apache.fineract.client.models.PaymentTypeData;
 import org.apache.fineract.client.models.PaymentTypeUpdateRequest;
 import org.apache.fineract.integrationtests.common.PaymentTypeHelper;
 import org.apache.fineract.integrationtests.common.Utils;
+import org.apache.fineract.integrationtests.common.organisation.StaffHelper;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class PaymentTypeIntegrationTest {
+
+    private static final String PAYMENTTYPE_URL = "/fineract-provider/api/v1/paymenttypes";
+    private static final String USER_PASSWORD = "A1b2c3d4e5f$";
 
     private ResponseSpecification responseSpec;
     private RequestSpecification requestSpec;
@@ -86,5 +93,66 @@ public class PaymentTypeIntegrationTest {
         Assertions.assertEquals(paymentTypeId, deletedPaymentTypeId);
         ResponseSpecification responseSpecification = new ResponseSpecBuilder().expectStatusCode(404).build();
         paymentTypeHelper.retrieveById(requestSpec, responseSpecification, paymentTypeId);
+    }
+
+    @Test
+    public void testPaymentTypeWritesRequirePermissions() {
+        Long paymentTypeId = paymentTypeHelper
+                .createPaymentType(new PaymentTypeCreateRequest().name(PaymentTypeHelper.randomNameGenerator("P_T", 5))
+                        .description("permission check").isCashPayment(true).position(1L))
+                .getResourceId();
+        String paymentTypeUrl = PAYMENTTYPE_URL + "/" + paymentTypeId + "?" + Utils.TENANT_IDENTIFIER;
+        String collectionUrl = PAYMENTTYPE_URL + "?" + Utils.TENANT_IDENTIFIER;
+        String updateJson = "{\"name\":\"" + PaymentTypeHelper.randomNameGenerator("P_TU", 5)
+                + "\",\"description\":\"changed\",\"isCashPayment\":false,\"position\":2}";
+        String createJson = "{\"name\":\"" + PaymentTypeHelper.randomNameGenerator("P_TC", 5)
+                + "\",\"description\":\"created\",\"isCashPayment\":false,\"position\":3}";
+        ResponseSpecification forbidden = new ResponseSpecBuilder().expectStatusCode(403).build();
+
+        RequestSpecification readOnlyUser = userWithPermissions(Map.of("READ_PAYMENTTYPE", true));
+        Utils.performServerGet(readOnlyUser, responseSpec, collectionUrl);
+        Utils.performServerGet(readOnlyUser, responseSpec, paymentTypeUrl);
+        Utils.performServerPut(readOnlyUser, forbidden, paymentTypeUrl, updateJson);
+        Utils.performServerDelete(readOnlyUser, forbidden, paymentTypeUrl, null);
+        Utils.performServerPost(readOnlyUser, forbidden, collectionUrl, createJson);
+
+        RequestSpecification noPermissionUser = userWithPermissions(Map.of());
+        Utils.performServerGet(noPermissionUser, forbidden, collectionUrl);
+        Utils.performServerGet(noPermissionUser, forbidden, paymentTypeUrl);
+
+        PaymentTypeData unchanged = paymentTypeHelper.retrieveById(paymentTypeId);
+        Assertions.assertEquals("permission check", unchanged.getDescription());
+        Assertions.assertEquals(Boolean.TRUE, unchanged.getIsCashPayment());
+
+        RequestSpecification updateOnlyUser = userWithPermissions(Map.of("READ_PAYMENTTYPE", true, "UPDATE_PAYMENTTYPE", true));
+        Utils.performServerPost(updateOnlyUser, forbidden, collectionUrl, createJson);
+        Utils.performServerDelete(updateOnlyUser, forbidden, paymentTypeUrl, null);
+        Utils.performServerPut(updateOnlyUser, responseSpec, paymentTypeUrl, updateJson);
+        PaymentTypeData updated = paymentTypeHelper.retrieveById(paymentTypeId);
+        Assertions.assertEquals("changed", updated.getDescription());
+        Assertions.assertEquals(Boolean.FALSE, updated.getIsCashPayment());
+
+        RequestSpecification createOnlyUser = userWithPermissions(Map.of("CREATE_PAYMENTTYPE", true));
+        Integer createdId = Utils.performServerPost(createOnlyUser, responseSpec, collectionUrl, createJson, "resourceId");
+        Assertions.assertNotNull(createdId);
+
+        RequestSpecification deleteOnlyUser = userWithPermissions(Map.of("DELETE_PAYMENTTYPE", true));
+        Utils.performServerPut(deleteOnlyUser, forbidden, paymentTypeUrl, updateJson);
+        Utils.performServerDelete(deleteOnlyUser, responseSpec, paymentTypeUrl, null);
+        Utils.performServerDelete(deleteOnlyUser, responseSpec, PAYMENTTYPE_URL + "/" + createdId + "?" + Utils.TENANT_IDENTIFIER, null);
+        paymentTypeHelper.retrieveById(requestSpec, new ResponseSpecBuilder().expectStatusCode(404).build(), paymentTypeId);
+    }
+
+    private RequestSpecification userWithPermissions(final Map<String, Boolean> permissions) {
+        final Integer roleId = RolesHelper.createRole(requestSpec, responseSpec);
+        if (!permissions.isEmpty()) {
+            RolesHelper.addPermissionsToRole(requestSpec, responseSpec, roleId, permissions);
+        }
+        final Integer staffId = StaffHelper.createStaff(requestSpec, responseSpec);
+        final String username = Utils.uniqueRandomStringGenerator("ptuser", 8);
+        UserHelper.createUser(requestSpec, responseSpec, roleId, staffId, username, USER_PASSWORD, "resourceId");
+        final RequestSpecification userSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        userSpec.header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(username, USER_PASSWORD));
+        return userSpec;
     }
 }
