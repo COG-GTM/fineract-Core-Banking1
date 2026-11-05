@@ -26,6 +26,7 @@ import static org.springframework.security.authorization.AuthorizationManagers.a
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.fineract.infrastructure.bulkimport.filter.BulkImportUploadSizeFilter;
 import org.apache.fineract.infrastructure.businessdate.service.BusinessDateReadPlatformService;
 import org.apache.fineract.infrastructure.cache.service.CacheWritePlatformService;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
@@ -345,7 +346,8 @@ public class SecurityConfig {
                 .addFilterBefore(tenantAwareBasicAuthenticationFilter(), SecurityContextHolderFilter.class)
                 .addFilterAfter(requestResponseFilter(), ExceptionTranslationFilter.class)
                 .addFilterAfter(correlationHeaderFilter(), RequestResponseFilter.class)
-                .addFilterAfter(fineractInstanceModeApiFilter(), CorrelationHeaderFilter.class);
+                .addFilterAfter(fineractInstanceModeApiFilter(), CorrelationHeaderFilter.class)
+                .addFilterAfter(bulkImportUploadSizeFilter(), RequestResponseFilter.class);
 
         if (loanCOBFilterHelper != null) {
             http.addFilterAfter(loanCOBApiFilter(), FineractInstanceModeApiFilter.class).addFilterAfter(idempotencyStoreFilter(),
@@ -389,6 +391,10 @@ public class SecurityConfig {
     public TwoFactorAuthenticationFilter twoFactorAuthenticationFilter() {
         TwoFactorService twoFactorService = applicationContext.getBean(TwoFactorService.class);
         return new TwoFactorAuthenticationFilter(twoFactorService);
+    }
+
+    public BulkImportUploadSizeFilter bulkImportUploadSizeFilter() {
+        return new BulkImportUploadSizeFilter(fineractProperties);
     }
 
     public FineractInstanceModeApiFilter fineractInstanceModeApiFilter() {
