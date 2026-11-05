@@ -39,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.cob.conditions.LoanCOBEnabledCondition;
 import org.apache.fineract.cob.data.COBIdAndLastClosedBusinessDate;
@@ -257,7 +258,7 @@ public class LoanCOBFilterHelper implements InitializingBean {
         if (method == null || relativeUrl == null || !HTTP_METHODS.contains(HttpMethod.valueOf(method))) {
             return;
         }
-        String pathInfo = toBatchPathInfo(StringUtils.removeStart(relativeUrl, "/"));
+        String pathInfo = toBatchPathInfo(Strings.CS.removeStart(relativeUrl, "/"));
         boolean loanApi = isApiMatching(method, pathInfo);
         Long bodyLoanId = getTopLevelLoanIdFromResolvedBatchRequest(batchRequest);
         if ((!loanApi && bodyLoanId == null) || isBypassUser()) {
