@@ -120,6 +120,8 @@ public class GenerateAdhocClientScheduleTasklet implements Tasklet {
             sqlValidator.validate("adhoc", adhoc.getQuery());
             return true;
         } catch (SqlValidationException e) {
+            log.warn("{}: AdHoc {} query failed SQL validation: {}", ThreadLocalContextUtil.getTenant().getName(), adhoc.getName(),
+                    e.getMessage());
             return false;
         }
     }
