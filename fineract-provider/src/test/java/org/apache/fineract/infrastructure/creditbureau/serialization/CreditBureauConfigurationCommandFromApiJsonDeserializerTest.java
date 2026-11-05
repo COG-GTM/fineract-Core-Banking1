@@ -54,6 +54,11 @@ class CreditBureauConfigurationCommandFromApiJsonDeserializerTest {
     }
 
     @Test
+    void updateOfDescriptionOnlyDoesNotRevalidateStoredUrl() {
+        assertDoesNotThrow(() -> underTest.validateForUpdate("{\"description\":\"new\"}", "searchurl", "https://unresolvable.invalid/"));
+    }
+
+    @Test
     void updateValidatesExistingValueWhenKeyIsRenamedToUrlKey() {
         assertThrows(PlatformApiDataValidationException.class,
                 () -> underTest.validateForUpdate("{\"configkey\":\"creditReporturl\"}", "Username", "http://127.0.0.1:8080/"));

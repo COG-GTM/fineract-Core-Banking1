@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.Dns;
 import okhttp3.HttpUrl;
 import org.apache.commons.lang3.StringUtils;
@@ -39,6 +40,7 @@ import org.springframework.stereotype.Component;
  * operator-managed host allowlist). Also acts as the {@link Dns} of the credit bureau HTTP client so the check is
  * repeated against the addresses actually used to connect.
  */
+@Slf4j
 @Component
 public class CreditBureauUrlValidator implements Dns {
 
@@ -83,8 +85,12 @@ public class CreditBureauUrlValidator implements Dns {
         }
         try {
             lookup(host);
-        } catch (UnknownHostException e) {
+        } catch (NonPublicAddressException e) {
+            log.warn("Rejected credit bureau URL host {}: {}", host, e.getMessage());
             return Optional.of("url.host.not.allowed");
+        } catch (UnknownHostException e) {
+            log.warn("Could not resolve credit bureau URL host {}", host, e);
+            return Optional.of("url.host.unresolvable");
         }
         return Optional.empty();
     }
@@ -95,7 +101,7 @@ public class CreditBureauUrlValidator implements Dns {
         if (!allowPrivateNetwork) {
             for (InetAddress address : addresses) {
                 if (!isPublicAddress(address)) {
-                    throw new UnknownHostException("Credit bureau host " + hostname + " resolves to a non-public address");
+                    throw new NonPublicAddressException("Credit bureau host " + hostname + " resolves to a non-public address");
                 }
             }
         }
@@ -146,6 +152,13 @@ public class CreditBureauUrlValidator implements Dns {
                 || (a0 == 192 && a1 == 168) // 192.168.0.0/16
                 || (a0 == 198 && (a1 == 18 || a1 == 19)) // 198.18.0.0/15 benchmarking
                 || a0 >= 224); // multicast, reserved, broadcast
+    }
+
+    static final class NonPublicAddressException extends UnknownHostException {
+
+        NonPublicAddressException(final String message) {
+            super(message);
+        }
     }
 
     private static boolean isZero(final byte[] bytes, final int from, final int to) {

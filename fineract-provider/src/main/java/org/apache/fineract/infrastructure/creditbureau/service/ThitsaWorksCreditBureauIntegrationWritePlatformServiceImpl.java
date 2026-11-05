@@ -218,8 +218,12 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
             this.handleAPIIntegrityIssues(httpResponse);
 
         } else {
-            log.warn("Credit bureau request failed with HTTP response code {} (response length {})", responseCode,
-                    responseMessage == null ? 0 : responseMessage.length());
+            int responseLength = responseMessage == null ? 0 : responseMessage.length();
+            if (responseCode >= 500) {
+                log.error("Credit bureau request failed with HTTP response code {} (response length {})", responseCode, responseLength);
+            } else {
+                log.warn("Credit bureau request failed with HTTP response code {} (response length {})", responseCode, responseLength);
+            }
             this.handleAPIIntegrityIssues("HTTP Response Code: " + responseCode);
         }
 

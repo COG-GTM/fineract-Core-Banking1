@@ -69,6 +69,14 @@ class CreditBureauUrlValidatorTest {
     }
 
     @Test
+    void reportsUnresolvableHostSeparately() {
+        CreditBureauUrlValidator validator = new CreditBureauUrlValidator("", false, hostname -> {
+            throw new UnknownHostException(hostname);
+        });
+        assertEquals(Optional.of("url.host.unresolvable"), validator.findViolation("https://bureau.example/search/"));
+    }
+
+    @Test
     void enforcesHostAllowlist() {
         CreditBureauUrlValidator validator = new CreditBureauUrlValidator(" api.bureau.example , other.example ", false, PUBLIC_DNS);
         assertEquals(Optional.empty(), validator.findViolation("https://API.bureau.example/search/"));

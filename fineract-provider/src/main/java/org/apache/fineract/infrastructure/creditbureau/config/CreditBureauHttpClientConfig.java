@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.creditbureau.config;
 
+import java.net.Proxy;
 import okhttp3.OkHttpClient;
 import org.apache.fineract.infrastructure.creditbureau.service.CreditBureauUrlValidator;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,6 +33,8 @@ public class CreditBureauHttpClientConfig {
     @Bean(CREDIT_BUREAU_HTTP_CLIENT)
     public OkHttpClient creditBureauOkHttpClient(@Qualifier("okHttpClient") final OkHttpClient okHttpClient,
             final CreditBureauUrlValidator urlValidator) {
-        return okHttpClient.newBuilder().followRedirects(false).followSslRedirects(false).dns(urlValidator).build();
+        // No proxy: a proxy would resolve the destination itself and bypass the address checks of the validator's Dns
+        return okHttpClient.newBuilder().proxy(Proxy.NO_PROXY).followRedirects(false).followSslRedirects(false).dns(urlValidator)
+                .build();
     }
 }

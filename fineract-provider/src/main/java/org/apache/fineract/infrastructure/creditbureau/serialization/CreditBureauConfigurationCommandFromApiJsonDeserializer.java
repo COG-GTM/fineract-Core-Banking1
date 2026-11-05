@@ -104,10 +104,11 @@ public final class CreditBureauConfigurationCommandFromApiJsonDeserializer {
             baseDataValidator.reset().parameter(VALUE).value(value).notBlank().notExceedingLengthOf(100);
         }
 
-        final String configkey = this.fromApiJsonHelper.parameterExists(CONFIGKEY, element)
-                ? this.fromApiJsonHelper.extractStringNamed(CONFIGKEY, element)
-                : existingConfigKey;
-        validateUrlValue(baseDataValidator, configkey, value);
+        final boolean configKeyChanged = this.fromApiJsonHelper.parameterExists(CONFIGKEY, element);
+        if (configKeyChanged || this.fromApiJsonHelper.parameterExists(VALUE, element)) {
+            final String configkey = configKeyChanged ? this.fromApiJsonHelper.extractStringNamed(CONFIGKEY, element) : existingConfigKey;
+            validateUrlValue(baseDataValidator, configkey, value);
+        }
 
         if (this.fromApiJsonHelper.parameterExists(DESCRIPTION, element)) {
             final String description = this.fromApiJsonHelper.extractStringNamed(DESCRIPTION, element);
