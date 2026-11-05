@@ -280,6 +280,46 @@ public class UserAdministrationTest extends IntegrationTest {
     }
 
     @Test
+    public void testBranchUserCannotAccessUsersOutsideItsOfficeHierarchy() {
+        final String password = "QwE!5rTy#9uP0";
+        final Integer roleId = RolesHelper.createRole(requestSpec, responseSpec);
+        RolesHelper.addPermissionsToRole(requestSpec, responseSpec, roleId,
+                Map.of("READ_USER", true, "UPDATE_USER", true, "DELETE_USER", true));
+
+        final GetOfficesResponse headOffice = OfficeHelper.getHeadOffice(requestSpec, responseSpec);
+        final Integer branchOfficeId = new OfficeHelper(requestSpec, responseSpec).createOffice("01 January 2020");
+
+        final Long headOfficeUserId = createUserInOffice(Utils.uniqueRandomStringGenerator("HeadOfficeUser", 4), password,
+                headOffice.getId(), roleId);
+        final String branchUsername = Utils.uniqueRandomStringGenerator("BranchUser", 4);
+        final Long branchUserId = createUserInOffice(branchUsername, password, branchOfficeId.longValue(), roleId);
+
+        final RequestSpecification branchUserRequestSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        branchUserRequestSpec.header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(branchUsername, password));
+
+        final String headOfficeUserUrl = "/fineract-provider/api/v1/users/" + headOfficeUserId + "?" + Utils.TENANT_IDENTIFIER;
+        Utils.performServerGet(branchUserRequestSpec, expectStatusCode(404), headOfficeUserUrl);
+        Utils.performServerPut(branchUserRequestSpec, expectStatusCode(404), headOfficeUserUrl, "{\"firstname\": \"Changed\"}");
+        Utils.performServerDelete(branchUserRequestSpec, expectStatusCode(404), headOfficeUserUrl, null);
+
+        Utils.performServerGet(branchUserRequestSpec, responseSpec,
+                "/fineract-provider/api/v1/users/" + branchUserId + "?" + Utils.TENANT_IDENTIFIER);
+        final String firstname = Utils.performServerGet(requestSpec, responseSpec, headOfficeUserUrl, "firstname");
+        Assertions.assertNotEquals("Changed", firstname);
+    }
+
+    private Long createUserInOffice(final String username, final String password, final Long officeId, final Integer roleId) {
+        final PostUsersRequest createUserRequest = new PostUsersRequest().username(username).firstname(Utils.randomFirstNameGenerator())
+                .lastname(Utils.randomLastNameGenerator()).email("whatever@mifos.org").password(password).repeatPassword(password)
+                .sendPasswordToEmail(false).officeId(officeId).roles(List.of(roleId.longValue()));
+        final Long userId = UserHelper.createUser(requestSpec, responseSpec, createUserRequest).getResourceId();
+        Assertions.assertNotNull(userId);
+        this.transientUsers.add(userId.intValue());
+        return userId;
+    }
+
+    @Test
     public void testUserCreationWithValidPassword() {
         String validPassword = "Abcdef1#2$3%XYZ";
 

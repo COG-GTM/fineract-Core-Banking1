@@ -52,6 +52,7 @@ import org.apache.fineract.useradministration.domain.AppUserRepository;
 import org.apache.fineract.useradministration.domain.RoleRepository;
 import org.apache.fineract.useradministration.domain.UserDomainService;
 import org.apache.fineract.useradministration.exception.PasswordPreviouslyUsedException;
+import org.apache.fineract.useradministration.exception.UserNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,9 +60,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     private static final Long USER_ID = 1L;
@@ -95,6 +99,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
     private JsonCommand command;
     private AppUser user;
     private AppUser authenticatedUser;
+    private Office userOffice;
 
     @BeforeEach
     void setUp() {
@@ -106,6 +111,16 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         when(command.json()).thenReturn("{}");
         when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(context.authenticatedUser(any(CommandWrapper.class))).thenReturn(authenticatedUser);
+        when(context.authenticatedUser()).thenReturn(authenticatedUser);
+
+        Office authenticatedUserOffice = mock(Office.class);
+        when(authenticatedUserOffice.getHierarchy()).thenReturn(".2.");
+        when(authenticatedUser.getOffice()).thenReturn(authenticatedUserOffice);
+
+        userOffice = mock(Office.class);
+        when(userOffice.getId()).thenReturn(7L);
+        when(userOffice.getHierarchy()).thenReturn(".2.7.");
+        when(user.getOffice()).thenReturn(userOffice);
         doNothing().when(fromApiJsonDeserializer).validateForChangePassword(anyString(), nullable(AppUser.class));
     }
 
@@ -132,9 +147,6 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
 
     @Test
     void changeUserPasswordSavesPreviousPasswordWhenAllowed() {
-        Office office = mock(Office.class);
-        when(office.getId()).thenReturn(7L);
-        when(user.getOffice()).thenReturn(office);
         when(user.getId()).thenReturn(USER_ID);
         when(user.getPassword()).thenReturn("currentEncoded");
         when(user.getEncodedPassword(command, platformPasswordEncoder)).thenReturn("newEncoded");
@@ -147,5 +159,44 @@ public class AppUserWritePlatformServiceJpaRepositoryImplTest {
         assertEquals(USER_ID, result.getResourceId());
         verify(appUserRepository).saveAndFlush(user);
         verify(appUserPreviewPasswordRepository).save(any(AppUserPreviousPassword.class));
+    }
+
+    @Test
+    void changeUserPasswordThrowsNotFoundForUserOutsideOfficeHierarchy() {
+        when(userOffice.getHierarchy()).thenReturn(".");
+
+        assertThrows(UserNotFoundException.class, () -> underTest.changeUserPassword(USER_ID, command));
+
+        verify(user, never()).changePassword(command, platformPasswordEncoder);
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void updateUserThrowsNotFoundForUserOutsideOfficeHierarchy() {
+        when(userOffice.getHierarchy()).thenReturn(".3.");
+
+        assertThrows(UserNotFoundException.class, () -> underTest.updateUser(USER_ID, command));
+
+        verify(user, never()).update(any(), any(), any());
+        verify(appUserRepository, never()).saveAndFlush(any(AppUser.class));
+    }
+
+    @Test
+    void deleteUserThrowsNotFoundForUserOutsideOfficeHierarchy() {
+        when(userOffice.getHierarchy()).thenReturn(".");
+
+        assertThrows(UserNotFoundException.class, () -> underTest.deleteUser(USER_ID));
+
+        verify(user, never()).delete();
+        verify(appUserRepository, never()).save(any(AppUser.class));
+    }
+
+    @Test
+    void deleteUserDeletesUserWithinOfficeHierarchy() {
+        CommandProcessingResult result = underTest.deleteUser(USER_ID);
+
+        assertEquals(USER_ID, result.getResourceId());
+        verify(user).delete();
+        verify(appUserRepository).save(user);
     }
 }

@@ -100,10 +100,10 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
     @Override
     public AppUserData retrieveUser(final Long userId) {
 
-        this.context.authenticatedUser();
+        final AppUser currentUser = this.context.authenticatedUser();
 
         final AppUser user = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
-        if (user.isDeleted()) {
+        if (user.isDeleted() || !isWithinOfficeHierarchy(user, currentUser)) {
             throw new UserNotFoundException(userId);
         }
 
@@ -139,6 +139,12 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
         }
 
         return retUser;
+    }
+
+    static boolean isWithinOfficeHierarchy(final AppUser user, final AppUser currentUser) {
+        final String userHierarchy = user.getOffice() == null ? null : user.getOffice().getHierarchy();
+        final String currentUserHierarchy = currentUser.getOffice() == null ? null : currentUser.getOffice().getHierarchy();
+        return userHierarchy != null && currentUserHierarchy != null && userHierarchy.startsWith(currentUserHierarchy);
     }
 
     private static final class AppUserMapper implements RowMapper<AppUserData> {
