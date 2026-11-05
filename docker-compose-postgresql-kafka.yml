@@ -47,6 +47,9 @@ services:
       - ./config/docker/env/fineract-common.env
       - ./config/docker/env/fineract-postgresql.env
       - ./config/docker/env/kafka-client.env
+    environment:
+      # smoke-messaging.yml sets FINERACT_SPRING_PROFILES_ACTIVE=test,diagnostics for the internal endpoints
+      - SPRING_PROFILES_ACTIVE=${FINERACT_SPRING_PROFILES_ACTIVE:-diagnostics}
 
   fineract-worker:
     extends:
@@ -65,3 +68,6 @@ services:
       - ./config/docker/env/fineract-common.env
       - ./config/docker/env/fineract-postgresql.env
       - ./config/docker/env/kafka-client.env
+    environment:
+      # smoke-messaging.yml sets FINERACT_SPRING_PROFILES_ACTIVE=test,diagnostics for the internal endpoints
+      - SPRING_PROFILES_ACTIVE=${FINERACT_SPRING_PROFILES_ACTIVE:-diagnostics}

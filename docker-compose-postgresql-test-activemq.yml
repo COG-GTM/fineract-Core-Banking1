@@ -43,3 +43,6 @@ services:
       - ./config/docker/env/fineract-common.env
       - ./config/docker/env/fineract-postgresql.env
       - ./config/docker/env/activemq.env
+    environment:
+      # E2E tests rely on the test-only /v1/internal/* endpoints
+      - SPRING_PROFILES_ACTIVE=test,diagnostics
