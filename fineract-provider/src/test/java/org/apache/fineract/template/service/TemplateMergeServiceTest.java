@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -46,13 +47,14 @@ class TemplateMergeServiceTest {
     private HttpServer attackerServer;
     private final AtomicInteger trustedHits = new AtomicInteger();
     private final AtomicInteger attackerHits = new AtomicInteger();
+    private final List<String> trustedPaths = new CopyOnWriteArrayList<>();
     private FineractProperties.FineractTemplateProperties templateProperties;
     private TemplateMergeService service;
 
     @BeforeEach
     void setUp() throws IOException {
-        trustedServer = startServer(trustedHits, "{\"name\":\"trusted\"}");
-        attackerServer = startServer(attackerHits, "{\"name\":\"attacker\"}");
+        trustedServer = startServer(trustedHits, trustedPaths, "{\"name\":\"trusted\"}");
+        attackerServer = startServer(attackerHits, new CopyOnWriteArrayList<>(), "{\"name\":\"attacker\"}");
         templateProperties = new FineractProperties.FineractTemplateProperties();
         templateProperties.setRegexWhitelistEnabled(true);
         templateProperties.setRegexWhitelist(List.of("http://127\\.0\\.0\\.1:\\d+/.*"));
@@ -113,6 +115,18 @@ class TemplateMergeServiceTest {
         assertEquals(0, attackerHits.get());
     }
 
+    @Test
+    void configuredBaseUriWithoutTrailingSlashIsNormalized() {
+        final String base = baseOf(trustedServer);
+        templateProperties.setBaseUri(base.substring(0, base.length() - 1));
+
+        final String result = service.compile(template("v1/clients/1"), new HashMap<>(), baseOf(attackerServer));
+
+        assertEquals("trusted", result);
+        assertEquals(List.of("/api/v1/clients/1"), trustedPaths);
+        assertEquals(0, attackerHits.get());
+    }
+
     private static Template template(final String mapperUrl) {
         return new Template("t", "{{#client}}{{name}}{{/client}}", null, null, List.of(new TemplateMapper(0, "client", mapperUrl)));
     }
@@ -121,10 +135,11 @@ class TemplateMergeServiceTest {
         return "http://127.0.0.1:" + server.getAddress().getPort() + "/api/";
     }
 
-    private static HttpServer startServer(final AtomicInteger hits, final String body) throws IOException {
+    private static HttpServer startServer(final AtomicInteger hits, final List<String> paths, final String body) throws IOException {
         final HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
             hits.incrementAndGet();
+            paths.add(exchange.getRequestURI().getPath());
             final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, bytes.length);

@@ -91,7 +91,8 @@ public class TemplateMergeService {
 
     public String resolveBaseUri(final String requestBaseUri) {
         if (fineractProperties.getTemplate() != null && StringUtils.isNotBlank(fineractProperties.getTemplate().getBaseUri())) {
-            return fineractProperties.getTemplate().getBaseUri();
+            final String configured = fineractProperties.getTemplate().getBaseUri().trim();
+            return configured.endsWith("/") ? configured : configured + "/";
         }
         return requestBaseUri;
     }
