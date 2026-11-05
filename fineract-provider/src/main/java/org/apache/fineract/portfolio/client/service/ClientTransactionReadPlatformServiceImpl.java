@@ -31,9 +31,11 @@ import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.client.data.ClientTransactionData;
 import org.apache.fineract.portfolio.client.domain.ClientEnumerations;
+import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
 import org.apache.fineract.portfolio.client.domain.ClientTransaction;
 import org.apache.fineract.portfolio.client.domain.ClientTransactionRepository;
 import org.apache.fineract.portfolio.client.domain.ClientTransactionType;
@@ -54,6 +56,8 @@ public class ClientTransactionReadPlatformServiceImpl implements ClientTransacti
     private final ClientTransactionMapper clientTransactionMapper = new ClientTransactionMapper();
     private final PaginationHelper paginationHelper;
     private final ClientTransactionRepository clientTransactionRepository;
+    private final PlatformSecurityContext context;
+    private final ClientRepositoryWrapper clientRepositoryWrapper;
 
     private static final class ClientTransactionMapper implements RowMapper<ClientTransactionData> {
 
@@ -134,6 +138,7 @@ public class ClientTransactionReadPlatformServiceImpl implements ClientTransacti
 
     @Override
     public Page<ClientTransactionData> retrieveAllTransactions(Long clientId, SearchParameters searchParameters) {
+        validateClientInUserOfficeHierarchy(clientId);
         Object[] parameters = new Object[1];
         final StringBuilder sqlBuilder = new StringBuilder();
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ").append(this.clientTransactionMapper.schema())
@@ -157,6 +162,7 @@ public class ClientTransactionReadPlatformServiceImpl implements ClientTransacti
 
     @Override
     public Collection<ClientTransactionData> retrieveAllTransactions(Long clientId, Long chargeId) {
+        validateClientInUserOfficeHierarchy(clientId);
         Object[] parameters = new Object[1];
         String sql = "select " + this.clientTransactionMapper.schema() + " where c.id = ? ";
         if (chargeId != null) {
@@ -171,6 +177,7 @@ public class ClientTransactionReadPlatformServiceImpl implements ClientTransacti
 
     @Override
     public ClientTransactionData retrieveTransaction(Long clientId, Long transactionId) {
+        validateClientInUserOfficeHierarchy(clientId);
         try {
             final String sql = "select " + this.clientTransactionMapper.schema() + " where c.id = ? and tr.id= ?";
             return this.jdbcTemplate.queryForObject(sql, this.clientTransactionMapper, clientId, transactionId); // NOSONAR
@@ -184,4 +191,8 @@ public class ClientTransactionReadPlatformServiceImpl implements ClientTransacti
         return clientTransactionRepository.findByExternalId(transactionExternalId);
     }
 
+    private void validateClientInUserOfficeHierarchy(final Long clientId) {
+        final String hierarchySearchString = this.context.officeHierarchy() + "%";
+        this.clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientId, hierarchySearchString);
+    }
 }
