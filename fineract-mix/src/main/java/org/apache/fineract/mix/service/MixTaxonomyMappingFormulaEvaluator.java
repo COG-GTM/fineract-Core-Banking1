@@ -38,8 +38,9 @@ public final class MixTaxonomyMappingFormulaEvaluator {
     private MixTaxonomyMappingFormulaEvaluator() {}
 
     /**
-     * Checks that the formula is syntactically valid. Balances are unknown at this point, so division by a
-     * placeholder that may be zero is only rejected at evaluation time.
+     * Checks that the formula is syntactically valid and has no constant zero divisor. Balances are unknown at this
+     * point, so placeholder values are treated as unknown and a placeholder-dependent zero divisor is only rejected
+     * at evaluation time.
      *
      * @throws IllegalArgumentException
      *             if the formula is not a valid arithmetic expression
@@ -92,9 +93,11 @@ public final class MixTaxonomyMappingFormulaEvaluator {
             BigDecimal value = parseTerm();
             while (true) {
                 if (consume('+')) {
-                    value = value.add(parseTerm(), MATH_CONTEXT);
+                    final BigDecimal term = parseTerm();
+                    value = value == null || term == null ? null : value.add(term, MATH_CONTEXT);
                 } else if (consume('-')) {
-                    value = value.subtract(parseTerm(), MATH_CONTEXT);
+                    final BigDecimal term = parseTerm();
+                    value = value == null || term == null ? null : value.subtract(term, MATH_CONTEXT);
                 } else {
                     return value;
                 }
@@ -105,15 +108,18 @@ public final class MixTaxonomyMappingFormulaEvaluator {
             BigDecimal value = parseFactor();
             while (true) {
                 if (consume('*')) {
-                    value = value.multiply(parseFactor(), MATH_CONTEXT);
+                    final BigDecimal factor = parseFactor();
+                    value = value == null || factor == null ? null : value.multiply(factor, MATH_CONTEXT);
                 } else if (consume('/')) {
                     final int divisorPos = pos;
                     final BigDecimal divisor = parseFactor();
-                    if (divisor.signum() != 0) {
-                        value = value.divide(divisor, MATH_CONTEXT);
-                    } else if (!validateOnly) {
+                    if (divisor == null) {
+                        value = null;
+                    } else if (divisor.signum() == 0) {
                         pos = divisorPos;
                         throw error("Division by zero");
+                    } else if (value != null) {
+                        value = value.divide(divisor, MATH_CONTEXT);
                     }
                 } else {
                     return value;
@@ -130,7 +136,8 @@ public final class MixTaxonomyMappingFormulaEvaluator {
                     return parseFactor();
                 }
                 if (consume('-')) {
-                    return parseFactor().negate();
+                    final BigDecimal factor = parseFactor();
+                    return factor == null ? null : factor.negate();
                 }
                 if (consume('(')) {
                     final BigDecimal value = parseExpression();
@@ -159,7 +166,7 @@ public final class MixTaxonomyMappingFormulaEvaluator {
             }
             pos = end + 1;
             if (validateOnly) {
-                return BigDecimal.ONE;
+                return null;
             }
             final BigDecimal balance = balances.get(glCode);
             return balance != null ? balance : BigDecimal.ZERO;

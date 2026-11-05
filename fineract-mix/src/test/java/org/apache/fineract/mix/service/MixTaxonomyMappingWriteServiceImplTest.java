@@ -65,7 +65,7 @@ class MixTaxonomyMappingWriteServiceImplTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "{\"1\":\"Java.type('java.lang.Runtime').getRuntime().exec('id')\"}", "{\"1\":\"{1001}+abc\"}", "{\"1\":5}",
-            "{\"1\":[\"{1001}\"]}", "[\"{1001}\"]", "not json" })
+            "{\"1\":[\"{1001}\"]}", "[\"{1001}\"]", "not json", "{\"1\":\"1/(2-2)\"}" })
     void rejectsNonArithmeticMapping(final String config) {
         assertThatThrownBy(() -> service.updateMapping(request(config))).isInstanceOf(PlatformApiDataValidationException.class);
 

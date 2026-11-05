@@ -58,6 +58,7 @@ class MixTaxonomyMappingFormulaEvaluatorTest {
     void acceptsDivisionByPlaceholderAtValidationTime() {
         MixTaxonomyMappingFormulaEvaluator.validate("{1001}/{1002}");
         MixTaxonomyMappingFormulaEvaluator.validate("{1001}/({1002}-{1003})");
+        assertThatThrownBy(() -> MixTaxonomyMappingFormulaEvaluator.validate("{1001}/(2-2)")).isInstanceOf(IllegalArgumentException.class);
         assertThat(MixTaxonomyMappingFormulaEvaluator.evaluate("{1001}/{1002}", BALANCES)).isEqualByComparingTo("5.025");
     }
 
@@ -75,7 +76,7 @@ class MixTaxonomyMappingFormulaEvaluatorTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "Java.type('java.lang.Runtime').getRuntime().exec('id')", "this.engine", "1;2", "{1001}+", "(1+2", "1+2)",
-            "{a{b}", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
+            "{a{b}", "1/0", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
     void rejectsNonArithmeticFormulas(final String formula) {
         assertThatThrownBy(() -> MixTaxonomyMappingFormulaEvaluator.validate(formula)).isInstanceOf(IllegalArgumentException.class);
     }
