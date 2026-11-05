@@ -37,6 +37,7 @@ import org.apache.fineract.cob.domain.LockOwner;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -49,7 +50,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Slf4j
 public class InternalLoanAccountLockApiResource implements InitializingBean {
 
+    private static final String ALL_FUNCTIONS_PERMISSION = "ALL_FUNCTIONS";
+
     private final LoanAccountLockRepository loanAccountLockRepository;
+    private final PlatformSecurityContext context;
 
     @Override
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
@@ -71,6 +75,8 @@ public class InternalLoanAccountLockApiResource implements InitializingBean {
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public Response placeLockOnLoanAccount(@Context final UriInfo uriInfo, @PathParam("loanId") Long loanId,
             @PathParam("lockOwner") String lockOwner, @RequestBody(required = false) LockRequest request) {
+        context.authenticatedUser().validateHasPermissionTo(ALL_FUNCTIONS_PERMISSION);
+
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Placing lock on loan: {}", loanId);
@@ -80,7 +86,7 @@ public class InternalLoanAccountLockApiResource implements InitializingBean {
         LoanAccountLock loanAccountLock = new LoanAccountLock(loanId, LockOwner.valueOf(lockOwner),
                 ThreadLocalContextUtil.getBusinessDateByType(BusinessDateType.COB_DATE));
 
-        if (StringUtils.isNotBlank(request.getError())) {
+        if (request != null && StringUtils.isNotBlank(request.getError())) {
             loanAccountLock.setError(request.getError(), request.getError());
         }
         loanAccountLockRepository.save(loanAccountLock);
