@@ -71,6 +71,7 @@ import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @RequiredArgsConstructor
 public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServiceRegistrationWritePlatformService {
@@ -87,6 +88,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     private final SmsCampaignDropdownReadPlatformService smsCampaignDropdownReadPlatformService;
     private final AppUserReadPlatformService appUserReadPlatformService;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     @Override
@@ -143,7 +145,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
         String authenticationToken = randomAuthorizationTokenGeneration();
         Client client = this.clientRepository.getClientByAccountNumber(accountNumber);
         SelfServiceRegistration selfServiceRegistration = SelfServiceRegistration.instance(client, accountNumber, firstName, lastName,
-                mobileNumber, email, authenticationToken, username, password);
+                mobileNumber, email, authenticationToken, username, this.passwordEncoder.encode(password));
         this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
         sendAuthorizationToken(selfServiceRegistration, isEmailAuthenticationMode);
         return selfServiceRegistration;
@@ -247,6 +249,10 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             if (selfServiceRegistration == null) {
                 throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
             }
+            if (selfServiceRegistration.getEncodedPassword() == null) {
+                throw new PlatformDataIntegrityException("error.msg.self.service.registration.request.not.usable",
+                        "Self service registration request " + id + " has already been used or has expired. Please register again.");
+            }
             username = selfServiceRegistration.getUsername();
             Client client = selfServiceRegistration.getClient();
             final boolean passwordNeverExpire = true;
@@ -261,10 +267,12 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                 throw new RoleNotFoundException(SelfServiceApiConstants.SELF_SERVICE_USER_ROLE);
             }
             List<Client> clients = new ArrayList<>(Arrays.asList(client));
-            User user = new User(selfServiceRegistration.getUsername(), selfServiceRegistration.getPassword(), authorities);
+            User user = new User(selfServiceRegistration.getUsername(), selfServiceRegistration.getEncodedPassword(), authorities);
             AppUser appUser = new AppUser(client.getOffice(), user, allRoles, selfServiceRegistration.getEmail(), client.getFirstname(),
                     client.getLastname(), null, passwordNeverExpire, isSelfServiceUser, clients, null);
-            this.userDomainService.create(appUser, true);
+            this.userDomainService.createWithEncodedPassword(appUser);
+            selfServiceRegistration.clearEncodedPassword();
+            this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
             return appUser;
 
         } catch (final JpaSystemException | DataIntegrityViolationException dve) {

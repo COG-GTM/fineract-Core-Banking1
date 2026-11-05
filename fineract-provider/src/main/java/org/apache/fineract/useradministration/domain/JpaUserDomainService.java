@@ -58,6 +58,12 @@ public class JpaUserDomainService implements UserDomainService {
         }
     }
 
+    @Transactional
+    @Override
+    public void createWithEncodedPassword(final AppUser appUser) {
+        this.userRepository.saveAndFlush(appUser);
+    }
+
     private void generateKeyUsedForPasswordSalting(final AppUser appUser) {
         this.userRepository.save(appUser);
     }
