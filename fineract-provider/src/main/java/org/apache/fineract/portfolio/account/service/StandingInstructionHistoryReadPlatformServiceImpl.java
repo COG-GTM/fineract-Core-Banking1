@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -33,7 +34,6 @@ import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.account.data.PortfolioAccountData;
@@ -45,9 +45,18 @@ import org.springframework.jdbc.core.RowMapper;
 
 public class StandingInstructionHistoryReadPlatformServiceImpl implements StandingInstructionHistoryReadPlatformService {
 
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.ofEntries(Map.entry("id", "atsi.id"), Map.entry("atsi.id", "atsi.id"),
+            Map.entry("name", "atsi.name"), Map.entry("atsi.name", "atsi.name"), Map.entry("status", "atsih.status"),
+            Map.entry("atsih.status", "atsih.status"), Map.entry("executiontime", "atsih.execution_time"),
+            Map.entry("execution_time", "atsih.execution_time"), Map.entry("atsih.execution_time", "atsih.execution_time"),
+            Map.entry("amount", "atsih.amount"), Map.entry("atsih.amount", "atsih.amount"),
+            Map.entry("fromclientname", "fromclient.display_name"), Map.entry("fromclient.display_name", "fromclient.display_name"),
+            Map.entry("toclientname", "toclient.display_name"), Map.entry("toclient.display_name", "toclient.display_name"),
+            Map.entry("fromofficename", "fromoff.name"), Map.entry("fromoff.name", "fromoff.name"), Map.entry("toofficename", "tooff.name"),
+            Map.entry("tooff.name", "tooff.name"));
+
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-    private final ColumnValidator columnValidator;
 
     // mapper
     private final StandingInstructionHistoryMapper standingInstructionHistoryMapper;
@@ -55,12 +64,11 @@ public class StandingInstructionHistoryReadPlatformServiceImpl implements Standi
     // pagination
     private final PaginationHelper paginationHelper;
 
-    public StandingInstructionHistoryReadPlatformServiceImpl(final JdbcTemplate jdbcTemplate, final ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, PaginationHelper paginationHelper) {
+    public StandingInstructionHistoryReadPlatformServiceImpl(final JdbcTemplate jdbcTemplate, DatabaseSpecificSQLGenerator sqlGenerator,
+            PaginationHelper paginationHelper) {
         this.jdbcTemplate = jdbcTemplate;
         this.sqlGenerator = sqlGenerator;
         this.standingInstructionHistoryMapper = new StandingInstructionHistoryMapper();
-        this.columnValidator = columnValidator;
         this.paginationHelper = paginationHelper;
     }
 
@@ -136,14 +144,7 @@ public class StandingInstructionHistoryReadPlatformServiceImpl implements Standi
         }
 
         final SearchParameters searchParameters = standingInstructionDTO.searchParameters();
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-            }
-        }
+        sqlBuilder.append(StandingInstructionSortSupport.orderByClause(searchParameters, SORTABLE_COLUMNS, "standinginstructionhistory"));
 
         if (searchParameters.hasLimit()) {
             sqlBuilder.append(" ");
