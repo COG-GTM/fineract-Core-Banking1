@@ -79,6 +79,7 @@ public class TemplatesApiResource {
     public static final String ENTITIES = "entities";
     public static final String TYPES = "types";
     public static final String PARAM_TEMPLATE = "template";
+    private static final String BASE_URI = "BASE_URI";
     private static final Set<String> RESPONSE_TEMPLATES_DATA_PARAMETERS = new HashSet<>(List.of(ID));
     private static final Set<String> RESPONSE_TEMPLATE_DATA_PARAMETERS = new HashSet<>(List.of(ID, ENTITIES, TYPES, PARAM_TEMPLATE));
     private static final String RESOURCE_NAME_FOR_PERMISSION = PARAM_TEMPLATE;
@@ -207,6 +208,8 @@ public class TemplatesApiResource {
     public String mergeTemplate(@PathParam("templateId") final Long templateId, @Context final UriInfo uriInfo,
             final String apiRequestBodyAsJson) throws IOException {
 
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
+
         final Template template = this.templateService.findOneById(templateId);
 
         @SuppressWarnings("unchecked")
@@ -223,8 +226,9 @@ public class TemplatesApiResource {
             }
         }
 
-        parametersMap.put("BASE_URI", uriInfo.getBaseUri());
         parametersMap.putAll(result);
-        return this.templateMergeService.compile(template, parametersMap);
+        final String baseUri = this.templateMergeService.resolveBaseUri(uriInfo.getBaseUri().toString());
+        parametersMap.put(BASE_URI, baseUri);
+        return this.templateMergeService.compile(template, parametersMap, baseUri);
     }
 }

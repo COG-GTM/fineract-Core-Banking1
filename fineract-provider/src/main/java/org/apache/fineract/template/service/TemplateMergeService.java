@@ -29,6 +29,7 @@ import java.io.StringWriter;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
@@ -36,10 +37,12 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.template.domain.Template;
@@ -63,12 +66,20 @@ public class TemplateMergeService {
     }
 
     public String compile(final Template template, final Map<String, Object> scopes) {
+        return compile(template, scopes, null);
+    }
+
+    /**
+     * Compiles the template. Relative mapper URLs are resolved against {@code baseUri} (or the configured
+     * {@code fineract.template.base-uri}), never against a value taken from {@code scopes}.
+     */
+    public String compile(final Template template, final Map<String, Object> scopes, final String baseUri) {
         scopes.put("static", new TemplateFunctions());
 
         final MustacheFactory mf = new DefaultMustacheFactory();
         final Mustache mustache = mf.compile(new StringReader(template.getText()), template.getName());
 
-        getCompiledMapFromMappers(template.getMappersAsMap(), scopes);
+        getCompiledMapFromMappers(template.getMappersAsMap(), scopes, resolveBaseUri(baseUri));
 
         expandMapArrays(scopes);
 
@@ -78,7 +89,15 @@ public class TemplateMergeService {
         return stringWriter.toString();
     }
 
-    private Map<String, Object> getCompiledMapFromMappers(final Map<String, String> data, final Map<String, Object> scopes) {
+    public String resolveBaseUri(final String requestBaseUri) {
+        if (fineractProperties.getTemplate() != null && StringUtils.isNotBlank(fineractProperties.getTemplate().getBaseUri())) {
+            return fineractProperties.getTemplate().getBaseUri();
+        }
+        return requestBaseUri;
+    }
+
+    private Map<String, Object> getCompiledMapFromMappers(final Map<String, String> data, final Map<String, Object> scopes,
+            final String baseUri) {
         final MustacheFactory mf = new DefaultMustacheFactory();
 
         if (data != null) {
@@ -89,7 +108,7 @@ public class TemplateMergeService {
                 mappersMustache.execute(stringWriter, scopes);
                 String url = stringWriter.toString();
                 if (!url.startsWith("http")) {
-                    url = scopes.get("BASE_URI") + url;
+                    url = resolveRelativeUrl(baseUri, url);
                 }
                 try {
                     scopes.put(entry.getKey(), getMapFromUrl(url));
@@ -99,6 +118,25 @@ public class TemplateMergeService {
             }
         }
         return scopes;
+    }
+
+    private static String resolveRelativeUrl(final String baseUri, final String relativeUrl) {
+        if (StringUtils.isBlank(baseUri)) {
+            throw new TemplateForbiddenException(relativeUrl);
+        }
+        final String url = baseUri + relativeUrl;
+        try {
+            final URL base = new URL(baseUri);
+            final URL resolved = new URL(url);
+            if (base.getHost().isEmpty() || !base.getProtocol().equalsIgnoreCase(resolved.getProtocol())
+                    || !base.getHost().equalsIgnoreCase(resolved.getHost()) || base.getPort() != resolved.getPort()
+                    || !Objects.equals(base.getUserInfo(), resolved.getUserInfo())) {
+                throw new TemplateForbiddenException(url);
+            }
+        } catch (final MalformedURLException e) {
+            throw new TemplateForbiddenException(url);
+        }
+        return url;
     }
 
     @SuppressWarnings("unchecked")
