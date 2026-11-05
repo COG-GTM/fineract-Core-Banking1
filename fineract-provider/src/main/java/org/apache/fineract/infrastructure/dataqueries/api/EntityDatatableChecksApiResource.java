@@ -49,6 +49,7 @@ import org.apache.fineract.infrastructure.dataqueries.data.EntityDataTableChecks
 import org.apache.fineract.infrastructure.dataqueries.data.EntityDataTableChecksTemplateData;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
 import org.apache.fineract.infrastructure.dataqueries.service.EntityDatatableChecksReadService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/entityDatatableChecks")
@@ -57,6 +58,9 @@ import org.springframework.stereotype.Component;
 @Tag(name = "Entity Data Table", description = "This defines Entity-Datatable Check.")
 public class EntityDatatableChecksApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "ENTITY_DATATABLE_CHECK";
+
+    private final PlatformSecurityContext context;
     private final EntityDatatableChecksReadService readEntityDatatableChecksService;
     private final ToApiJsonSerializer<GenericResultsetData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
@@ -74,6 +78,8 @@ public class EntityDatatableChecksApiResource {
             @QueryParam("productId") @Parameter(description = "productId") final Long productId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
         final SearchParameters searchParameters = SearchParameters.builder().limit(limit).offset(offset).build();
         final Page<EntityDataTableChecksData> result = this.readEntityDatatableChecksService.retrieveAll(searchParameters, status, entity,
                 productId);
@@ -89,6 +95,7 @@ public class EntityDatatableChecksApiResource {
             + "\n" + "Allowed description Lists\n" + "Example Request:\n" + "\n" + "entityDatatableChecks/template")
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = EntityDatatableChecksApiResourceSwagger.GetEntityDatatableChecksTemplateResponse.class)))
     public String getTemplate(@Context final UriInfo uriInfo) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
         final EntityDataTableChecksTemplateData result = this.readEntityDatatableChecksService.retrieveTemplate();
 
