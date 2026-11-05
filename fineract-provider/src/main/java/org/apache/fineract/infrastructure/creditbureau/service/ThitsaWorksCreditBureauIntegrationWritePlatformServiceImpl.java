@@ -31,6 +31,8 @@ import jakarta.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +59,7 @@ import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidati
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.infrastructure.creditbureau.config.CreditBureauHttpClientConfig;
 import org.apache.fineract.infrastructure.creditbureau.data.CreditBureauConfigurations;
 import org.apache.fineract.infrastructure.creditbureau.data.CreditBureauReportData;
 import org.apache.fineract.infrastructure.creditbureau.domain.CreditBureauConfiguration;
@@ -66,6 +69,7 @@ import org.apache.fineract.infrastructure.creditbureau.domain.TokenRepositoryWra
 import org.apache.fineract.infrastructure.creditbureau.serialization.CreditBureauTokenCommandFromApiJsonDeserializer;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,7 +87,9 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
     private final TokenRepositoryWrapper tokenRepositoryWrapper;
     private final CreditBureauConfigurationRepositoryWrapper configDataRepository;
     private final CreditBureauTokenCommandFromApiJsonDeserializer fromApiJsonDeserializer;
+    @Qualifier(CreditBureauHttpClientConfig.CREDIT_BUREAU_HTTP_CLIENT)
     private final OkHttpClient client;
+    private final CreditBureauUrlValidator urlValidator;
 
     @Transactional
     @Override
@@ -98,6 +104,10 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
         if (urlBuilder == null) {
             throw new PlatformDataIntegrityException("error.url.not.parsed", "URL not parsed");
         }
+        urlValidator.findViolation(url).ifPresent(violation -> {
+            throw new PlatformDataIntegrityException("error.msg.creditbureau." + violation,
+                    "Credit bureau URL is not allowed: " + violation);
+        });
         String okHttpUrl = urlBuilder.toString();
         Request request = null;
         Request.Builder baseRequestBuilder = createRequestBuilder(subscriptionKey, subscriptionId, token, okHttpUrl);
@@ -114,7 +124,7 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
                             + "&\r" + "password=" + password + "&\r", MediaType.parse("application/x-www-form-urlencoded")),
                     (requestBody, builder) -> builder.header(CONTENT_TYPE, APPLICATION_FORM_URLENCODED).post(requestBody).build());
             case "NRC" -> request = createRequest(baseRequestBuilder,
-                    () -> RequestBody.create("BODY=x-www-form-urlencoded&nrc=" + nrcId + "&",
+                    () -> RequestBody.create("BODY=x-www-form-urlencoded&nrc=" + encodeUrlComponent(nrcId) + "&",
                             MediaType.parse("application/x-www-form-urlencoded")),
                     (requestBody, builder) -> builder.header(CONTENT_TYPE, APPLICATION_FORM_URLENCODED).post(requestBody).build());
             default -> handleAPIIntegrityIssues("Invalid Process");
@@ -208,8 +218,9 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
             this.handleAPIIntegrityIssues(httpResponse);
 
         } else {
-            String responseResult = "HTTP Response Code: " + responseCode + "/" + "Response Message: " + responseMessage;
-            this.handleAPIIntegrityIssues(responseResult);
+            log.warn("Credit bureau request failed with HTTP response code {} (response length {})", responseCode,
+                    responseMessage == null ? 0 : responseMessage.length());
+            this.handleAPIIntegrityIssues("HTTP Response Code: " + responseCode);
         }
 
     }
@@ -235,7 +246,7 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
         String process = "NRC";
         String url = getCreditBureauConfiguration(creditBureauId, CreditBureauConfigurations.SEARCHURL.toString());
 
-        String nrcUrl = url + nrcId;
+        String nrcUrl = url + encodeUrlComponent(nrcId);
 
         String searchResult = this.okHttpConnectionMethod(userName, password, subscriptionKey, subscriptionId, nrcUrl, token, null, null,
                 0L, nrcId, process);
@@ -480,6 +491,10 @@ public class ThitsaWorksCreditBureauIntegrationWritePlatformServiceImpl implemen
         }
 
         return creditBureauConfigurationValue;
+    }
+
+    private static String encodeUrlComponent(String value) {
+        return value == null ? null : URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private void handleAPIIntegrityIssues(String httpResponse) {

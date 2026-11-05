@@ -81,9 +81,10 @@ public class CreditBureauConfigurationWritePlatformServiceImpl implements Credit
         try {
             this.context.authenticatedUser();
 
-            this.fromApiJsonDeserializer.validateForUpdate(command.json());
-
             final CreditBureauConfiguration config = retrieveConfigBy(configurationId);
+
+            this.fromApiJsonDeserializer.validateForUpdate(command.json(), config.getConfigurationKey(), config.getValue());
+
             final Map<String, Object> changes = config.update(command);
 
             if (!changes.isEmpty()) {
