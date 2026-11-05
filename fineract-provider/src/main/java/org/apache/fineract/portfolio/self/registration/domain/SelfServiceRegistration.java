@@ -63,6 +63,9 @@ public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
     @Column(name = "created_date", nullable = false)
     private LocalDateTime createdDate;
 
+    @Column(name = "verification_attempts", nullable = false)
+    private int verificationAttempts;
+
     public SelfServiceRegistration() {}
 
     public SelfServiceRegistration(final Client client, String accountNumber, final String firstName, final String lastName,
@@ -108,6 +111,10 @@ public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
 
     public String getAuthenticationToken() {
         return this.authenticationToken;
+    }
+
+    public int getVerificationAttempts() {
+        return this.verificationAttempts;
     }
 
     public LocalDateTime getCreatedDate() {

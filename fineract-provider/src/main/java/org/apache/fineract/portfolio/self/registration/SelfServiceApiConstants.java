@@ -51,5 +51,9 @@ public final class SelfServiceApiConstants {
     public static final List<Object> SUPPORTED_AUTHENTICATION_MODE_PARAMETERS = List
             .copyOf(Arrays.asList(emailModeParamName, mobileModeParamName));
     public static final String SELF_SERVICE_USER_ROLE = "Self Service User";
+    public static final int AUTHENTICATION_TOKEN_LENGTH = 10;
+    public static final String AUTHENTICATION_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    public static final long AUTHENTICATION_TOKEN_VALIDITY_MINUTES = 15;
+    public static final int MAX_AUTHENTICATION_TOKEN_ATTEMPTS = 5;
 
 }
