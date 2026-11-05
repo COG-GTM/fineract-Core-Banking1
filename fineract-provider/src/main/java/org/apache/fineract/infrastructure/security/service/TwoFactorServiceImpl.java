@@ -33,6 +33,7 @@ import org.apache.fineract.infrastructure.security.domain.TFAccessToken;
 import org.apache.fineract.infrastructure.security.domain.TFAccessTokenRepository;
 import org.apache.fineract.infrastructure.security.exception.AccessTokenInvalidIException;
 import org.apache.fineract.infrastructure.security.exception.OTPDeliveryMethodInvalidException;
+import org.apache.fineract.infrastructure.security.exception.OTPRequestTooFrequentException;
 import org.apache.fineract.infrastructure.security.exception.OTPTokenInvalidException;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessage;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageRepository;
@@ -48,6 +49,9 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnProperty("fineract.security.2fa.enabled")
 public class TwoFactorServiceImpl implements TwoFactorService {
+
+    static final int MAX_OTP_VALIDATION_ATTEMPTS = 5;
+    static final int OTP_REQUEST_COOLDOWN_SECONDS = 30;
 
     private final AccessTokenGenerationService accessTokenGenerationService;
     private final PlatformEmailService emailService;
@@ -97,12 +101,12 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(smsDelivery, extendedAccessToken);
+            reserveOTPRequest(user, request);
             final String smsText = configurationService.getFormattedSmsTextFor(user, request);
             SmsMessage smsMessage = SmsMessage.pendingSms(null, null, null, user.getStaff(), smsText, user.getStaff().mobileNo(), null,
                     false);
             this.smsMessageRepository.save(smsMessage);
             smsMessageScheduledJobService.sendTriggeredMessage(Collections.singleton(smsMessage), configurationService.getSMSProviderId());
-            otpRequestRepository.addOTPRequest(user, request);
             return request;
         } else if (TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME.equalsIgnoreCase(deliveryMethodName)) {
             OTPDeliveryMethod emailDelivery = getEmailDeliveryMethodForUser(user);
@@ -110,12 +114,12 @@ public class TwoFactorServiceImpl implements TwoFactorService {
                 throw new OTPDeliveryMethodInvalidException();
             }
             final OTPRequest request = generateNewToken(emailDelivery, extendedAccessToken);
+            reserveOTPRequest(user, request);
             final String emailSubject = configurationService.getFormattedEmailSubjectFor(user, request);
             final String emailBody = configurationService.getFormattedEmailBodyFor(user, request);
             final EmailDetail emailData = new EmailDetail(emailSubject, emailBody, user.getEmail(),
                     user.getFirstname() + " " + user.getLastname());
             emailService.sendDefinedEmail(emailData);
-            otpRequestRepository.addOTPRequest(user, request);
             return request;
         }
 
@@ -128,11 +132,11 @@ public class TwoFactorServiceImpl implements TwoFactorService {
     public TFAccessToken createAccessTokenFromOTP(final AppUser user, final String otpToken) {
 
         OTPRequest otpRequest = otpRequestRepository.getOTPRequestForUser(user);
-        if (otpRequest == null || !otpRequest.isValid() || !otpRequest.getToken().equalsIgnoreCase(otpToken)) {
+        if (otpRequest == null || !otpRequest.verify(otpToken, MAX_OTP_VALIDATION_ATTEMPTS)) {
             throw new OTPTokenInvalidException();
         }
 
-        otpRequestRepository.deleteOTPRequestForUser(user);
+        otpRequestRepository.deleteOTPRequestForUser(user, otpRequest);
 
         String token = accessTokenGenerationService.generateRandomToken();
         int liveTime;
@@ -206,6 +210,12 @@ public class TwoFactorServiceImpl implements TwoFactorService {
         }
 
         return new OTPDeliveryMethod().setName(TwoFactorConstants.EMAIL_DELIVERY_METHOD_NAME).setTarget(user.getEmail());
+    }
+
+    private void reserveOTPRequest(final AppUser user, final OTPRequest request) {
+        if (!otpRequestRepository.addOTPRequestIfNotRequestedWithin(user, request, OTP_REQUEST_COOLDOWN_SECONDS)) {
+            throw new OTPRequestTooFrequentException(OTP_REQUEST_COOLDOWN_SECONDS);
+        }
     }
 
     private OTPRequest generateNewToken(final OTPDeliveryMethod deliveryMethod, final boolean extendedAccessToken) {

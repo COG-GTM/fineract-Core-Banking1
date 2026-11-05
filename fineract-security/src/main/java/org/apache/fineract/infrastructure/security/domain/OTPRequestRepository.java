@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.security.domain;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.fineract.infrastructure.security.data.OTPRequest;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,13 +39,28 @@ public class OTPRequestRepository {
         return OTT_REQUESTS.get(user.getId());
     }
 
-    public void addOTPRequest(AppUser user, OTPRequest request) {
+    /**
+     * Stores {@code request} for the user unless the user's current request was created less than
+     * {@code cooldownSeconds} ago.
+     *
+     * @return {@code true} if the request was stored
+     */
+    public boolean addOTPRequestIfNotRequestedWithin(AppUser user, OTPRequest request, int cooldownSeconds) {
         Assert.notNull(user, "User must not be null");
         Assert.notNull(request, "Request must not be null");
-        OTT_REQUESTS.put(user.getId(), request);
+
+        final AtomicBoolean added = new AtomicBoolean(false);
+        OTT_REQUESTS.compute(user.getId(), (id, existing) -> {
+            if (existing != null && existing.isRequestedWithin(cooldownSeconds)) {
+                return existing;
+            }
+            added.set(true);
+            return request;
+        });
+        return added.get();
     }
 
-    public void deleteOTPRequestForUser(AppUser user) {
-        OTT_REQUESTS.remove(user.getId());
+    public boolean deleteOTPRequestForUser(AppUser user, OTPRequest request) {
+        return OTT_REQUESTS.remove(user.getId(), request);
     }
 }

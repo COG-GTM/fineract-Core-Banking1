@@ -22,7 +22,7 @@ import java.security.SecureRandom;
 
 public class RandomOTPGenerator {
 
-    private static final String allowedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVQXYZ";
+    private static final String allowedCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private final int tokenLength;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -33,7 +33,7 @@ public class RandomOTPGenerator {
     public String generate() {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < tokenLength; i++) {
-            builder.append(allowedCharacters.charAt((int) (secureRandom.nextDouble() * allowedCharacters.length())));
+            builder.append(allowedCharacters.charAt(secureRandom.nextInt(allowedCharacters.length())));
         }
 
         return builder.toString();
