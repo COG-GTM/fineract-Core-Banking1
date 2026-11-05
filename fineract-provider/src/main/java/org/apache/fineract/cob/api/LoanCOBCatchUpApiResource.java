@@ -35,6 +35,7 @@ import org.apache.fineract.cob.data.OldestCOBProcessedLoanDTO;
 import org.apache.fineract.cob.service.LoanCOBCatchUpService;
 import org.apache.fineract.infrastructure.core.exception.JobIsNotFoundOrNotEnabledException;
 import org.apache.fineract.infrastructure.jobs.service.JobName;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/loans")
@@ -43,7 +44,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LoanCOBCatchUpApiResource {
 
+    private static final String SCHEDULER_RESOURCE_NAME = "SCHEDULER";
+    private static final String EXECUTE_JOB_PERMISSION = "EXECUTEJOB_SCHEDULER";
+
     private final Optional<LoanCOBCatchUpService> loanCOBCatchUpServiceOp;
+    private final PlatformSecurityContext context;
 
     @GET
     @Path("oldest-cob-closed")
@@ -51,6 +56,7 @@ public class LoanCOBCatchUpApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Retrieves the oldest COB processed loan", description = "Retrieves the COB business date and the oldest COB processed loan")
     public OldestCOBProcessedLoanDTO getOldestCOBProcessedLoan() {
+        context.authenticatedUser().validateHasReadPermission(SCHEDULER_RESOURCE_NAME);
         return loanCOBCatchUpServiceOp.map(LoanCOBCatchUpService::getOldestCOBProcessedLoan)
                 .orElseThrow(() -> new JobIsNotFoundOrNotEnabledException(JobName.LOAN_COB.name()));
     }
@@ -63,7 +69,9 @@ public class LoanCOBCatchUpApiResource {
     @ApiResponse(responseCode = "200", description = "All loans are up to date")
     @ApiResponse(responseCode = "202", description = "Catch Up has been started")
     @ApiResponse(responseCode = "400", description = "Catch Up is already running")
+    @ApiResponse(responseCode = "403", description = "User has no authority to execute scheduler jobs")
     public Response executeLoanCOBCatchUp() {
+        context.authenticatedUser().validateHasPermissionTo(EXECUTE_JOB_PERMISSION);
         return loanCOBCatchUpServiceOp.map(loanCOBCatchUpService -> {
             if (loanCOBCatchUpService.isCatchUpRunning().isCatchUpRunning()) {
                 return Response.status(Response.Status.BAD_REQUEST).build();
@@ -85,6 +93,7 @@ public class LoanCOBCatchUpApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Retrieves whether Loan COB catch up is running", description = "Retrieves whether Loan COB catch up is running, and the current execution date if it is running.")
     public IsCatchUpRunningDTO isCatchUpRunning() {
+        context.authenticatedUser().validateHasReadPermission(SCHEDULER_RESOURCE_NAME);
         return loanCOBCatchUpServiceOp.map(LoanCOBCatchUpService::isCatchUpRunning).orElseGet(() -> new IsCatchUpRunningDTO(false, null));
     }
 }
