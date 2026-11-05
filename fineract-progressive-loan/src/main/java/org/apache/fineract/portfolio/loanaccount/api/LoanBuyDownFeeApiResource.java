@@ -77,6 +77,7 @@ public class LoanBuyDownFeeApiResource {
     public List<BuyDownFeeAmortizationDetails> retrieveLoanBuyDownFeeAmortizationDetails(
             @PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId) {
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        validateLoanIsInUserOfficeHierarchy(loanId);
 
         return this.buyDownFeeReadPlatformService.retrieveLoanBuyDownFeeAmortizationDetails(loanId);
     }
@@ -93,6 +94,7 @@ public class LoanBuyDownFeeApiResource {
 
         final ExternalId externalId = ExternalIdFactory.produce(loanExternalId);
         final Long resolvedLoanId = loanReadPlatformService.getResolvedLoanId(externalId);
+        validateLoanIsInUserOfficeHierarchy(resolvedLoanId);
 
         return this.buyDownFeeReadPlatformService.retrieveLoanBuyDownFeeAmortizationDetails(resolvedLoanId);
     }
@@ -176,6 +178,7 @@ public class LoanBuyDownFeeApiResource {
         final ExternalId loanTransactionExternalId = ExternalIdFactory.produce(loanTransactionExternalIdStr);
 
         final Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        validateLoanIsInUserOfficeHierarchy(resolvedLoanId);
         final Long resolvedLoanTransactionId = loanReadPlatformService.getResolvedLoanTransactionId(loanTransactionId,
                 loanTransactionExternalId);
 
@@ -184,5 +187,13 @@ public class LoanBuyDownFeeApiResource {
 
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return toApiJsonSerializer.serialize(settings, loanAmortizationAllocationData, RESPONSE_DATA_PARAMETERS);
+    }
+
+    /**
+     * Throws {@link org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException} when the loan does not
+     * exist or belongs to an office outside the authenticated user's office hierarchy.
+     */
+    private void validateLoanIsInUserOfficeHierarchy(final Long loanId) {
+        loanReadPlatformService.retrieveOne(loanId);
     }
 }
