@@ -61,8 +61,8 @@ class MixTaxonomyMappingFormulaEvaluatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "Java.type('java.lang.Runtime').getRuntime().exec('id')", "this.engine", "1;2", "{1001}+", "(1+2",
-            "1+2)", "{10'+'01}", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
+    @ValueSource(strings = { "Java.type('java.lang.Runtime').getRuntime().exec('id')", "this.engine", "1;2", "{1001}+", "(1+2", "1+2)",
+            "{10'+'01}", "{}", "{1001", "1..2", "1e5", "Math.max(1,2)", "1 % 2", "1 ** 2", "", "   " })
     void rejectsNonArithmeticFormulas(final String formula) {
         assertThatThrownBy(() -> MixTaxonomyMappingFormulaEvaluator.validate(formula)).isInstanceOf(IllegalArgumentException.class);
     }
