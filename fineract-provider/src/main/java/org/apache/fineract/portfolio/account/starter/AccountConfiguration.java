@@ -24,7 +24,6 @@ import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.portfolio.account.data.AccountTransfersDataValidator;
 import org.apache.fineract.portfolio.account.data.StandingInstructionDataValidator;
@@ -75,11 +74,10 @@ public class AccountConfiguration {
     @ConditionalOnMissingBean(AccountTransfersReadPlatformService.class)
     public AccountTransfersReadPlatformService accountTransfersReadPlatformService(JdbcTemplate jdbcTemplate,
             ClientReadPlatformService clientReadPlatformService, OfficeReadPlatformService officeReadPlatformService,
-            PortfolioAccountReadPlatformService portfolioAccountReadPlatformService, ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, AccountTransfersMapper accountTransfersMapper, PaginationHelper paginationHelper,
-            SqlValidator sqlValidator) {
+            PortfolioAccountReadPlatformService portfolioAccountReadPlatformService, DatabaseSpecificSQLGenerator sqlGenerator,
+            AccountTransfersMapper accountTransfersMapper, PaginationHelper paginationHelper, SqlValidator sqlValidator) {
         return new AccountTransfersReadPlatformServiceImpl(jdbcTemplate, clientReadPlatformService, officeReadPlatformService,
-                portfolioAccountReadPlatformService, columnValidator, sqlGenerator, accountTransfersMapper, paginationHelper, sqlValidator);
+                portfolioAccountReadPlatformService, sqlGenerator, accountTransfersMapper, paginationHelper, sqlValidator);
     }
 
     @Bean
@@ -108,8 +106,8 @@ public class AccountConfiguration {
     @Bean
     @ConditionalOnMissingBean(StandingInstructionHistoryReadPlatformService.class)
     public StandingInstructionHistoryReadPlatformService standingInstructionHistoryReadPlatformService(JdbcTemplate jdbcTemplate,
-            ColumnValidator columnValidator, DatabaseSpecificSQLGenerator sqlGenerator, PaginationHelper paginationHelper) {
-        return new StandingInstructionHistoryReadPlatformServiceImpl(jdbcTemplate, columnValidator, sqlGenerator, paginationHelper);
+            DatabaseSpecificSQLGenerator sqlGenerator, PaginationHelper paginationHelper) {
+        return new StandingInstructionHistoryReadPlatformServiceImpl(jdbcTemplate, sqlGenerator, paginationHelper);
     }
 
     @Bean
@@ -117,10 +115,10 @@ public class AccountConfiguration {
     public StandingInstructionReadPlatformService standingInstructionReadPlatformService(JdbcTemplate jdbcTemplate,
             ClientReadPlatformService clientReadPlatformService, OfficeReadPlatformService officeReadPlatformService,
             PortfolioAccountReadPlatformService portfolioAccountReadPlatformService,
-            DropdownReadPlatformService dropdownReadPlatformService, ColumnValidator columnValidator,
-            DatabaseSpecificSQLGenerator sqlGenerator, PaginationHelper paginationHelper) {
+            DropdownReadPlatformService dropdownReadPlatformService, DatabaseSpecificSQLGenerator sqlGenerator,
+            PaginationHelper paginationHelper) {
         return new StandingInstructionReadPlatformServiceImpl(jdbcTemplate, clientReadPlatformService, officeReadPlatformService,
-                portfolioAccountReadPlatformService, dropdownReadPlatformService, columnValidator, sqlGenerator, paginationHelper);
+                portfolioAccountReadPlatformService, dropdownReadPlatformService, sqlGenerator, paginationHelper);
     }
 
     @Bean
