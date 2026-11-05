@@ -43,3 +43,6 @@ services:
       - ./config/docker/env/fineract-common.env
       - ./config/docker/env/fineract-postgresql.env
       - ./config/docker/env/activemq.env
+    environment:
+      # CI-only stack: enables the test-profile internal APIs (e2e/smoke tests)
+      - SPRING_PROFILES_ACTIVE=test,diagnostics

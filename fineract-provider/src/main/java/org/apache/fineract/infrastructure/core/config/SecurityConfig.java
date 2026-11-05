@@ -142,7 +142,8 @@ public class SecurityConfig {
             auth.requestMatchers(API_MATCHER.matcher(HttpMethod.OPTIONS, "/api/**")).permitAll()
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/echo")).permitAll()
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/authentication")).permitAll()
-                    .requestMatchers(API_MATCHER.matcher(HttpMethod.PUT, "/api/*/instance-mode")).permitAll()
+                    .requestMatchers(API_MATCHER.matcher(HttpMethod.PUT, "/api/*/instance-mode"))
+                    .hasAnyAuthority(ALL_FUNCTIONS, "UPDATE_INSTANCE_MODE")
                     // businessdate
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.GET, "/api/*/businessdate/*"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_BUSINESS_DATE")

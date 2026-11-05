@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -46,7 +47,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class InstanceModeApiResource implements InitializingBean {
 
+    public static final String UPDATE_INSTANCE_MODE_PERMISSION = "UPDATE_INSTANCE_MODE";
+
     private final FineractProperties fineractProperties;
+    private final PlatformSecurityContext context;
 
     @Override
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
@@ -67,6 +71,7 @@ public class InstanceModeApiResource implements InitializingBean {
     @ApiResponse(responseCode = "200", description = "OK")
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public Response changeMode(InstanceModeApiResourceSwagger.ChangeInstanceModeRequest request) {
+        context.authenticatedUser().validateHasPermissionTo(UPDATE_INSTANCE_MODE_PERMISSION);
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Changing instance mode according to the request parameters {}", request);
