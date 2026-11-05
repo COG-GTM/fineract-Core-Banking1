@@ -28,9 +28,11 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.workingdays.command.WorkingDaysUpdateCommand;
 import org.apache.fineract.organisation.workingdays.data.WorkingDaysData;
 import org.apache.fineract.organisation.workingdays.data.WorkingDaysUpdateRequest;
@@ -48,6 +50,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class WorkingDaysApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "WORKING_DAYS";
+    private static final String UPDATE_PERMISSION = "UPDATE_" + RESOURCE_NAME_FOR_PERMISSIONS;
+    private static final List<String> UPDATE_ALLOWED_PERMISSIONS = List.of("ALL_FUNCTIONS", "ALL_FUNCTIONS_WRITE", UPDATE_PERMISSION);
+
+    private final PlatformSecurityContext context;
     private final WorkingDaysReadPlatformService workingDaysReadPlatformService;
     private final WorkingDaysUpdateRequestValidator workingDaysUpdateRequestValidator;
     private final CommandPipeline commandPipeline;
@@ -57,6 +64,7 @@ public class WorkingDaysApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "List Working days", description = "Example Requests:\n" + "\n" + "workingdays")
     public WorkingDaysData retrieveAll() {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return this.workingDaysReadPlatformService.retrieve();
     }
 
@@ -66,6 +74,7 @@ public class WorkingDaysApiResource {
     @Operation(summary = "Update a Working Day", description = "Mandatory Fields\n"
             + "recurrence,repaymentRescheduleType,extendTermForDailyRepayments,locale")
     public WorkingDaysUpdateResponse update(@Valid WorkingDaysUpdateRequest request) {
+        this.context.authenticatedUser().validateHasPermissionTo(UPDATE_PERMISSION, UPDATE_ALLOWED_PERMISSIONS);
 
         final var command = new WorkingDaysUpdateCommand();
 
@@ -85,6 +94,7 @@ public class WorkingDaysApiResource {
     @Operation(summary = "Working Days Template", description = "This is a convenience resource. It can be useful when building maintenance user interface screens for working days.\n"
             + "\n" + "Example Request:\n" + "\n" + "workingdays/template")
     public WorkingDaysData template() {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return this.workingDaysReadPlatformService.repaymentRescheduleType();
     }
 
