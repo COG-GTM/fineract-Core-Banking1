@@ -23,13 +23,17 @@ import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiCon
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.TABLE_FIELD_ID;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.TABLE_REGISTERED_TABLE;
 
+import com.google.common.base.CharMatcher;
+import com.google.common.base.Splitter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
@@ -40,7 +44,6 @@ import org.apache.fineract.infrastructure.dataqueries.exception.DatatableNotFoun
 import org.apache.fineract.infrastructure.dataqueries.exception.DatatableSystemErrorException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.search.service.SearchUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -54,6 +57,8 @@ import org.springframework.stereotype.Service;
 public class DatatableUtil {
 
     private static final String APPLICATION_TABLE_NAME = "application_table_name";
+    private static final String ORDER_ASC = "ASC";
+    private static final String ORDER_DESC = "DESC";
 
     private final SearchUtil searchUtil;
     private final JdbcTemplate jdbcTemplate;
@@ -61,7 +66,6 @@ public class DatatableUtil {
     private final PlatformSecurityContext context;
     private final GenericDataService genericDataService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-    private final ColumnValidator columnValidator;
 
     public boolean isMultirowDatatable(final List<ResultsetColumnHeaderData> columnHeaders) {
         return searchUtil.findFiltered(columnHeaders, e -> e.isNamed(TABLE_FIELD_ID)) != null;
@@ -241,12 +245,56 @@ public class DatatableUtil {
             params.add(id);
         }
         if (StringUtils.isNotBlank(order)) {
-            columnValidator.validateSqlInjection(sql, order);
-            sql = sql + " order by " + order;
+            sql = sql + " order by " + buildOrderByClause(order, columnHeaders);
         }
 
         final List<ResultsetRowData> result = genericDataService.fillResultsetRowData(sql, columnHeaders, params.toArray());
         return new GenericResultsetData(columnHeaders, result);
+    }
+
+    String buildOrderByClause(final String order, final List<ResultsetColumnHeaderData> columnHeaders) {
+        final List<String> orderParts = new ArrayList<>();
+        for (String item : order.split(",", -1)) {
+            final String trimmed = item.trim();
+            String columnName = null;
+            String direction = null;
+            final List<String> tokens = Splitter.on(CharMatcher.whitespace()).omitEmptyStrings().splitToList(trimmed);
+            if (tokens.size() > 1) {
+                final String lastToken = tokens.get(tokens.size() - 1).toUpperCase(Locale.ROOT);
+                if (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken)) {
+                    columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
+                    direction = columnName == null ? null : lastToken;
+                }
+            }
+            if (columnName == null) {
+                columnName = findColumnName(trimmed, columnHeaders);
+            }
+            if (columnName == null) {
+                throw invalidOrderBy(order);
+            }
+            orderParts.add(direction == null ? sqlGenerator.escape(columnName) : sqlGenerator.escape(columnName) + " " + direction);
+        }
+        return String.join(", ", orderParts);
+    }
+
+    private static String findColumnName(final String name, final List<ResultsetColumnHeaderData> columnHeaders) {
+        String unquoted = name;
+        if (unquoted.length() >= 2
+                && ((unquoted.startsWith("`") && unquoted.endsWith("`")) || (unquoted.startsWith("\"") && unquoted.endsWith("\"")))) {
+            unquoted = unquoted.substring(1, unquoted.length() - 1);
+        }
+        if (unquoted.isEmpty()) {
+            return null;
+        }
+        final String candidate = unquoted;
+        return columnHeaders.stream().filter(e -> e.isNamed(candidate)).findFirst().map(ResultsetColumnHeaderData::getColumnName)
+                .orElse(null);
+    }
+
+    private static PlatformApiDataValidationException invalidOrderBy(final String order) {
+        return new PlatformApiDataValidationException("error.msg.datatable.order.invalid",
+                "Order must be a comma separated list of datatable column names (optionally quoted), each optionally followed by ASC or DESC.",
+                "order", order);
     }
 
     private boolean isRegisteredDataTable(final String datatable) {

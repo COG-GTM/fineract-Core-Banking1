@@ -20,27 +20,32 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.dataqueries.data.EntityTables;
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.search.service.SearchUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -69,14 +74,12 @@ class DatatableUtilTest {
     private GenericDataService genericDataService;
     @Mock
     private DatabaseSpecificSQLGenerator sqlGenerator;
-    @Mock
-    private ColumnValidator columnValidator;
 
     private DatatableUtil underTest;
 
     @BeforeEach
     void setUp() {
-        underTest = new DatatableUtil(searchUtil, jdbcTemplate, sqlValidator, context, genericDataService, sqlGenerator, columnValidator);
+        underTest = new DatatableUtil(searchUtil, jdbcTemplate, sqlValidator, context, genericDataService, sqlGenerator);
         setupSecurityContext();
     }
 
@@ -224,6 +227,56 @@ class DatatableUtilTest {
 
         assertTrue(joinCondition.contains("o.hierarchy like ?"), "Join condition should use ? for hierarchy");
         assertFalse(joinCondition.contains("like '"), "Join condition should not contain literal quote for hierarchy");
+    }
+
+    @Test
+    void testOrderByIsRebuiltFromKnownColumns() {
+        when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(createMultiRowHeaders());
+        when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
+
+        underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "dt_loan", APP_TABLE_ID, " LOAN_ID desc ,id", null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(genericDataService).fillResultsetRowData(sqlCaptor.capture(), any(), any(Object[].class));
+        assertTrue(sqlCaptor.getValue().endsWith(" order by `loan_id` DESC, `id`"), sqlCaptor.getValue());
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = { "`Date of Birth` desc|`Date of Birth` DESC", "date of birth|`Date of Birth`",
+            "\"DATE OF BIRTH\" Asc, `id`|`Date of Birth` ASC, `id`", "id desc|`id` DESC", "status desc|`status` DESC",
+            "`status desc`|`status desc`", "`status desc` desc|`status desc` DESC", "status desc desc|`status desc` DESC" })
+    void testOrderBySupportsSpacedAndQuotedColumnNames(String order, String expectedOrderBy) {
+        List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
+        headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        headers.add(ResultsetColumnHeaderData.basic("status", "varchar", DatabaseType.MYSQL));
+        headers.add(ResultsetColumnHeaderData.basic("status desc", "varchar", DatabaseType.MYSQL));
+        when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
+        when(genericDataService.fillResultsetRowData(anyString(), any(), any(Object[].class))).thenReturn(new ArrayList<>());
+
+        underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "dt_loan", APP_TABLE_ID, order, null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(genericDataService).fillResultsetRowData(sqlCaptor.capture(), any(), any(Object[].class));
+        assertTrue(sqlCaptor.getValue().endsWith(" order by " + expectedOrderBy), sqlCaptor.getValue());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "(select sleep(5))", "(select case when (select 1) regexp '1' then id else 0 end)", "id desc, (select 1)",
+            "unknown_column", "id sideways", "id desc nulls first", "id,", ",id", "`id", "id``", "\"id`", "``", "`id desc`", "id;select 1",
+            "id--", "1", "date of birth desc desc", "date of", "`date of birth`desc" })
+    void testOrderByRejectsAnythingButColumnAndDirection(String order) {
+        when(sqlGenerator.escape(anyString())).thenAnswer(inv -> "`" + inv.getArgument(0) + "`");
+        List<ResultsetColumnHeaderData> headers = createMultiRowHeaders();
+        headers.add(ResultsetColumnHeaderData.basic("Date of Birth", "date", DatabaseType.MYSQL));
+        when(genericDataService.fillResultsetColumnHeaders(anyString())).thenReturn(headers);
+
+        PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
+                () -> underTest.retrieveDataTableGenericResultSet(EntityTables.LOAN, "dt_loan", APP_TABLE_ID, order, null));
+
+        assertEquals("error.msg.datatable.order.invalid", ex.getErrors().get(0).getUserMessageGlobalisationCode());
+        verify(genericDataService, never()).fillResultsetRowData(anyString(), any(), any(Object[].class));
     }
 
     private List<ResultsetColumnHeaderData> createMultiRowHeaders() {
