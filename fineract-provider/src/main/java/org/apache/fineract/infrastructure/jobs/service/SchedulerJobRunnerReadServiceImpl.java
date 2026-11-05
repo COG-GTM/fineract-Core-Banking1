@@ -163,8 +163,8 @@ public class SchedulerJobRunnerReadServiceImpl implements SchedulerJobRunnerRead
     private static String resolveSortOrder(String sortOrder) {
         final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
         if (!"ASC".equals(normalized) && !"DESC".equals(normalized)) {
-            throw new PlatformApiDataValidationException("validation.msg.jobs.runhistory.sortOrder.invalid", "sortOrder must be ASC or DESC",
-                    "sortOrder", sortOrder);
+            throw new PlatformApiDataValidationException("validation.msg.jobs.runhistory.sortOrder.invalid",
+                    "sortOrder must be ASC or DESC", "sortOrder", sortOrder);
         }
         return normalized;
     }

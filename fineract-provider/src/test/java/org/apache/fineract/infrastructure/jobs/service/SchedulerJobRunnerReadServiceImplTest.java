@@ -112,8 +112,9 @@ class SchedulerJobRunnerReadServiceImplTest {
     @ParameterizedTest
     @ValueSource(strings = { "desc, (select pg_sleep(5))", "(select sleep(5))", "descending", "asc;" })
     void injectedSortOrderIsRejectedBeforeQueryRuns(String sortOrder) {
-        PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class, () -> service
-                .retrieveJobHistory(IdTypeResolver.IdType.ID, "1", SearchParameters.builder().orderBy("version").sortOrder(sortOrder).build()));
+        SearchParameters params = SearchParameters.builder().orderBy("version").sortOrder(sortOrder).build();
+        PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
+                () -> service.retrieveJobHistory(IdTypeResolver.IdType.ID, "1", params));
         assertEquals("sortOrder", ex.getErrors().get(0).getParameterName());
         verify(paginationHelper, never()).fetchPage(any(), anyString(), any(Object[].class), any(RowMapper.class));
     }
