@@ -112,14 +112,24 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
             if (StringUtils.isNotEmpty(request.getFileName())) {
                 // these two only make sense if we have an actual file
 
-                if (request.getStream() != null && StringUtils.isNotEmpty(path) && !Strings.CI.equals(doc.getLocation(), path)) {
-                    storeService.delete(doc.getLocation());
-                    path = storeService.upload(path, request.getStream(), request.getType());
-                    doc.setLocation(path);
-                    doc.setFileName(FilenameUtils.getName(path));
+                if (request.getStream() != null && StringUtils.isNotEmpty(path)) {
+                    final var previousLocation = doc.getLocation();
+
+                    if (StringUtils.isNotEmpty(previousLocation)
+                            && Strings.CI.equals(FilenameUtils.getName(previousLocation), FilenameUtils.getName(path))) {
+                        doc.setLocation(storeService.upload(previousLocation, request.getStream(), request.getType()));
+                    } else {
+                        path = storeService.upload(path, request.getStream(), request.getType());
+                        doc.setLocation(path);
+                        doc.setFileName(FilenameUtils.getName(path));
+
+                        if (StringUtils.isNotEmpty(previousLocation)) {
+                            storeService.delete(previousLocation);
+                        }
+                    }
                 }
             } else if (request.getStream() != null) {
-                storeService.upload(doc.getLocation(), request.getStream(), request.getType());
+                doc.setLocation(storeService.upload(doc.getLocation(), request.getStream(), request.getType()));
             }
             if (StringUtils.isNotEmpty(request.getDescription()) && !Strings.CI.equals(doc.getDescription(), request.getDescription())) {
                 doc.setDescription(request.getDescription());
