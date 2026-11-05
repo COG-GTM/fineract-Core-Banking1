@@ -21,6 +21,7 @@ package org.apache.fineract.commands.service;
 import com.google.gson.JsonElement;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.commands.domain.CommandSource;
@@ -37,6 +38,7 @@ import org.apache.fineract.infrastructure.dataqueries.service.CleanupService;
 import org.apache.fineract.infrastructure.jobs.service.SchedulerJobRunnerReadService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.useradministration.domain.AppUser;
+import org.apache.fineract.useradministration.service.AppUserConstants;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class PortfolioCommandSourceWritePlatformServiceImpl implements PortfolioCommandSourceWritePlatformService {
+
+    private static final Set<String> OWN_PASSWORD_CHANGE_PARAMETERS = Set.of(AppUserConstants.PASSWORD, AppUserConstants.REPEAT_PASSWORD);
 
     private final PlatformSecurityContext context;
     private final CommandSourceRepository commandSourceRepository;
@@ -55,16 +59,9 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
 
     @Override
     public CommandProcessingResult logCommandSource(final CommandWrapper wrapper) {
-        boolean isApprovedByChecker = false;
-
         // check if is update of own account details
-        if (wrapper.isChangeOfOwnUserDetails(this.context.authenticatedUser(wrapper).getId())) {
-            // then allow this operation to proceed.
-            // maker checker doesnt mean anything here.
-            isApprovedByChecker = true; // set to true in case permissions have
-                                        // been maker-checker enabled by
-                                        // accident.
-        } else {
+        final boolean isChangeOfOwnUserDetails = wrapper.isChangeOfOwnUserDetails(this.context.authenticatedUser(wrapper).getId());
+        if (!isChangeOfOwnUserDetails) {
             // if not user changing their own details - check user has
             // permission to perform specific task.
             this.context.authenticatedUser(wrapper).validateHasPermissionTo(wrapper.getTaskPermissionName());
@@ -73,6 +70,11 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
 
         final String json = wrapper.getJson();
         final JsonElement parsedCommand = this.fromApiJsonHelper.parse(json);
+
+        // field level permissions on own user details are enforced by the user data validator. Only own password
+        // changes skip maker-checker, any other change of own details (e.g. roles) still requires approval.
+        final boolean isApprovedByChecker = isChangeOfOwnUserDetails && isChangeOfOwnPasswordOnly(wrapper, parsedCommand);
+
         JsonCommand command = JsonCommand.from(json, parsedCommand, this.fromApiJsonHelper, wrapper.getEntityName(), wrapper.getEntityId(),
                 wrapper.getSubentityId(), wrapper.getGroupId(), wrapper.getClientId(), wrapper.getLoanId(), wrapper.getSavingsId(),
                 wrapper.getTransactionId(), wrapper.getHref(), wrapper.getProductId(), wrapper.getCreditBureauId(),
@@ -115,6 +117,17 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
         this.commandSourceRepository.deleteById(makerCheckerId);
 
         return makerCheckerId;
+    }
+
+    private static boolean isChangeOfOwnPasswordOnly(final CommandWrapper wrapper, final JsonElement parsedCommand) {
+        if (wrapper.isChangePasswordOperation()) {
+            return true;
+        }
+        if (parsedCommand == null || !parsedCommand.isJsonObject()) {
+            return false;
+        }
+        final Set<String> parameterNames = parsedCommand.getAsJsonObject().keySet();
+        return !parameterNames.isEmpty() && OWN_PASSWORD_CHANGE_PARAMETERS.containsAll(parameterNames);
     }
 
     private CommandSource validateMakerCheckerTransaction(final Long makerCheckerId) {
