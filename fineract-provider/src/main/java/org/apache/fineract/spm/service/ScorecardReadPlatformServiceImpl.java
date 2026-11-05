@@ -110,8 +110,7 @@ public class ScorecardReadPlatformServiceImpl implements ScorecardReadPlatformSe
         ScorecardMapper scm = new ScorecardMapper();
         String sql = "select " + scm.schema() + " where sc.survey_id = ? and o.hierarchy like ? "
                 + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
-                new Object[] { surveyId, hierarchySearchString }); // NOSONAR
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { surveyId, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
@@ -122,8 +121,7 @@ public class ScorecardReadPlatformServiceImpl implements ScorecardReadPlatformSe
         ScorecardMapper scm = new ScorecardMapper();
         String sql = "select " + scm.schema() + " where sc.client_id = ? and o.hierarchy like ? "
                 + " group by sc.survey_id, sc.client_id, sc.id ";
-        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm,
-                new Object[] { clientId, hierarchySearchString }); // NOSONAR
+        Collection<ScorecardData> scorecardDatas = this.jdbcTemplate.query(sql, scm, new Object[] { clientId, hierarchySearchString }); // NOSONAR
         updateScorecardValues(scorecardDatas);
         return scorecardDatas;
     }
