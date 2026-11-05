@@ -24,4 +24,6 @@ public interface ImageReadPlatformService {
 
     DocumentContent retrieveImage(String entityType, Long entityId);
 
+    void validateAccess(String entityType, Long entityId);
+
 }

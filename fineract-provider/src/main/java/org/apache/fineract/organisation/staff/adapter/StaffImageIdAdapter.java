@@ -24,7 +24,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.documentmanagement.adapter.EntityImageIdAdapter;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.staff.domain.StaffRepository;
+import org.apache.fineract.organisation.staff.exception.StaffNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ class StaffImageIdAdapter implements EntityImageIdAdapter {
     private static final String ENTITY_TYPE = "staff";
 
     private final StaffRepository repository;
+    private final PlatformSecurityContext context;
 
     @Override
     public boolean accept(String entityType) {
@@ -62,5 +65,13 @@ class StaffImageIdAdapter implements EntityImageIdAdapter {
         }
 
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateAccess(Long entityId) {
+        if (repository.findByIdAndOfficeHierarchy(entityId, context.officeHierarchy() + "%") == null) {
+            throw new StaffNotFoundException(entityId);
+        }
     }
 }

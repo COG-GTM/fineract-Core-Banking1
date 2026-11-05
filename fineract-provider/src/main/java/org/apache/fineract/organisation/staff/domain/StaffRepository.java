@@ -31,6 +31,9 @@ public interface StaffRepository extends JpaRepository<Staff, Long>, JpaSpecific
     @Query(FIND_BY_OFFICE_QUERY)
     Staff findByOffice(@Param("id") Long id, @Param("officeId") Long officeId);
 
+    @Query("SELECT s FROM Staff s JOIN s.office o WHERE s.id = :id AND o.hierarchy LIKE :officeHierarchy")
+    Staff findByIdAndOfficeHierarchy(@Param("id") Long id, @Param("officeHierarchy") String officeHierarchy);
+
     @Modifying
     @Query("UPDATE Staff staff SET staff.imageId = :imageId WHERE staff.id = :staffId")
     void updateByIdAndImageId(@Param("staffId") Long staffId, @Param("imageId") Long imageId);

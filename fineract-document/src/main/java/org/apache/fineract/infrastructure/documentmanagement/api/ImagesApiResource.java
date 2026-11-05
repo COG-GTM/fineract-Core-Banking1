@@ -107,6 +107,8 @@ public class ImagesApiResource {
             @QueryParam(IMAGE_API_PARAM_MAX_HEIGHT) final Integer maxHeight, @QueryParam(IMAGE_API_PARAM_OUTPUT) String output,
             @HeaderParam(ACCEPT) String acceptHeader) {
 
+        imageReadPlatformService.validateAccess(entityName, entityId);
+
         // TODO: pass resize information here and do all the processing in the service
         final var content = imageReadPlatformService.retrieveImage(entityName, entityId);
 
@@ -164,6 +166,8 @@ public class ImagesApiResource {
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataContentDisposition fileDetails,
             @FormDataParam(DOCUMENT_API_PARAM_FILE) final FormDataBodyPart filePart) {
 
+        imageReadPlatformService.validateAccess(entityType, entityId);
+
         fileUploadValidator.validate(fileSize, is, fileDetails, filePart);
 
         final var command = new ImageCreateCommand();
@@ -181,6 +185,8 @@ public class ImagesApiResource {
     @Consumes({ MediaType.TEXT_PLAIN, MediaType.TEXT_HTML, MediaType.APPLICATION_JSON })
     public ImageCreateResponse createImage(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId, final InputStream body) {
+
+        imageReadPlatformService.validateAccess(entityType, entityId);
 
         requireNonNull(body, "Missing input stream");
 
@@ -217,6 +223,8 @@ public class ImagesApiResource {
     @DELETE
     public ImageDeleteResponse deleteImage(@PathParam(DOCUMENT_API_PARAM_ENTITY_TYPE) final String entityType,
             @PathParam(DOCUMENT_API_PARAM_ENTITY_ID) final Long entityId) {
+
+        imageReadPlatformService.validateAccess(entityType, entityId);
 
         final var command = new ImageDeleteCommand();
 

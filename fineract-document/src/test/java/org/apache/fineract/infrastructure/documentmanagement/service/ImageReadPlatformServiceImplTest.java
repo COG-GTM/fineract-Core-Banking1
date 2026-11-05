@@ -20,6 +20,9 @@ package org.apache.fineract.infrastructure.documentmanagement.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -30,6 +33,7 @@ import org.apache.fineract.infrastructure.contentstore.service.ContentStoreServi
 import org.apache.fineract.infrastructure.documentmanagement.adapter.EntityImageIdAdapter;
 import org.apache.fineract.infrastructure.documentmanagement.domain.ImageRepository;
 import org.apache.fineract.infrastructure.documentmanagement.exception.DocumentNotFoundException;
+import org.apache.fineract.portfolio.client.exception.ClientNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,5 +73,26 @@ class ImageReadPlatformServiceImplTest {
         assertThrows(DocumentNotFoundException.class, () -> {
             imageReadPlatformService.retrieveImage(entityType, entityId);
         });
+    }
+
+    @Test
+    void testValidateAccess_DelegatesToMatchingAdapter() {
+        String entityType = "clients";
+        Long entityId = 4711L;
+
+        when(imageIdAdapter.accept(entityType)).thenReturn(true);
+        doThrow(new ClientNotFoundException(entityId)).when(imageIdAdapter).validateAccess(entityId);
+
+        assertThrows(ClientNotFoundException.class, () -> imageReadPlatformService.validateAccess(entityType, entityId));
+
+        verify(imageIdAdapter).validateAccess(entityId);
+        verifyNoInteractions(imageRepository, storeService);
+    }
+
+    @Test
+    void testValidateAccess_UnknownEntityType_ThrowsDocumentNotFoundException() {
+        when(imageIdAdapter.accept("loans")).thenReturn(false);
+
+        assertThrows(DocumentNotFoundException.class, () -> imageReadPlatformService.validateAccess("loans", 1L));
     }
 }

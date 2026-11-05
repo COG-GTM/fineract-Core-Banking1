@@ -55,4 +55,10 @@ public class ImageReadPlatformServiceImpl implements ImageReadPlatformService {
                         .stream(storeService.download(image.getLocation())).build()))
                 .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, -1L));
     }
+
+    @Override
+    public void validateAccess(final String entityType, final Long entityId) {
+        imageIdAdapters.stream().filter(imageIdAdapter -> imageIdAdapter.accept(entityType)).findFirst()
+                .orElseThrow(() -> new DocumentNotFoundException(entityType, entityId, -1L)).validateAccess(entityId);
+    }
 }
