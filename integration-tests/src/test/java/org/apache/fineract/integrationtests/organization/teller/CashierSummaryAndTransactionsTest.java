@@ -28,6 +28,8 @@ import io.restassured.specification.ResponseSpecification;
 import org.apache.fineract.client.models.GetTellersTellerIdCashiersCashiersIdTransactionsResponse;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.organisation.StaffHelper;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +62,27 @@ public class CashierSummaryAndTransactionsTest {
         final GetTellersTellerIdCashiersCashiersIdTransactionsResponse result = cashierTransactionsHelper
                 .getTellersTellerIdCashiersCashiersIdTransactionsResponse(tellerId, cashierId, "UGX", 0, 0, null, null);
         assertNotNull(result);
+    }
+
+
+    @Test
+    public void testTellerReadsRequireReadTellerPermission() {
+        final Integer roleId = RolesHelper.createRole(requestSpecification, responseSpecification);
+        final Integer staffId = StaffHelper.createStaff(requestSpecification, responseSpecification);
+        final String username = Utils.uniqueRandomStringGenerator("noTellerRead", 5);
+        UserHelper.createUser(requestSpecification, responseSpecification, roleId, staffId, username, UserHelper.SIMPLE_USER_PASSWORD,
+                "resourceId");
+
+        final RequestSpecification noPermissionRequest = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        noPermissionRequest.header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(username, UserHelper.SIMPLE_USER_PASSWORD));
+        final ResponseSpecification forbidden = new ResponseSpecBuilder().expectStatusCode(403).build();
+
+        Utils.performServerGet(noPermissionRequest, forbidden, "/fineract-provider/api/v1/tellers?" + Utils.TENANT_IDENTIFIER, null);
+        Utils.performServerGet(noPermissionRequest, forbidden, "/fineract-provider/api/v1/tellers/1/cashiers?" + Utils.TENANT_IDENTIFIER,
+                null);
+        Utils.performServerGet(noPermissionRequest, forbidden,
+                "/fineract-provider/api/v1/tellers/1/cashiers/1/summaryandtransactions?currencyCode=UGX&" + Utils.TENANT_IDENTIFIER, null);
     }
 
 }
