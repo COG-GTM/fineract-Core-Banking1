@@ -165,12 +165,30 @@ public class ProductsApiResource {
         return this.toApiJsonSerializer.serialize(result);
     }
 
+    public String retrieveShareProductForSelfService(final Long productId, final UriInfo uriInfo) {
+        ShareProductReadPlatformService service = lookupReadPlatformService(ProductsApiConstants.SHARE_PRODUCT_TYPE);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        ProductData data = service.retrieveOne(productId, settings.isTemplate());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
+    }
+
+    public String retrieveAllShareProductsForSelfService(final Integer offset, final Integer limit, final UriInfo uriInfo) {
+        ShareProductReadPlatformService service = lookupReadPlatformService(ProductsApiConstants.SHARE_PRODUCT_TYPE);
+        Page<ProductData> data = service.retrieveAllProducts(offset, limit);
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return this.toApiJsonSerializer.serialize(settings, data, service.getResponseDataParams());
+    }
+
     private ShareProductReadPlatformService resolveReadPlatformService(final String productType) {
         if (productType == null || !SUPPORTED_PRODUCT_TYPES.contains(productType)) {
             throw new ResourceNotFoundException("error.msg.product.type.not.supported",
                     "Product type `" + productType + "` is not supported", new Object[] { productType });
         }
         this.platformSecurityContext.authenticatedUser().validateHasReadPermission(ProductsApiConstants.SHARE_PRODUCT_RESOURCE_NAME);
+        return lookupReadPlatformService(productType);
+    }
+
+    private ShareProductReadPlatformService lookupReadPlatformService(final String productType) {
         try {
             return this.applicationContext.getBean(productType + ProductsApiConstants.READPLATFORM_NAME,
                     ShareProductReadPlatformService.class);

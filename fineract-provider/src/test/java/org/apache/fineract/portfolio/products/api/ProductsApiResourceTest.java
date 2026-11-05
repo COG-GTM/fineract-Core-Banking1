@@ -113,4 +113,25 @@ class ProductsApiResourceTest {
         assertEquals("{\"totalFilteredRecords\":0}", productsApiResource.retrieveAllProducts("share", 0, 10, uriInfo));
         verify(appUser).validateHasReadPermission("SHAREPRODUCT");
     }
+
+    @Test
+    void selfServiceShareProductReadsDoNotRequireReadShareProductPermission() {
+        @SuppressWarnings("unchecked")
+        Page<ProductData> page = mock(Page.class);
+        ProductData product = mock(ProductData.class);
+        ApiRequestJsonSerializationSettings settings = mock(ApiRequestJsonSerializationSettings.class);
+        when(applicationContext.getBean("shareReadPlatformService", ShareProductReadPlatformService.class))
+                .thenReturn(shareProductReadPlatformService);
+        when(shareProductReadPlatformService.retrieveAllProducts(0, 10)).thenReturn(page);
+        when(shareProductReadPlatformService.retrieveOne(1L, false)).thenReturn(product);
+        when(shareProductReadPlatformService.getResponseDataParams()).thenReturn(Set.of());
+        when(uriInfo.getQueryParameters()).thenReturn(new MultivaluedHashMap<>());
+        when(apiRequestParameterHelper.process(any())).thenReturn(settings);
+        when(toApiJsonSerializer.serialize(eq(settings), eq(page), any())).thenReturn("{\"totalFilteredRecords\":0}");
+        when(toApiJsonSerializer.serialize(eq(settings), eq(product), any())).thenReturn("{\"id\":1}");
+
+        assertEquals("{\"totalFilteredRecords\":0}", productsApiResource.retrieveAllShareProductsForSelfService(0, 10, uriInfo));
+        assertEquals("{\"id\":1}", productsApiResource.retrieveShareProductForSelfService(1L, uriInfo));
+        verifyNoInteractions(platformSecurityContext);
+    }
 }
