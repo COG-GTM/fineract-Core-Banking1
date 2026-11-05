@@ -20,6 +20,8 @@ package org.apache.fineract.commands.service;
 
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.ERROR;
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.PROCESSED;
+import static org.apache.fineract.commands.service.CommandSourceService.COMMAND_MASK_VALUE;
+import static org.apache.fineract.commands.service.CommandSourceService.COMMAND_SANITIZE_ALL;
 import static org.apache.http.HttpStatus.SC_OK;
 
 import com.google.gson.Gson;
@@ -30,6 +32,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
@@ -197,7 +200,7 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         }
 
         result.setRollbackTransaction(null);
-        publishHookEvent(wrapper.entityName(), wrapper.actionName(), command, result); // TODO must be performed in a
+        publishHookEvent(wrapper, command, result); // TODO must be performed in a
         // new transaction
         return result;
     }
@@ -212,7 +215,7 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
 
     private void publishHookErrorEvent(CommandWrapper wrapper, JsonCommand command, ErrorInfo errorInfo) {
         try {
-            publishHookEvent(wrapper.entityName(), wrapper.actionName(), command, gson.toJson(errorInfo));
+            publishHookEvent(wrapper, command, gson.toJson(errorInfo));
         } catch (Exception e) {
             log.error("Failed to publish hook error event for entity: {}, action: {}", wrapper.entityName(), wrapper.actionName(), e);
         }
@@ -326,7 +329,9 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         return isMakerChecker && !user.isCheckerSuperUser();
     }
 
-    protected void publishHookEvent(final String entityName, final String actionName, JsonCommand command, final Object result) {
+    protected void publishHookEvent(final CommandWrapper wrapper, JsonCommand command, final Object result) {
+        final String entityName = wrapper.entityName();
+        final String actionName = wrapper.actionName();
         try {
             final AppUser appUser = context.authenticatedUser(CommandWrapper.wrap(actionName, entityName, null, null));
 
@@ -354,7 +359,7 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
                 reqmap.put("createdByName", context.authenticatedUser().getUsername());
                 reqmap.put("createdByFullName", context.authenticatedUser().getDisplayName());
 
-                reqmap.put("request", myMap);
+                reqmap.put("request", sanitizeHookRequest(myMap, wrapper.getSanitizeJsonKeys()));
                 if (result instanceof CommandProcessingResult) {
                     CommandProcessingResult resultCopy = CommandProcessingResult
                             .fromCommandProcessingResult((CommandProcessingResult) result);
@@ -392,5 +397,21 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         } catch (Exception e) {
             log.error("Failed to publish hook event for entity: {}, action: {}", entityName, actionName, e);
         }
+    }
+
+    static Map<String, Object> sanitizeHookRequest(final Map<String, Object> request, final Set<String> sanitizeKeys) {
+        if (request == null || sanitizeKeys == null || sanitizeKeys.isEmpty()) {
+            return request;
+        }
+        if (sanitizeKeys.contains(COMMAND_SANITIZE_ALL)) {
+            return new HashMap<>();
+        }
+        final Map<String, Object> sanitized = new HashMap<>(request);
+        for (String key : sanitizeKeys) {
+            if (sanitized.containsKey(key)) {
+                sanitized.put(key, COMMAND_MASK_VALUE);
+            }
+        }
+        return sanitized;
     }
 }

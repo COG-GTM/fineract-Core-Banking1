@@ -20,6 +20,7 @@ package org.apache.fineract.commands.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -39,6 +40,7 @@ import io.github.resilience4j.retry.RetryRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.fineract.batch.exception.ErrorInfo;
 import org.apache.fineract.commands.configuration.RetryConfigurationAssembler;
@@ -60,6 +62,7 @@ import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -466,8 +469,9 @@ public class SynchronousCommandProcessingServiceTest {
 
     @Test
     public void publishHookEventHandlesInvalidJson() {
-        String entityName = "entity";
-        String actionName = "action";
+        CommandWrapper wrapper = Mockito.mock(CommandWrapper.class);
+        when(wrapper.entityName()).thenReturn("entity");
+        when(wrapper.actionName()).thenReturn("action");
         JsonCommand command = Mockito.mock(JsonCommand.class);
         String invalidJson = "{ invalidJson }";
 
@@ -475,8 +479,53 @@ public class SynchronousCommandProcessingServiceTest {
 
         // Test that no exception is thrown (exceptions are caught and logged)
         assertDoesNotThrow(() -> {
-            underTest.publishHookEvent(entityName, actionName, command, Object.class);
+            underTest.publishHookEvent(wrapper, command, Object.class);
         });
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void publishHookEventMasksSanitizedKeysInRequest() {
+        CommandWrapper wrapper = Mockito.mock(CommandWrapper.class);
+        when(wrapper.entityName()).thenReturn("USER");
+        when(wrapper.actionName()).thenReturn("CREATE");
+        when(wrapper.getSanitizeJsonKeys()).thenReturn(Set.of("password", "repeatPassword"));
+        JsonCommand command = Mockito.mock(JsonCommand.class);
+        when(command.json()).thenReturn("{\"username\":\"alice\",\"password\":\"S3cret!pw\",\"repeatPassword\":\"S3cret!pw\"}");
+        AppUser appUser = Mockito.mock(AppUser.class);
+        when(context.authenticatedUser(Mockito.any(CommandWrapper.class))).thenReturn(appUser);
+        when(context.authenticatedUser()).thenReturn(appUser);
+        when(toApiJsonSerializer.serialize(Mockito.any(Object.class))).thenReturn("{}");
+
+        underTest.publishHookEvent(wrapper, command, CommandProcessingResult.empty());
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(toApiJsonSerializer).serialize(payload.capture());
+        Map<String, Object> request = (Map<String, Object>) ((Map<String, Object>) payload.getValue()).get("request");
+        assertEquals("alice", request.get("username"));
+        assertEquals(CommandSourceService.COMMAND_MASK_VALUE, request.get("password"));
+        assertEquals(CommandSourceService.COMMAND_MASK_VALUE, request.get("repeatPassword"));
+        verify(applicationContext).publishEvent(Mockito.any(Object.class));
+    }
+
+    @Test
+    public void sanitizeHookRequestDropsAllFieldsForSanitizeAll() {
+        Map<String, Object> request = Map.of("username", "alice", "password", "S3cret!pw");
+
+        Map<String, Object> sanitized = SynchronousCommandProcessingService.sanitizeHookRequest(request,
+                Set.of(CommandSourceService.COMMAND_SANITIZE_ALL));
+
+        assertTrue(sanitized.isEmpty());
+    }
+
+    @Test
+    public void sanitizeHookRequestLeavesRequestUntouchedWithoutSanitizeKeys() {
+        Map<String, Object> request = Map.of("username", "alice");
+
+        assertEquals(request, SynchronousCommandProcessingService.sanitizeHookRequest(request, null));
+        assertEquals(request, SynchronousCommandProcessingService.sanitizeHookRequest(request, Set.of()));
+        assertFalse(SynchronousCommandProcessingService.sanitizeHookRequest(Map.of("password", "x"), Set.of("password"))
+                .containsValue("x"));
     }
 
     private static final class RetryException extends RuntimeException {}
