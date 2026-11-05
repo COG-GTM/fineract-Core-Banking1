@@ -35,6 +35,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -43,6 +45,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.GenericResultsetData;
@@ -53,8 +56,10 @@ import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeader
 import org.apache.fineract.infrastructure.dataqueries.data.ResultsetRowData;
 import org.apache.fineract.infrastructure.dataqueries.domain.ReportType;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
+import org.apache.fineract.infrastructure.security.exception.SqlValidationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
+import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.openpdf.text.Document;
@@ -71,12 +76,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ReadReportingServiceImpl implements ReadReportingService {
 
+    private static final Set<String> CAMPAIGN_REPORT_TYPES = Set.of("sms", "email");
+    private static final Pattern CAMPAIGN_PARAM_NAME = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+    private static final Pattern CAMPAIGN_PARAM_VALUE = Pattern.compile("^[A-Za-z0-9_.:/-]*$");
+
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
     private final GenericDataService genericDataService;
     private final SqlInjectionPreventerService sqlInjectionPreventerService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final FineractProperties fineractProperties;
+    private final SqlValidator sqlValidator;
 
     @Override
     public StreamingOutput retrieveReportCSV(final String name, final String type, final Map<String, String> queryParams,
@@ -488,14 +498,39 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
     private String sqlToRunForSmsEmailCampaign(final String name, final String type, final Map<String, String> queryParams) {
         String sql = getSql(name, type);
+        validateCampaignReportType(name);
 
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, "${" + entry.getKey() + "}", entry.getValue());
+            final String key = entry.getKey();
+            if (key == null || !CAMPAIGN_PARAM_NAME.matcher(key).matches()) {
+                throw new SqlValidationException("invalid campaign report parameter name");
+            }
+            final String placeholder = "${" + key + "}";
+            if (!sql.contains(placeholder)) {
+                continue;
+            }
+            final String value = entry.getValue();
+            if (value == null || !CAMPAIGN_PARAM_VALUE.matcher(value).matches() || value.contains("--")) {
+                throw new SqlValidationException("invalid value for campaign report parameter '" + key + "'");
+            }
+            this.sqlValidator.validate(value);
+            sql = this.genericDataService.replace(sql, placeholder, value);
         }
 
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
+    }
+
+    private void validateCampaignReportType(final String name) {
+        final List<String> reportTypes = this.jdbcTemplate.queryForList("SELECT report_type FROM stretchy_report WHERE report_name = ?",
+                String.class, name);
+        final boolean allowed = !reportTypes.isEmpty() && reportTypes.stream()
+                .allMatch(reportType -> reportType != null && CAMPAIGN_REPORT_TYPES.contains(reportType.toLowerCase(Locale.ROOT)));
+        if (!allowed) {
+            throw new GeneralPlatformDomainRuleException("error.msg.campaign.report.type.not.allowed",
+                    "Only SMS or Email reports can be used by campaigns", name);
+        }
     }
 
     @Override

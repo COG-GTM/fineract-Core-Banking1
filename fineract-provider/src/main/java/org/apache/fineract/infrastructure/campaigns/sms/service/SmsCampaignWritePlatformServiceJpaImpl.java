@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.fineract.infrastructure.campaigns.helper.CampaignReportPermissionValidator;
 import org.apache.fineract.infrastructure.campaigns.sms.data.CampaignPreviewData;
 import org.apache.fineract.infrastructure.campaigns.sms.domain.SmsCampaign;
 import org.apache.fineract.infrastructure.campaigns.sms.domain.SmsCampaignRepository;
@@ -99,6 +100,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
     private final ReadReportingService readReportingService;
     private final GenericDataService genericDataService;
     private final FromJsonHelper fromJsonHelper;
+    private final CampaignReportPermissionValidator campaignReportPermissionValidator;
 
     private final SmsMessageScheduledJobService smsMessageScheduledJobService;
 
@@ -108,6 +110,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
         try {
             final AppUser currentUser = this.context.authenticatedUser();
             this.smsCampaignValidator.validateCreate(command.json());
+            this.campaignReportPermissionValidator.validateReportPermission(command.jsonFragment(SmsCampaignValidator.paramValue));
 
             final String campaignName = command.stringValueOfParameterNamed(SmsCampaignValidator.campaignName);
             if (this.smsCampaignRepository.existsByCampaignName(campaignName)) {
@@ -140,6 +143,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
             this.context.authenticatedUser();
 
             this.smsCampaignValidator.validateForUpdate(command.json());
+            this.campaignReportPermissionValidator.validateReportPermission(command.jsonFragment(SmsCampaignValidator.paramValue));
             final SmsCampaign smsCampaign = this.smsCampaignRepository.findById(resourceId)
                     .orElseThrow(() -> new SmsCampaignNotFound(resourceId));
 
@@ -495,6 +499,7 @@ public class SmsCampaignWritePlatformServiceJpaImpl implements SmsCampaignWriteP
         final JsonElement smsParamsElement = this.fromJsonHelper.extractJsonObjectNamed(SmsCampaignValidator.paramValue,
                 query.parsedJson());
         String smsParams = smsParamsElement.toString();
+        this.campaignReportPermissionValidator.validateReportPermission(smsParams);
         final String textMessageTemplate = this.fromJsonHelper.extractStringNamed("message", query.parsedJson());
 
         try {
