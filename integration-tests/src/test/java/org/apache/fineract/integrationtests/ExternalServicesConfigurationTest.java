@@ -158,8 +158,8 @@ public class ExternalServicesConfigurationTest {
         Assertions.assertTrue(stillSame == null || stillSame.isEmpty());
 
         // Clear the secret again
-        ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec, serviceName,
-                propertyName, "");
+        ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec, serviceName, propertyName,
+                "");
         Assertions.assertNull(findValue(serviceName, propertyName));
     }
 
