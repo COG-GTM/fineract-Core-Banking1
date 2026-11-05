@@ -45,6 +45,8 @@ import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityEx
 @Table(name = "stretchy_report", uniqueConstraints = { @UniqueConstraint(columnNames = { "report_name" }, name = "unq_report_name") })
 public final class Report extends AbstractPersistableCustom<Long> {
 
+    private static final String REPORT_NAME_REGEX = "^[^/\\\\]*$";
+
     @Column(name = "report_name", nullable = false, unique = true)
     private String reportName;
 
@@ -219,7 +221,8 @@ public final class Report extends AbstractPersistableCustom<Long> {
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors).resource("report");
 
-        baseDataValidator.reset().parameter("reportName").value(this.reportName).notBlank().notExceedingLengthOf(100);
+        baseDataValidator.reset().parameter("reportName").value(this.reportName).notBlank().notExceedingLengthOf(100)
+                .matchesRegularExpression(REPORT_NAME_REGEX, "The parameter `reportName` must not contain path separators (/ or \\).");
 
         baseDataValidator.reset().parameter("reportType").value(this.reportType).notBlank().isOneOfTheseValues(reportTypes.toArray());
 
