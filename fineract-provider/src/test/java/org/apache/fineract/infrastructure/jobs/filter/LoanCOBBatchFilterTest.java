@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.fineract.infrastructure.core.filters;
-
 package org.apache.fineract.infrastructure.jobs.filter;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -95,7 +94,7 @@ class LoanCOBBatchFilterTest {
 
         LoanIdsHardLockedException ex = assertThrows(LoanIdsHardLockedException.class, () -> filter.doFilter(request, uriInfo, chain));
 
-        assertSame(123L, ex.getLoanIdFromRequest());
+        assertEquals(123L, ex.getLoanIdFromRequest());
         verifyNoInteractions(chain);
     }
 
