@@ -138,11 +138,11 @@ public class SelfAccountTransferApiResource {
                 BigDecimal dailyTPTLimitBD = new BigDecimal(dailyTPTLimit);
                 BigDecimal totTransactionAmount = this.accountTransfersReadPlatformService
                         .getTotalTransactionAmount(fromAccount.getAccountId(), fromAccount.getAccountType(), transactionDate);
-                if (totTransactionAmount != null && totTransactionAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    if (dailyTPTLimitBD.compareTo(totTransactionAmount) <= 0
-                            || dailyTPTLimitBD.compareTo(totTransactionAmount.add(transactionAmount)) < 0) {
-                        throw new DailyTPTTransactionAmountLimitExceededException(fromAccount.getAccountId(), fromAccount.getAccountType());
-                    }
+                if (totTransactionAmount == null) {
+                    totTransactionAmount = BigDecimal.ZERO;
+                }
+                if (totTransactionAmount.add(transactionAmount).compareTo(dailyTPTLimitBD) > 0) {
+                    throw new DailyTPTTransactionAmountLimitExceededException(fromAccount.getAccountId(), fromAccount.getAccountType());
                 }
             }
         }
