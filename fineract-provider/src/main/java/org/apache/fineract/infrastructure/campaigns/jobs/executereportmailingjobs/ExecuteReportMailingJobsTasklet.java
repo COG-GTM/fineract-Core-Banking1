@@ -50,6 +50,7 @@ import org.apache.fineract.infrastructure.reportmailingjob.domain.ReportMailingJ
 import org.apache.fineract.infrastructure.reportmailingjob.domain.ReportMailingJobRunHistoryRepository;
 import org.apache.fineract.infrastructure.reportmailingjob.service.ReportMailingJobEmailService;
 import org.apache.fineract.infrastructure.reportmailingjob.util.ReportMailingJobDateUtil;
+import org.apache.fineract.infrastructure.reportmailingjob.util.ReportOutputFileUtil;
 import org.apache.fineract.infrastructure.reportmailingjob.validation.ReportMailingJobValidator;
 import org.apache.fineract.portfolio.calendar.service.CalendarUtils;
 import org.glassfish.jersey.internal.util.collection.MultivaluedStringMap;
@@ -135,7 +136,8 @@ public class ExecuteReportMailingJobsTasklet implements Tasklet {
                 if (responseObject != null && responseObject.getClass().equals(ByteArrayOutputStream.class)) {
                     final ByteArrayOutputStream byteArrayOutputStream = (ByteArrayOutputStream) responseObject;
                     final String fileLocation = fineractProperties.getContent().getFilesystem().getRootFolder() + File.separator + "";
-                    final String fileNameWithoutExtension = fileLocation + File.separator + reportName;
+                    final File reportFile = ReportOutputFileUtil.resolveReportOutputFile(fileLocation, reportName,
+                            emailAttachmentFileFormat.getValue());
 
                     if (!new File(fileLocation).isDirectory()) {
                         new File(fileLocation).mkdirs();
@@ -144,9 +146,7 @@ public class ExecuteReportMailingJobsTasklet implements Tasklet {
                     if (byteArrayOutputStream.size() == 0) {
                         errorLog.append("Report processing failed, empty output stream created");
                     } else if ((errorLog != null && errorLog.length() == 0) && (byteArrayOutputStream.size() > 0)) {
-                        final String fileName = fileNameWithoutExtension + "." + emailAttachmentFileFormat.getValue();
-
-                        sendReportFileToEmailRecipients(reportMailingJob, fileName, byteArrayOutputStream, errorLog);
+                        sendReportFileToEmailRecipients(reportMailingJob, reportFile, byteArrayOutputStream, errorLog);
                     }
                 } else {
                     errorLog.append("Response object entity is not equal to ByteArrayOutputStream ---------- ");
@@ -193,12 +193,11 @@ public class ExecuteReportMailingJobsTasklet implements Tasklet {
                 reportMailingJobPreviousRunStatus.getValue());
     }
 
-    private void sendReportFileToEmailRecipients(final ReportMailingJob reportMailingJob, final String fileName,
+    private void sendReportFileToEmailRecipients(final ReportMailingJob reportMailingJob, final File file,
             final ByteArrayOutputStream byteArrayOutputStream, final StringBuilder errorLog) {
         final Set<String> emailRecipients = this.reportMailingJobValidator.validateEmailRecipients(reportMailingJob.getEmailRecipients());
 
         try {
-            final File file = new File(fileName);
             final FileOutputStream outputStream = new FileOutputStream(file);
             byteArrayOutputStream.writeTo(outputStream);
 

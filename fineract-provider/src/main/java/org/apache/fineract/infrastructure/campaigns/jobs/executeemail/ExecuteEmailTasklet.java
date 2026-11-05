@@ -44,6 +44,7 @@ import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityEx
 import org.apache.fineract.infrastructure.dataqueries.domain.Report;
 import org.apache.fineract.infrastructure.dataqueries.service.ReadReportingService;
 import org.apache.fineract.infrastructure.reportmailingjob.helper.IPv4Helper;
+import org.apache.fineract.infrastructure.reportmailingjob.util.ReportOutputFileUtil;
 import org.apache.fineract.infrastructure.reportmailingjob.validation.ReportMailingJobValidator;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
@@ -209,21 +210,18 @@ public class ExecuteEmailTasklet implements Tasklet {
             final ByteArrayOutputStream byteArrayOutputStream = readReportingService.generatePentahoReportAsOutputStream(reportName,
                     emailAttachmentFileFormat.getValue(), reportParams, null, emailCampaign.getApprovedBy(), errorLog);
             final String fileLocation = fineractProperties.getContent().getFilesystem().getRootFolder() + File.separator + "";
-            final String fileNameWithoutExtension = fileLocation + File.separator + reportName;
+            final File file = ReportOutputFileUtil.resolveReportOutputFile(fileLocation, reportName, emailAttachmentFileFormat.getValue());
             if (!new File(fileLocation).isDirectory()) {
                 new File(fileLocation).mkdirs();
             }
             if (byteArrayOutputStream.size() == 0) {
                 errorLog.append("Pentaho report processing failed, empty output stream created");
             } else if (errorLog.length() == 0 && (byteArrayOutputStream.size() > 0)) {
-                final String fileName = fileNameWithoutExtension + "." + emailAttachmentFileFormat.getValue();
-
-                final File file = new File(fileName);
                 final FileOutputStream outputStream = new FileOutputStream(file);
                 byteArrayOutputStream.writeTo(outputStream);
                 return file;
             }
-        } catch (IOException | PlatformDataIntegrityException e) {
+        } catch (IOException | PlatformDataIntegrityException | IllegalArgumentException e) {
             errorLog.append("The ReportMailingJobWritePlatformServiceImpl.executeReportMailingJobs threw an IOException " + "exception: ")
                     .append(e.getMessage()).append(" ---------- ");
         }

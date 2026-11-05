@@ -45,6 +45,8 @@ import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityEx
 @Table(name = "stretchy_report", uniqueConstraints = { @UniqueConstraint(columnNames = { "report_name" }, name = "unq_report_name") })
 public final class Report extends AbstractPersistableCustom<Long> {
 
+    private static final String REPORT_NAME_REGEX = "^[^/\\\\]*$";
+
     @Column(name = "report_name", nullable = false, unique = true)
     private String reportName;
 
@@ -125,7 +127,7 @@ public final class Report extends AbstractPersistableCustom<Long> {
         this.coreReport = false;
         this.useReport = useReport;
         this.reportSql = reportSql;
-        validate(reportTypes);
+        validate(reportTypes, true);
     }
 
     public Map<String, Object> update(final JsonCommand command, final Collection<String> reportTypes) {
@@ -183,7 +185,7 @@ public final class Report extends AbstractPersistableCustom<Long> {
             }
         }
 
-        validate(reportTypes);
+        validate(reportTypes, actualChanges.containsKey("reportName"));
 
         if (!actualChanges.isEmpty()) {
             if (isCoreReport()) {
@@ -214,12 +216,16 @@ public final class Report extends AbstractPersistableCustom<Long> {
         return reportParameterUsage;
     }
 
-    private void validate(final Collection<String> reportTypes) {
+    private void validate(final Collection<String> reportTypes, final boolean validateReportNameCharacters) {
 
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors).resource("report");
 
         baseDataValidator.reset().parameter("reportName").value(this.reportName).notBlank().notExceedingLengthOf(100);
+        if (validateReportNameCharacters) {
+            baseDataValidator.reset().parameter("reportName").value(this.reportName).matchesRegularExpression(REPORT_NAME_REGEX,
+                    "The parameter `reportName` must not contain path separators (/ or \\).");
+        }
 
         baseDataValidator.reset().parameter("reportType").value(this.reportType).notBlank().isOneOfTheseValues(reportTypes.toArray());
 
