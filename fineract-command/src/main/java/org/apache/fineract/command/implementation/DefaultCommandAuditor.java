@@ -36,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.fineract.command.core.Command;
 import org.apache.fineract.command.core.CommandAuditor;
 import org.apache.fineract.command.core.CommandProperties;
+import org.apache.fineract.command.core.exception.CommandAuditException;
 import org.apache.fineract.command.persistence.domain.CommandEntity;
 import org.apache.fineract.command.persistence.domain.CommandRepository;
 import org.apache.fineract.command.persistence.mapping.CommandMapper;
@@ -68,7 +69,7 @@ public class DefaultCommandAuditor implements CommandAuditor {
         return null;
     }
 
-    @Retry(name = "commandAuditProcessing", fallbackMethod = "fallback")
+    @Retry(name = "commandAuditProcessing", fallbackMethod = "processingFallback")
     @Override
     public void processing(Command<?> command) {
         if (Boolean.TRUE.equals(properties.getAuditable())) {
@@ -135,6 +136,28 @@ public class DefaultCommandAuditor implements CommandAuditor {
                 log.error("Unable to initialize command dead-letter queue:", e);
             }
         }
+    }
+
+    /**
+     * The audit record has to exist before the command is executed: if it cannot be written to the database or to the
+     * dead-letter queue the command is rejected instead of being executed without an audit trail.
+     */
+    @SuppressWarnings("UnusedMethod")
+    void processingFallback(Command<?> command, Throwable t) {
+        setError(command, t);
+
+        if (Boolean.TRUE.equals(properties.getFileDeadLetterQueueEnabled())) {
+            try {
+                write(command);
+                return;
+            } catch (Exception e) {
+                t.addSuppressed(e);
+            }
+        }
+
+        log.error("Command audit error, command rejected: {}", command, t);
+
+        throw new CommandAuditException(command, t);
     }
 
     @Retry(name = "commandAuditFallback", fallbackMethod = "fatal")

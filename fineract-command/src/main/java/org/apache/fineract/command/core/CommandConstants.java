@@ -26,5 +26,6 @@ public final class CommandConstants {
     public static final String COMMAND_JSON_CLASS_ATTRIBUTE = "@class";
     public static final String COMMAND_HTTP_HEADER_REQUEST_ID = "x-fineract-request-id";
     public static final String COMMAND_HTTP_HEADER_TENANT_ID = "Fineract-Platform-TenantId";
-    public static final String COMMAND_HTTP_HEADER_IP = "IP";
+    public static final String COMMAND_REQUEST_ATTRIBUTE_IP = "IP";
+    public static final int COMMAND_AUDIT_FIELD_MAX_LENGTH = 255;
 }

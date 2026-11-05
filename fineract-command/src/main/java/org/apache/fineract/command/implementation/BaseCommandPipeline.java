@@ -18,7 +18,8 @@
  */
 package org.apache.fineract.command.implementation;
 
-import static org.apache.fineract.command.core.CommandConstants.COMMAND_HTTP_HEADER_IP;
+import static org.apache.fineract.command.core.CommandConstants.COMMAND_AUDIT_FIELD_MAX_LENGTH;
+import static org.apache.fineract.command.core.CommandConstants.COMMAND_REQUEST_ATTRIBUTE_IP;
 
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import org.apache.fineract.command.core.Command;
 import org.apache.fineract.command.core.CommandExecutor;
 import org.apache.fineract.command.core.CommandPipeline;
 import org.apache.fineract.command.core.CommandProperties;
+import org.apache.fineract.command.core.exception.CommandIllegalArgumentException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -41,10 +43,15 @@ public abstract class BaseCommandPipeline implements CommandPipeline {
 
     protected void setAttributes(Command<?> command) {
         if (StringUtils.isEmpty(command.getIpAddress())) {
-            command.setIpAddress(getHeader(COMMAND_HTTP_HEADER_IP));
+            command.setIpAddress(getClientIpAddress());
         }
+        command.setIpAddress(StringUtils.truncate(command.getIpAddress(), COMMAND_AUDIT_FIELD_MAX_LENGTH));
         if (StringUtils.isEmpty(command.getIdempotencyKey())) {
             command.setIdempotencyKey(getHeader(properties.getIdemPotencyKeyHeaderName()));
+        }
+        if (StringUtils.length(command.getIdempotencyKey()) > COMMAND_AUDIT_FIELD_MAX_LENGTH) {
+            throw new CommandIllegalArgumentException(command,
+                    "idempotency key must not be longer than " + COMMAND_AUDIT_FIELD_MAX_LENGTH + " characters");
         }
         if (command.getCreatedAt() == null) {
             command.setCreatedAt(Instant.now());
@@ -69,6 +76,27 @@ public abstract class BaseCommandPipeline implements CommandPipeline {
             }
 
             return value;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolves the caller IP on the server side: the value resolved by the IP tracking filter (request attribute) if
+     * present, otherwise the remote address of the request (which honours the configured forwarded headers strategy).
+     * Client-sent free-form headers are deliberately not used.
+     */
+    protected String getClientIpAddress() {
+        var attributes = RequestContextHolder.getRequestAttributes();
+
+        if (attributes instanceof ServletRequestAttributes servletAttributes) {
+            var request = servletAttributes.getRequest();
+
+            if (request.getAttribute(COMMAND_REQUEST_ATTRIBUTE_IP) instanceof String ip && StringUtils.isNotBlank(ip)) {
+                return ip;
+            }
+
+            return request.getRemoteAddr();
         }
 
         return null;
