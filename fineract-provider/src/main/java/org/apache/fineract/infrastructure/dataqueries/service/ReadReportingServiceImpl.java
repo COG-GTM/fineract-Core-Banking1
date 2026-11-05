@@ -133,10 +133,6 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
         String sql = getSql(name, type);
 
-        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
-        }
-
         final AppUser currentUser = this.context.authenticatedUser();
         // Allows sql query to restrict data by office hierarchy if required
         sql = this.genericDataService.replace(sql, "${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
@@ -149,9 +145,15 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
         sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());
+        // Caller supplied values go in last so they can neither override the values above nor be rewritten by them
+        sql = substituteReportParameters(sql, queryParams);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
+    }
+
+    private String substituteReportParameters(final String sql, final Map<String, String> queryParams) {
+        return ReportSqlParameterSubstitutor.substitute(sql, queryParams, sqlGenerator.getDialect().isMySql());
     }
 
     private String getSql(final String name, final String type) {
@@ -488,11 +490,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
     private String sqlToRunForSmsEmailCampaign(final String name, final String type, final Map<String, String> queryParams) {
         String sql = getSql(name, type);
-
-        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, "${" + entry.getKey() + "}", entry.getValue());
-        }
-
+        sql = substituteReportParameters(sql, queryParams);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;

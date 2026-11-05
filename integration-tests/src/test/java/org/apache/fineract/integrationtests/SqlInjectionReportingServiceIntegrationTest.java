@@ -19,6 +19,7 @@
 package org.apache.fineract.integrationtests;
 
 import static io.restassured.RestAssured.given;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -68,6 +69,7 @@ public class SqlInjectionReportingServiceIntegrationTest extends BaseLoanIntegra
     private ResponseSpecification responseSpec;
     private Long testReportId = null;
     private static final String TEST_REPORT_NAME = "SQL_Injection_Test_Report";
+    private static final String FULL_PARAMETER_LIST_URL = "/fineract-provider/api/v1/runreports/FullParameterList";
     private static final String TEST_REPORT_SQL = "SELECT 1 as test_column, 'Test Data' as test_name";
 
     @BeforeEach
@@ -494,6 +496,26 @@ public class SqlInjectionReportingServiceIntegrationTest extends BaseLoanIntegra
 
             log.info("Cross-database compatibility test passed - got expected 404 response");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "'x') union all select 1,2,3,4,5,6,7,8,9 from m_appuser where ('a'<'b", "'x') or 1<2)--", "'x')#",
+            "1 or 1<2" })
+    void uc11_testParameterListInjectionIsRejected(String payload) {
+        Response response = given().spec(requestSpec).queryParam("parameterType", true).queryParam("R_reportListing", payload).when()
+                .get(FULL_PARAMETER_LIST_URL);
+
+        assertEquals(403, response.getStatusCode(), "Injection payload should be rejected, got: " + response.asString());
+        assertTrue(response.asString().contains("error.msg.sql.validation"), response.asString());
+    }
+
+    @Test
+    void uc12_testParameterListWithQuotedReportNamesStillWorks() {
+        Response response = given().spec(requestSpec).queryParam("parameterType", true)
+                .queryParam("R_reportListing", "'Client Listing','Loan Listing'").when().get(FULL_PARAMETER_LIST_URL);
+
+        assertEquals(200, response.getStatusCode(), response.asString());
+        assertTrue(response.asString().contains("OfficeIdSelectOne"), response.asString());
     }
 
     /**

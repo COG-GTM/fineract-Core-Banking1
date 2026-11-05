@@ -80,6 +80,7 @@ Feature: Security Utils SQL validator
       | 1' Union Select null                                                     | 23    | SQL validation error: invalid SQL statement (detected 'detect-column' pattern)        |
       | 1' union select null, null                                               | 23    | SQL validation error: invalid SQL statement (detected 'detect-column' pattern)        |
       | 1' UNION SELECT null, null, null                                         | 23    | SQL validation error: invalid SQL statement (detected 'detect-column' pattern)        |
+      | 1' union all select null, null                                           | 23    | SQL validation error: invalid SQL statement (detected 'detect-column' pattern)        |
       | checkedOnDate                                                            | 23    |                                                                                       |
       | officeName                                                               | 23    |                                                                                       |
       | resourceId                                                               | 23    |                                                                                       |
