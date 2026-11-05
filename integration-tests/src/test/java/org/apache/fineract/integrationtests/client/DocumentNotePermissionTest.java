@@ -54,8 +54,8 @@ class DocumentNotePermissionTest extends IntegrationTest {
     @BeforeAll
     void setup() {
         Utils.initializeRESTAssured();
-        RequestSpecification adminSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build()
-                .header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey());
+        RequestSpecification adminSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build().header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey());
 
         clientId = ClientHelper.createClient(ClientHelper.defaultClientCreationRequest()).getClientId();
         documentId = ok(fineractClient().documents.createDocument("clients", clientId, Parts.fromFile(testFile), "Passport", "secret"))
