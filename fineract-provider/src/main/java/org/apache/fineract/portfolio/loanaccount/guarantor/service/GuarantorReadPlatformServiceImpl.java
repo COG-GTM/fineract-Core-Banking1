@@ -29,6 +29,7 @@ import java.util.List;
 import org.apache.fineract.infrastructure.codes.data.CodeValueData;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.staff.data.StaffData;
 import org.apache.fineract.organisation.staff.service.StaffReadPlatformService;
 import org.apache.fineract.portfolio.account.data.PortfolioAccountData;
@@ -36,10 +37,12 @@ import org.apache.fineract.portfolio.account.domain.AccountAssociationType;
 import org.apache.fineract.portfolio.client.data.ClientData;
 import org.apache.fineract.portfolio.client.service.ClientReadPlatformService;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
+import org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException;
 import org.apache.fineract.portfolio.loanaccount.guarantor.data.GuarantorData;
 import org.apache.fineract.portfolio.loanaccount.guarantor.data.GuarantorFundingData;
 import org.apache.fineract.portfolio.loanaccount.guarantor.data.GuarantorTransactionData;
 import org.apache.fineract.portfolio.loanaccount.guarantor.data.ObligeeData;
+import org.apache.fineract.portfolio.loanaccount.guarantor.exception.GuarantorNotFoundException;
 import org.apache.fineract.portfolio.savings.data.DepositAccountOnHoldTransactionData;
 import org.apache.fineract.portfolio.savings.service.SavingsEnumerations;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,20 +60,42 @@ public class GuarantorReadPlatformServiceImpl implements GuarantorReadPlatformSe
     private final ClientReadPlatformService clientReadPlatformService;
     private final StaffReadPlatformService staffReadPlatformService;
     private final LoanRepositoryWrapper loanRepositoryWrapper;
+    private final PlatformSecurityContext context;
 
     @Autowired
     public GuarantorReadPlatformServiceImpl(final JdbcTemplate jdbcTemplate, final ClientReadPlatformService clientReadPlatformService,
-            final StaffReadPlatformService staffReadPlatformService, final LoanRepositoryWrapper loanRepositoryWrapper) {
+            final StaffReadPlatformService staffReadPlatformService, final LoanRepositoryWrapper loanRepositoryWrapper,
+            final PlatformSecurityContext context) {
         this.jdbcTemplate = jdbcTemplate;
         this.clientReadPlatformService = clientReadPlatformService;
         this.staffReadPlatformService = staffReadPlatformService;
         this.loanRepositoryWrapper = loanRepositoryWrapper;
+        this.context = context;
     }
 
     @Override
     public List<GuarantorData> retrieveGuarantorsForValidLoan(final Long loanId) {
         this.loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
+        validateLoanIsWithinUserOfficeHierarchy(loanId);
         return retrieveGuarantorsForLoan(loanId);
+    }
+
+    /**
+     * Same office scoping as {@code LoanReadPlatformServiceImpl.retrieveOne}: a loan outside the caller's office
+     * hierarchy is reported as not found.
+     */
+    private void validateLoanIsWithinUserOfficeHierarchy(final Long loanId) {
+        final String hierarchySearchString = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
+        final String sql = "select count(*) from m_loan l" //
+                + " left join m_client c on c.id = l.client_id" //
+                + " left join m_group g on g.id = l.group_id" //
+                + " join m_office o on (o.id = c.office_id or o.id = g.office_id)" //
+                + " left join m_office transferToOffice on transferToOffice.id = c.transfer_to_office_id"
+                + " where l.id = ? and (o.hierarchy like ? or transferToOffice.hierarchy like ?)";
+        final Long count = this.jdbcTemplate.queryForObject(sql, Long.class, loanId, hierarchySearchString, hierarchySearchString);
+        if (count == null || count == 0) {
+            throw new LoanNotFoundException(loanId);
+        }
     }
 
     @Override
@@ -97,20 +122,24 @@ public class GuarantorReadPlatformServiceImpl implements GuarantorReadPlatformSe
 
     @Override
     public GuarantorData retrieveGuarantor(final Long loanId, final Long guarantorId) {
+        validateLoanIsWithinUserOfficeHierarchy(loanId);
         final GuarantorMapper rm = new GuarantorMapper();
         String sql = "select " + rm.schema();
         sql += " where g.loan_id = ? and g.id = ? group by g.id, gfd.id, gt.id, sa.id, oht.id, cv.id order by g.id";
         String finalSql = sql;
-        final GuarantorData guarantorData = this.jdbcTemplate.query(con -> {
+        final List<GuarantorData> guarantorDatas = this.jdbcTemplate.query(con -> {
             PreparedStatement preparedStatement = con.prepareStatement(finalSql, ResultSet.TYPE_SCROLL_SENSITIVE,
                     ResultSet.CONCUR_UPDATABLE);
             preparedStatement.setInt(1, AccountAssociationType.GUARANTOR_ACCOUNT_ASSOCIATION.getValue());
             preparedStatement.setLong(2, loanId);
             preparedStatement.setLong(3, guarantorId);// NOSONAR
             return preparedStatement;
-        }, rm).get(0);
+        }, rm);
+        if (guarantorDatas.isEmpty()) {
+            throw new GuarantorNotFoundException(loanId, guarantorId);
+        }
 
-        return mergeDetailsForClientOrStaffGuarantor(guarantorData);
+        return mergeDetailsForClientOrStaffGuarantor(guarantorDatas.get(0));
     }
 
     private static final class GuarantorMapper implements RowMapper<GuarantorData> {
