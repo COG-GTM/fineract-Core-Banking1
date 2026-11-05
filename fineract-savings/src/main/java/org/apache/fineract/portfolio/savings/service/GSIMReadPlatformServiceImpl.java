@@ -42,6 +42,8 @@ import org.apache.fineract.portfolio.savings.data.SavingsAccountApplicationTimel
 import org.apache.fineract.portfolio.savings.data.SavingsAccountStatusEnumData;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountSubStatusEnumData;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountStatusType;
+import org.apache.fineract.portfolio.savings.exception.GSIMAccountNotFoundException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -56,7 +58,8 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
         public String schema() {
             return "gsim.id as gsimId,sv.group_id as groupId,sv.client_id as clientId,gsim.account_number as accountNumber, sv.id as childAccountId,sv.account_no as childAccountNumber,sv.account_balance_derived as childBalance,gsim.parent_deposit as parentBalance,gsim.child_accounts_count as childAccountsCount,"
-                    + "gsim.savings_status_id as savingsStatus from gsim_accounts gsim,m_savings_account sv where gsim.id=sv.gsim_id";
+                    + "gsim.savings_status_id as savingsStatus from gsim_accounts gsim,m_savings_account sv,m_group grp,m_office o"
+                    + " where gsim.id=sv.gsim_id and grp.id=gsim.group_id and o.id=grp.office_id";
         }
 
         @Override
@@ -85,7 +88,8 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
         public String schema() {
             return "gsim.id as gsimId,gsim.group_id as groupId,gsim.account_number as accountNumber,gsim.parent_deposit as parentDeposit,gsim.child_accounts_count as childAccountsCount,"
-                    + "gsim.savings_status_id as savingsStatus from gsim_accounts gsim";
+                    + "gsim.savings_status_id as savingsStatus from gsim_accounts gsim"
+                    + " join m_group grp on grp.id=gsim.group_id join m_office o on o.id=grp.office_id";
         }
 
         @Override
@@ -109,7 +113,7 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
     @Override
     public Collection<GSIMContainer> findGSIMAccountContainerByGroupId(Long groupId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
         Collection<GroupSavingsIndividualMonitoringAccountData> gsimInfo = findGSIMAccountsByGroupId(groupId + "");
 
         // List<LoanAccountSummaryData> glimAccounts =
@@ -121,9 +125,10 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
         List<SavingsSummaryCustom> childSavings;
         for (GroupSavingsIndividualMonitoringAccountData gsimAccount : gsimInfo) {
             BigDecimal gsimId = gsimAccount.getGsimId();
-            savingswhereClauseForGroup = " where sa.group_id = ? and sa.gsim_id = ? order by sa.status_enum ASC, sa.account_no ASC";
+            savingswhereClauseForGroup = " where sa.group_id = ? and sa.gsim_id = ? and o.hierarchy like ?"
+                    + " order by sa.status_enum ASC, sa.account_no ASC";
 
-            childSavings = retrieveAccountDetails(savingswhereClauseForGroup, new Object[] { groupId, gsimId });
+            childSavings = retrieveAccountDetails(savingswhereClauseForGroup, new Object[] { groupId, gsimId, hierarchySearchString });
 
             gsimAccounts.add(new GSIMContainer(gsimAccount.getGsimId(), gsimAccount.getGroupId(), gsimAccount.getAccountNumber(),
                     childSavings, gsimAccount.getParentDeposit(), gsimAccount.getSavingsStatus()));
@@ -134,18 +139,20 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
     @Override
     public Collection<GSIMContainer> findGsimAccountContainerbyGsimAccountNumber(String accountNumber) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
         Collection<GroupSavingsIndividualMonitoringAccountData> gsimInfo = findGsimAccountByParentAccountNumber(accountNumber);
 
         // List<LoanAccountSummaryData> glimAccounts =
         // retrieveLoanAccountDetails(loanWhereClauseForGroupAndLoanType, new
         // Object[] { groupId });
-        final String savingswhereClauseForGroup = " where gsim.account_number = ? order by sa.status_enum ASC, sa.account_no ASC";
+        final String savingswhereClauseForGroup = " where gsim.account_number = ? and o.hierarchy like ?"
+                + " order by sa.status_enum ASC, sa.account_no ASC";
 
         List<GSIMContainer> gsimAccounts = new ArrayList<GSIMContainer>();
         for (GroupSavingsIndividualMonitoringAccountData gsimAccount : gsimInfo) {
 
-            List<SavingsSummaryCustom> childSavings = retrieveAccountDetails(savingswhereClauseForGroup, new Object[] { accountNumber });
+            List<SavingsSummaryCustom> childSavings = retrieveAccountDetails(savingswhereClauseForGroup,
+                    new Object[] { accountNumber, hierarchySearchString });
 
             gsimAccounts.add(new GSIMContainer(gsimAccount.getGsimId(), gsimAccount.getGroupId(), gsimAccount.getAccountNumber(),
                     childSavings, gsimAccount.getParentDeposit(), gsimAccount.getSavingsStatus()));
@@ -156,15 +163,17 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
     @Override
     public List<GSIMContainer> findGsimAccountContainerbyGsimAccountId(Long parentAccountId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
         GroupSavingsIndividualMonitoringAccountData gsimAccount = findGSIMAccountByGSIMId(parentAccountId);
 
         // List<LoanAccountSummaryData> glimAccounts =
         // retrieveLoanAccountDetails(loanWhereClauseForGroupAndLoanType, new
         // Object[] { groupId });
-        final String savingswhereClauseForGroup = " where sa.gsim_id = ? order by sa.status_enum ASC, sa.account_no ASC";
+        final String savingswhereClauseForGroup = " where sa.gsim_id = ? and o.hierarchy like ?"
+                + " order by sa.status_enum ASC, sa.account_no ASC";
 
-        List<SavingsSummaryCustom> childSavings = retrieveAccountDetails(savingswhereClauseForGroup, new Object[] { parentAccountId });
+        List<SavingsSummaryCustom> childSavings = retrieveAccountDetails(savingswhereClauseForGroup,
+                new Object[] { parentAccountId, hierarchySearchString });
 
         List<GSIMContainer> parentGsim = new ArrayList<GSIMContainer>();
 
@@ -177,53 +186,61 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
 
     @Override
     public Collection<GroupSavingsIndividualMonitoringAccountData> findGSIMAccountsByGSIMId(final Long gsimId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
 
         final GSIMFieldsMapper rm = new GSIMFieldsMapper();
-        final String sql = "select " + rm.schema() + " and gsim.id=?";
+        final String sql = "select " + rm.schema() + " and gsim.id=? and o.hierarchy like ?";
 
-        return this.jdbcTemplate.query(sql, rm, new Object[] { gsimId }); // NOSONAR
+        return this.jdbcTemplate.query(sql, rm, new Object[] { gsimId, hierarchySearchString }); // NOSONAR
     }
 
     @Override
     public GroupSavingsIndividualMonitoringAccountData findGSIMAccountByGSIMId(final Long gsimId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
 
         final GSIMMapper rm = new GSIMMapper();
-        final String sql = "select " + rm.schema() + " where gsim.id=?";
+        final String sql = "select " + rm.schema() + " where gsim.id=? and o.hierarchy like ?";
 
-        return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { gsimId }); // NOSONAR
+        try {
+            return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { gsimId, hierarchySearchString }); // NOSONAR
+        } catch (final EmptyResultDataAccessException e) {
+            throw new GSIMAccountNotFoundException(gsimId, e);
+        }
     }
 
     @Override
     public Collection<GroupSavingsIndividualMonitoringAccountData> findGSIMAccountsByGroupId(String groupId) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
 
         final GSIMMapper rm = new GSIMMapper();
-        final String sql = "select " + rm.schema() + " where gsim.group_id=?";
+        final String sql = "select " + rm.schema() + " where gsim.group_id=? and o.hierarchy like ?";
 
-        return this.jdbcTemplate.query(sql, rm, new Object[] { Long.parseLong(groupId) }); // NOSONAR
+        return this.jdbcTemplate.query(sql, rm, new Object[] { Long.parseLong(groupId), hierarchySearchString }); // NOSONAR
     }
 
     @Override
     public Collection<GroupSavingsIndividualMonitoringAccountData> findGsimAccountByParentAccountNumber(String parentAccountIds) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
 
         final GSIMMapper rm = new GSIMMapper();
-        final String sql = "select " + rm.schema() + " where gsim.account_number=?";
+        final String sql = "select " + rm.schema() + " where gsim.account_number=? and o.hierarchy like ?";
 
-        return this.jdbcTemplate.query(sql, rm, new Object[] { parentAccountIds }); // NOSONAR
+        return this.jdbcTemplate.query(sql, rm, new Object[] { parentAccountIds, hierarchySearchString }); // NOSONAR
     }
 
     @Override
     public Collection<GroupSavingsIndividualMonitoringAccountData> findGsimAccountByGroupIdandAccountNo(String groupId, String accountNo) {
-        this.context.authenticatedUser();
+        final String hierarchySearchString = hierarchySearchString();
 
         GSIMMapper rm = new GSIMMapper();
 
-        final String sql = "select " + rm.schema() + " where gsim.group_id=? and gsim.account_number=?";
+        final String sql = "select " + rm.schema() + " where gsim.group_id=? and gsim.account_number=? and o.hierarchy like ?";
 
-        return this.jdbcTemplate.query(sql, rm, new Object[] { groupId, accountNo });// NOSONAR
+        return this.jdbcTemplate.query(sql, rm, new Object[] { Long.parseLong(groupId), accountNo, hierarchySearchString });// NOSONAR
+    }
+
+    private String hierarchySearchString() {
+        return this.context.authenticatedUser().getOffice().getHierarchy() + "%";
     }
 
     private List<SavingsSummaryCustom> retrieveAccountDetails(final String savingswhereClause, final Object[] inputs) {
@@ -292,6 +309,8 @@ public class GSIMReadPlatformServiceImpl implements GSIMReadPlatformService {
             accountsSummary.append("left join m_appuser cbu on cbu.id = sa.closedon_userid ");
             accountsSummary.append("left join gsim_accounts gsim on gsim.id=sa.gsim_id ");
             accountsSummary.append("left join m_client clnt on clnt.id=sa.client_id ");
+            accountsSummary.append("left join m_group gsimgrp on gsimgrp.id=gsim.group_id ");
+            accountsSummary.append("left join m_office o on o.id=gsimgrp.office_id ");
 
             this.schemaSql = accountsSummary.toString();
         }
