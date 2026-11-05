@@ -87,7 +87,7 @@ public class ScorecardApiResource {
     public void createScorecard(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @Parameter(description = "scorecardData") final ScorecardData scorecardData) {
         final AppUser appUser = this.securityContext.authenticatedUser();
-        appUser.validateHasCreatePermission(SurveyApiConstants.SCORECARD_PERMISSION_ENTITY);
+        appUser.validateHasPermissionTo(SurveyApiConstants.CREATE_SCORECARD_PERMISSION);
         final Survey survey = this.spmService.findById(surveyId);
         final Client client = findClientInUserScope(scorecardData.getClientId());
         this.scorecardService.createScorecard(ScorecardMapper.map(scorecardData, survey, appUser, client));

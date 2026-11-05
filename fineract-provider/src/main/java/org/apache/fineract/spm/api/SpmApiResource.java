@@ -106,7 +106,7 @@ public class SpmApiResource {
             + "Mandatory Fields\n" + "\n" + "countryCode, key, name, questions, responses, sequenceNo, text, description")
     @ApiResponses({ @ApiResponse(responseCode = "200", description = "OK") })
     public String createSurvey(@Parameter(description = "Create survey") final SurveyData surveyData) {
-        this.securityContext.authenticatedUser().validateHasCreatePermission(SurveyApiConstants.SURVEY_PERMISSION_ENTITY);
+        this.securityContext.authenticatedUser().validateHasPermissionTo(SurveyApiConstants.CREATE_SURVEY_PERMISSION);
         final Survey survey = SurveyMapper.map(surveyData, new Survey());
         this.spmService.createSurvey(survey);
         return getResponse(survey.getId());
@@ -119,7 +119,7 @@ public class SpmApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Transactional
     public String editSurvey(@PathParam("id") final Long id, final SurveyData surveyData) {
-        this.securityContext.authenticatedUser().validateHasUpdatePermission(SurveyApiConstants.SURVEY_PERMISSION_ENTITY);
+        this.securityContext.authenticatedUser().validateHasPermissionTo(SurveyApiConstants.UPDATE_SURVEY_PERMISSION);
         final Survey surveyToUpdate = this.spmService.findById(id);
         final Survey survey = SurveyMapper.map(surveyData, surveyToUpdate);
         this.spmService.updateSurvey(survey);

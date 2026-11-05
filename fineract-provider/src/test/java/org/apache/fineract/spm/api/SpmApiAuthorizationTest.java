@@ -84,8 +84,6 @@ class SpmApiAuthorizationTest {
     private void denyAllSpmPermissions() {
         final NoAuthorizationException denied = new NoAuthorizationException("denied");
         lenient().doThrow(denied).when(user).validateHasReadPermission(anyString());
-        lenient().doThrow(denied).when(user).validateHasCreatePermission(anyString());
-        lenient().doThrow(denied).when(user).validateHasUpdatePermission(anyString());
         lenient().doThrow(denied).when(user).validateHasPermissionTo(anyString());
     }
 
@@ -133,7 +131,7 @@ class SpmApiAuthorizationTest {
         spmApiResource.fetchAllSurveys(null);
         verify(user).validateHasReadPermission("SURVEY");
         spmApiResource.createSurvey(new SurveyData());
-        verify(user).validateHasCreatePermission("SURVEY");
+        verify(user).validateHasPermissionTo("CREATE_SURVEY");
         spmApiResource.activateOrDeactivateSurvey(1L, "activate");
         verify(user).validateHasPermissionTo("ACTIVATE_SURVEY");
         spmApiResource.activateOrDeactivateSurvey(1L, "deactivate");

@@ -109,7 +109,7 @@ public class LookupTableApiResource {
     @ApiResponse(responseCode = "200", description = "OK")
     public void createLookupTable(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             final LookupTableData lookupTableData) {
-        this.securityContext.authenticatedUser().validateHasCreatePermission(SurveyApiConstants.LOOKUPTABLE_PERMISSION_ENTITY);
+        this.securityContext.authenticatedUser().validateHasPermissionTo(SurveyApiConstants.CREATE_LOOKUPTABLE_PERMISSION);
 
         final Survey survey = findSurvey(surveyId);
 
