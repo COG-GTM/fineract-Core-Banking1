@@ -45,7 +45,9 @@ import org.apache.fineract.infrastructure.security.service.PlatformSecurityConte
 import org.apache.fineract.spm.data.SurveyData;
 import org.apache.fineract.spm.domain.Survey;
 import org.apache.fineract.spm.service.SpmService;
+import org.apache.fineract.spm.util.SurveyApiConstants;
 import org.apache.fineract.spm.util.SurveyMapper;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,7 +68,7 @@ public class SpmApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = SurveyData.class)))) })
     public List<SurveyData> fetchAllSurveys(@QueryParam("isActive") final Boolean isActive) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SURVEY_PERMISSION_ENTITY);
         final List<SurveyData> result = new ArrayList<>();
         List<Survey> surveys = null;
         if (isActive != null && isActive) {
@@ -91,7 +93,7 @@ public class SpmApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SurveyData.class))) })
     public SurveyData findSurvey(@PathParam("id") @Parameter(description = "Enter id") final Long id) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SURVEY_PERMISSION_ENTITY);
         final Survey survey = this.spmService.findById(id);
         return SurveyMapper.map(survey);
     }
@@ -104,7 +106,7 @@ public class SpmApiResource {
             + "Mandatory Fields\n" + "\n" + "countryCode, key, name, questions, responses, sequenceNo, text, description")
     @ApiResponses({ @ApiResponse(responseCode = "200", description = "OK") })
     public String createSurvey(@Parameter(description = "Create survey") final SurveyData surveyData) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasPermissionTo(SurveyApiConstants.CREATE_SURVEY_PERMISSION);
         final Survey survey = SurveyMapper.map(surveyData, new Survey());
         this.spmService.createSurvey(survey);
         return getResponse(survey.getId());
@@ -117,7 +119,7 @@ public class SpmApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Transactional
     public String editSurvey(@PathParam("id") final Long id, final SurveyData surveyData) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasPermissionTo(SurveyApiConstants.UPDATE_SURVEY_PERMISSION);
         final Survey surveyToUpdate = this.spmService.findById(id);
         final Survey survey = SurveyMapper.map(surveyData, surveyToUpdate);
         this.spmService.updateSurvey(survey);
@@ -132,10 +134,12 @@ public class SpmApiResource {
     @Operation(summary = "Deactivate Survey", description = "")
     @ApiResponses({ @ApiResponse(responseCode = "200", description = "OK") })
     public void activateOrDeactivateSurvey(@PathParam("id") final Long id, @QueryParam("command") final String command) {
-        this.securityContext.authenticatedUser();
+        final AppUser user = this.securityContext.authenticatedUser();
         if (command != null && command.equalsIgnoreCase("activate")) {
+            user.validateHasPermissionTo(SurveyApiConstants.ACTIVATE_SURVEY_PERMISSION);
             this.spmService.activateSurvey(id);
         } else if (command != null && command.equalsIgnoreCase("deactivate")) {
+            user.validateHasPermissionTo(SurveyApiConstants.DEACTIVATE_SURVEY_PERMISSION);
             this.spmService.deactivateSurvey(id);
         } else {
             throw new UnrecognizedQueryParamException("command", command);

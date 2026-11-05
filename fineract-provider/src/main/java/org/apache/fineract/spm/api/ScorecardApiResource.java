@@ -45,6 +45,7 @@ import org.apache.fineract.spm.service.ScorecardReadPlatformService;
 import org.apache.fineract.spm.service.ScorecardService;
 import org.apache.fineract.spm.service.SpmService;
 import org.apache.fineract.spm.util.ScorecardMapper;
+import org.apache.fineract.spm.util.SurveyApiConstants;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,7 +71,7 @@ public class ScorecardApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = Scorecard.class)))) })
     public List<ScorecardData> findBySurvey(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SCORECARD_PERMISSION_ENTITY);
         this.spmService.findById(surveyId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardBySurvey(surveyId);
     }
@@ -86,8 +87,9 @@ public class ScorecardApiResource {
     public void createScorecard(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @Parameter(description = "scorecardData") final ScorecardData scorecardData) {
         final AppUser appUser = this.securityContext.authenticatedUser();
+        appUser.validateHasPermissionTo(SurveyApiConstants.CREATE_SCORECARD_PERMISSION);
         final Survey survey = this.spmService.findById(surveyId);
-        final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(scorecardData.getClientId());
+        final Client client = findClientInUserScope(scorecardData.getClientId());
         this.scorecardService.createScorecard(ScorecardMapper.map(scorecardData, survey, appUser, client));
     }
 
@@ -98,9 +100,9 @@ public class ScorecardApiResource {
     @Transactional
     public List<ScorecardData> findBySurveyAndClient(@PathParam("surveyId") @Parameter(description = "Enter surveyId") final Long surveyId,
             @PathParam("clientId") @Parameter(description = "Enter clientId") final Long clientId) {
-        this.securityContext.authenticatedUser();
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SCORECARD_PERMISSION_ENTITY);
         this.spmService.findById(surveyId);
-        this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        findClientInUserScope(clientId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardBySurveyAndClient(surveyId, clientId);
 
     }
@@ -111,8 +113,14 @@ public class ScorecardApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Transactional
     public List<ScorecardData> findByClient(@PathParam("clientId") final Long clientId) {
-        this.securityContext.authenticatedUser();
-        this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        this.securityContext.authenticatedUser().validateHasReadPermission(SurveyApiConstants.SCORECARD_PERMISSION_ENTITY);
+        findClientInUserScope(clientId);
         return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardByClient(clientId);
+    }
+
+    private Client findClientInUserScope(final Long clientId) {
+        final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        this.securityContext.validateAccessRights(client.getOffice().getHierarchy());
+        return client;
     }
 }
