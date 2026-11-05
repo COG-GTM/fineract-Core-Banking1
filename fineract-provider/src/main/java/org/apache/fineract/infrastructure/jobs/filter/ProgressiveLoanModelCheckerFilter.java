@@ -29,6 +29,9 @@ import org.apache.fineract.infrastructure.core.http.BodyCachingHttpServletReques
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
 import org.apache.fineract.portfolio.loanaccount.service.ProgressiveLoanModelProcessingService;
 import org.apache.fineract.portfolio.loanproduct.calc.data.ProgressiveLoanInterestScheduleModel;
+import org.apache.fineract.useradministration.domain.AppUser;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -43,6 +46,11 @@ public class ProgressiveLoanModelCheckerFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        // unauthenticated requests are rejected later by the authorization filter, so skip the body parsing and DB work
+        if (!isAuthenticatedUser()) {
+            proceed(filterChain, request, response);
+            return;
+        }
         request = new BodyCachingHttpServletRequestWrapper(request);
 
         if (!helper.isOnApiList((BodyCachingHttpServletRequestWrapper) request)) {
@@ -58,6 +66,11 @@ public class ProgressiveLoanModelCheckerFilter extends OncePerRequestFilter {
             }
             proceed(filterChain, request, response);
         }
+    }
+
+    private boolean isAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.isAuthenticated() && authentication.getPrincipal() instanceof AppUser;
     }
 
     private boolean isProgressiveLoan(Long loanId) {
