@@ -100,8 +100,8 @@ class SchedulerJobRunnerReadServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "(select pg_sleep(5))", "(select sleep(5))", "start_time, (select 1)", "runHistory.start_time",
-            "error_log", "1", "case when 1 then start_time end" })
+    @ValueSource(strings = { "(select pg_sleep(5))", "(select sleep(5))", "start_time, (select 1)", "runHistory.start_time", "error_log",
+            "1", "case when 1 then start_time end" })
     void injectedOrderByIsRejectedBeforeQueryRuns(String orderBy) {
         PlatformApiDataValidationException ex = assertThrows(PlatformApiDataValidationException.class,
                 () -> service.retrieveJobHistory(IdTypeResolver.IdType.ID, "1", SearchParameters.builder().orderBy(orderBy).build()));
