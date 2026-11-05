@@ -20,7 +20,6 @@ package org.apache.fineract.organisation.office.starter;
 
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
 import org.apache.fineract.organisation.monetary.service.CurrencyReadPlatformService;
 import org.apache.fineract.organisation.office.domain.OfficeRepository;
@@ -44,10 +43,10 @@ public class OrganisationOfficeConfiguration {
     @Bean
     @ConditionalOnMissingBean(OfficeReadPlatformService.class)
     public OfficeReadPlatformService officeReadPlatformService(JdbcTemplate jdbcTemplate, DatabaseSpecificSQLGenerator sqlGenerator,
-            PlatformSecurityContext context, CurrencyReadPlatformService currencyReadPlatformService, ColumnValidator columnValidator,
-            OfficeRepository officeRepository, OfficeDataMapper officeDataMapper) {
-        return new OfficeReadPlatformServiceImpl(jdbcTemplate, sqlGenerator, context, currencyReadPlatformService, columnValidator,
-                officeRepository, officeDataMapper);
+            PlatformSecurityContext context, CurrencyReadPlatformService currencyReadPlatformService, OfficeRepository officeRepository,
+            OfficeDataMapper officeDataMapper) {
+        return new OfficeReadPlatformServiceImpl(jdbcTemplate, sqlGenerator, context, currencyReadPlatformService, officeRepository,
+                officeDataMapper);
     }
 
     @Bean

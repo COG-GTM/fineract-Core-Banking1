@@ -18,6 +18,8 @@
  */
 package org.apache.fineract.integrationtests;
 
+import static io.restassured.RestAssured.given;
+
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.builder.ResponseSpecBuilder;
 import io.restassured.http.ContentType;
@@ -35,6 +37,8 @@ import org.apache.fineract.integrationtests.common.Utils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import retrofit2.Response;
 
 public class OfficeIntegrationTest {
@@ -99,5 +103,39 @@ public class OfficeIntegrationTest {
 
         Assertions.assertTrue(name.equals(newOffice.getName()));
         Assertions.assertTrue(DateUtils.isEqual(newOffice.getOpeningDate(), LocalDate.of(2007, 7, 2)));
+    }
+
+    @ParameterizedTest
+    @CsvSource(textBlock = """
+            id,
+            name, ASC
+            openingDate, desc
+            externalId,
+            hierarchy,
+            parentId,
+            parentName,
+            """)
+    public void testRetrieveOfficesAcceptsAllowListedSorting(final String orderBy, final String sortOrder) {
+        retrieveOfficesWithSorting(orderBy, sortOrder, 200);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', textBlock = """
+            (select 1 from m_appuser) |
+            o.id | ,(select 1)
+            (case when o.id > (select ascii(substring(password,1,1)) from m_appuser where not id-1) then o.id else o.parent_id end) |
+            unknown_column |
+            name | ascending
+            """)
+    public void testRetrieveOfficesRejectsSortingOutsideAllowList(final String orderBy, final String sortOrder) {
+        retrieveOfficesWithSorting(orderBy, sortOrder, 400);
+    }
+
+    private void retrieveOfficesWithSorting(final String orderBy, final String sortOrder, final int expectedStatusCode) {
+        RequestSpecification request = given().spec(requestSpec).queryParam("orderBy", orderBy);
+        if (sortOrder != null) {
+            request = request.queryParam("sortOrder", sortOrder);
+        }
+        request.expect().statusCode(expectedStatusCode).when().get("/fineract-provider/api/v1/offices?" + Utils.TENANT_IDENTIFIER);
     }
 }
