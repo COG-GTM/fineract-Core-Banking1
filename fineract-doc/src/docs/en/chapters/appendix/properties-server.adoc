@@ -1,0 +1,11 @@
+= Server Properties
+
+.Server Properties
+|===
+|Name |Env Variable |Default Value |Description
+
+|fineract.server.base-url
+|FINERACT_SERVER_BASE_URL
+|https://localhost:${server.port}${server.servlet.context-path}/
+|Public base URL of this Fineract instance (for example `https://fineract.example.com/fineract-provider/`). It is sent to hook receivers (web hooks, SMS bridge/Twilio hooks, search hooks) as the endpoint to call back, e.g. in the `X-Fineract-Endpoint` header. It is never derived from incoming request headers, so set it explicitly in every deployment that uses hooks.
+|===

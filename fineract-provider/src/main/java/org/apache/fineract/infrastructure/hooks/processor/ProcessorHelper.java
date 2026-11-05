@@ -28,6 +28,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import okhttp3.OkHttpClient;
+import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -66,8 +67,10 @@ public final class ProcessorHelper {
      */
     private final boolean insecureHttpClient = Boolean.getBoolean("fineract.insecureHttpClient");
     private final SSLContext insecureSSLContext;
+    private final FineractProperties fineractProperties;
 
-    public ProcessorHelper() throws KeyManagementException, NoSuchAlgorithmException {
+    public ProcessorHelper(final FineractProperties fineractProperties) throws KeyManagementException, NoSuchAlgorithmException {
+        this.fineractProperties = fineractProperties;
         if (insecureHttpClient) {
             insecureSSLContext = createInsecureSSLContext();
         } else {
@@ -94,6 +97,15 @@ public final class ProcessorHelper {
         // FineractClient.Builder?
         insecureSSLContext.init(null, new TrustManager[] { insecureX509TrustManager }, new SecureRandom());
         return insecureSSLContext;
+    }
+
+    /**
+     * Base URL of this Fineract instance advertised to hook receivers. Comes only from configuration
+     * ({@code fineract.server.base-url}), never from request headers.
+     */
+    public String getFineractEndpointUrl() {
+        final FineractProperties.FineractServerProperties server = fineractProperties.getServer();
+        return server == null ? null : server.getBaseUrl();
     }
 
     @SuppressWarnings("rawtypes")

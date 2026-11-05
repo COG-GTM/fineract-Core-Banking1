@@ -69,7 +69,7 @@ public class TwilioHookProcessor implements HookProcessor {
         String apiKey = this.hookConfigurationRepository.findOneByHookIdAndFieldName(hook.getId(), apiKeyName);
         if (apiKey == null) {
             smsProviderData.setUrl(null);
-            smsProviderData.setEndpoint(System.getProperty("baseUrl"));
+            smsProviderData.setEndpoint(processorHelper.getFineractEndpointUrl());
             smsProviderData.setTenantId(context.getTenantContext().getTenantIdentifier());
             smsProviderData.setMifosToken(context.getAuthTokenContext());
             apiKey = service.sendSmsBridgeConfigRequest(smsProviderData).execute().body();
@@ -98,7 +98,7 @@ public class TwilioHookProcessor implements HookProcessor {
         JsonObject json = null;
         @SuppressWarnings("unchecked")
         final HashMap<String, Object> map = new ObjectMapper().readValue(payload, HashMap.class);
-        map.put("BASE_URI", System.getProperty("baseUrl"));
+        map.put("BASE_URI", processorHelper.getFineractEndpointUrl());
         if (map.containsKey("clientId")) {
             final Long clientId = Long.valueOf(Integer.toString((int) map.get("clientId")));
             final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);

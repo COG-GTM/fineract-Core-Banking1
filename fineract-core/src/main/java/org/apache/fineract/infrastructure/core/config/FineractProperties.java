@@ -91,6 +91,8 @@ public class FineractProperties {
 
     private RetryProperties retry;
 
+    private FineractServerProperties server;
+
     @Getter
     @Setter
     public static class FineractTenantProperties {
@@ -708,5 +710,16 @@ public class FineractProperties {
         private List<String> allowedHeaders;
         private List<String> exposedHeaders;
         private boolean allowCredentials;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractServerProperties {
+
+        /**
+         * Public base URL of this Fineract instance, advertised to hook receivers as the endpoint to call back. Never
+         * derived from incoming requests.
+         */
+        private String baseUrl;
     }
 }
