@@ -569,6 +569,7 @@ public class LoansApiResource {
             @Parameter(hidden = true) final String apiRequestBodyAsJson) {
 
         if (CommandParameterUtil.is(commandParam, "calculateLoanSchedule")) {
+            this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
             final JsonElement parsedQuery = this.fromJsonHelper.parse(apiRequestBodyAsJson);
             final JsonQuery query = JsonQuery.from(apiRequestBodyAsJson, parsedQuery, this.fromJsonHelper);
