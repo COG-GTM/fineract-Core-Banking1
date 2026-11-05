@@ -479,7 +479,7 @@ public class LoanTransactionsApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId transactionExternalId = ExternalIdFactory.produce(transactionExternalIdStr);
 
-        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        Long resolvedLoanId = getResolvedLoanIdWithExistsCheck(loanId, loanExternalId);
         Long resolvedLoanTransactionId = getResolvedLoanTransactionId(transactionId, transactionExternalId);
 
         LoanTransactionData transactionData = this.loanReadPlatformService.retrieveLoanTransaction(resolvedLoanId,
@@ -773,13 +773,13 @@ public class LoanTransactionsApiResource {
 
     private Long getResolvedLoanIdWithExistsCheck(final Long loanId, final ExternalId loanExternalId) {
         if (loanId != null) {
-            if (!loanReadPlatformService.existsByLoanId(loanId)) {
+            if (!loanReadPlatformService.existsByLoanIdWithinUserOfficeHierarchy(loanId)) {
                 throw new LoanNotFoundException(loanId);
             }
             return loanId;
         } else if (loanExternalId != null) {
             final Long resolvedLoanId = loanReadPlatformService.retrieveLoanIdByExternalId(loanExternalId);
-            if (resolvedLoanId == null) {
+            if (resolvedLoanId == null || !loanReadPlatformService.existsByLoanIdWithinUserOfficeHierarchy(resolvedLoanId)) {
                 throw new LoanNotFoundException(loanExternalId);
             }
             return resolvedLoanId;
