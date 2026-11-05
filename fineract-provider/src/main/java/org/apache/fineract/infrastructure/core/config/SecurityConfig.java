@@ -139,6 +139,11 @@ public class SecurityConfig {
                 authorizationManagers.add(selfServiceUserAuthManager());
             }
 
+            var internalManagers = new ArrayList<>(authorizationManagers);
+            internalManagers.add(hasAuthority(ALL_FUNCTIONS));
+            @SuppressWarnings("unchecked")
+            AuthorizationManager<RequestAuthorizationContext> internalAuth = allOf(internalManagers.toArray(new AuthorizationManager[0]));
+
             auth.requestMatchers(API_MATCHER.matcher(HttpMethod.OPTIONS, "/api/**")).permitAll()
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/echo")).permitAll()
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/authentication")).permitAll()
@@ -335,6 +340,9 @@ public class SecurityConfig {
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_READ, "READ_WORKING_DAYS")
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.PUT, "/api/*/workingdays"))
                     .hasAnyAuthority(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, "UPDATE_WORKING_DAYS")
+
+                    // internal (test profile only) external events
+                    .requestMatchers(API_MATCHER.matcher("/api/*/internal/externalevents")).access(internalAuth)
 
                     .requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/twofactor/validate")).fullyAuthenticated()
                     .requestMatchers(API_MATCHER.matcher("/api/*/twofactor")).fullyAuthenticated()
