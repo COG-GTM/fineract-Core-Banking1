@@ -36,8 +36,9 @@ class ExternalServicesPropertiesTest {
     void maskedPlaceholderDoesNotOverwriteStoredSecret() {
         ExternalServicesProperties property = new ExternalServicesProperties().setValue(S3_SECRET);
 
-        Map<String, Object> changes = property.update(command(ExternalServicesConstants.S3_SECRET_KEY,
-                ExternalServicesConstants.MASKED_SECRET_VALUE), ExternalServicesConstants.S3_SECRET_KEY);
+        Map<String, Object> changes = property.update(
+                command(ExternalServicesConstants.S3_SECRET_KEY, ExternalServicesConstants.MASKED_SECRET_VALUE),
+                ExternalServicesConstants.S3_SECRET_KEY);
 
         assertTrue(changes.isEmpty());
         assertEquals(S3_SECRET, property.getValue());
@@ -47,8 +48,9 @@ class ExternalServicesPropertiesTest {
     void maskedPlaceholderDoesNotPopulateUnsetSecret() {
         ExternalServicesProperties property = new ExternalServicesProperties();
 
-        Map<String, Object> changes = property.update(command(ExternalServicesConstants.SMS_TENANT_APP_KEY,
-                ExternalServicesConstants.MASKED_SECRET_VALUE), ExternalServicesConstants.SMS_TENANT_APP_KEY);
+        Map<String, Object> changes = property.update(
+                command(ExternalServicesConstants.SMS_TENANT_APP_KEY, ExternalServicesConstants.MASKED_SECRET_VALUE),
+                ExternalServicesConstants.SMS_TENANT_APP_KEY);
 
         assertTrue(changes.isEmpty());
         assertNull(property.getValue());
