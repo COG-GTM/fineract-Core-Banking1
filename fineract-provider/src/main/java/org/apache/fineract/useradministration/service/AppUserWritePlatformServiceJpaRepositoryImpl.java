@@ -163,10 +163,9 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
     @Caching(evict = { @CacheEvict(value = "users", allEntries = true), @CacheEvict(value = "usersByUsername", allEntries = true) })
     public CommandProcessingResult changeUserPassword(final Long userId, final JsonCommand command) {
         try {
-            this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build());
-            this.fromApiJsonDeserializer.validateForChangePassword(command.json(),
-                    this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build()));
-            final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+            final AppUser currentUser = this.context.authenticatedUser(new CommandWrapperBuilder().changeUserPassword(userId).build());
+            this.fromApiJsonDeserializer.validateForChangePassword(command.json(), currentUser);
+            final AppUser userToUpdate = findUserWithinOfficeHierarchy(userId, currentUser);
             final AppUserPreviousPassword currentPasswordToSaveAsPreview = getCurrentPasswordToSaveAsPreview(userToUpdate, command);
             final Map<String, Object> changes = userToUpdate.changePassword(command, this.platformPasswordEncoder);
             if (!changes.isEmpty()) {
@@ -199,7 +198,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
 
             this.fromApiJsonDeserializer.validateForUpdate(command.json(), currentUser);
 
-            final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+            final AppUser userToUpdate = findUserWithinOfficeHierarchy(userId, currentUser);
 
             final AppUserPreviousPassword currentPasswordToSaveAsPreview = getCurrentPasswordToSaveAsPreview(userToUpdate, command);
 
@@ -320,7 +319,8 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
     @Transactional
     @Caching(evict = { @CacheEvict(value = "users", allEntries = true), @CacheEvict(value = "usersByUsername", allEntries = true) })
     public CommandProcessingResult deleteUser(final Long userId) {
-        final AppUser user = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        final AppUser currentUser = this.context.authenticatedUser();
+        final AppUser user = findUserWithinOfficeHierarchy(userId, currentUser);
         if (user.isDeleted()) {
             throw new UserNotFoundException(userId);
         }
@@ -329,6 +329,14 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
         this.appUserRepository.save(user);
 
         return new CommandProcessingResultBuilder().withEntityId(userId).withOfficeId(user.getOffice().getId()).build();
+    }
+
+    private AppUser findUserWithinOfficeHierarchy(final Long userId, final AppUser currentUser) {
+        final AppUser user = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        if (!AppUserReadPlatformServiceImpl.isWithinOfficeHierarchy(user, currentUser)) {
+            throw new UserNotFoundException(userId);
+        }
+        return user;
     }
 
     /*
