@@ -30,7 +30,8 @@ public class CreditBureauHttpClientConfig {
     public static final String CREDIT_BUREAU_HTTP_CLIENT = "creditBureauOkHttpClient";
 
     @Bean(CREDIT_BUREAU_HTTP_CLIENT)
-    public OkHttpClient creditBureauOkHttpClient(@Qualifier("okHttpClient") final OkHttpClient okHttpClient, final CreditBureauUrlValidator urlValidator) {
+    public OkHttpClient creditBureauOkHttpClient(@Qualifier("okHttpClient") final OkHttpClient okHttpClient,
+            final CreditBureauUrlValidator urlValidator) {
         return okHttpClient.newBuilder().followRedirects(false).followSslRedirects(false).dns(urlValidator).build();
     }
 }

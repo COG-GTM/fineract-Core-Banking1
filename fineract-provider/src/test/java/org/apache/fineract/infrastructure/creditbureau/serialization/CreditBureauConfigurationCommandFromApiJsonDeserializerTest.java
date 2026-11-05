@@ -29,8 +29,8 @@ import org.junit.jupiter.api.Test;
 
 class CreditBureauConfigurationCommandFromApiJsonDeserializerTest {
 
-    private final CreditBureauConfigurationCommandFromApiJsonDeserializer underTest = new CreditBureauConfigurationCommandFromApiJsonDeserializer(
-            new FromJsonHelper(), new CreditBureauUrlValidator("", false));
+    private final CreditBureauConfigurationCommandFromApiJsonDeserializer underTest =
+            new CreditBureauConfigurationCommandFromApiJsonDeserializer(new FromJsonHelper(), new CreditBureauUrlValidator("", false));
 
     @Test
     void createRejectsMetadataSearchUrl() {

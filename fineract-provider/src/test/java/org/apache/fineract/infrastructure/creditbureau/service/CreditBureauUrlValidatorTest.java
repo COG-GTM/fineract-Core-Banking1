@@ -35,7 +35,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class CreditBureauUrlValidatorTest {
 
-    private static final Dns PUBLIC_DNS = hostname -> List.of(InetAddress.getByAddress(hostname, new byte[] { 93, (byte) 184, (byte) 215, 14 }));
+    private static final Dns PUBLIC_DNS = hostname -> List
+            .of(InetAddress.getByAddress(hostname, new byte[] { 93, (byte) 184, (byte) 215, 14 }));
     private static final Dns INTERNAL_DNS = hostname -> List.of(InetAddress.getByAddress(hostname, new byte[] { 10, 0, 0, 5 }));
 
     @ParameterizedTest
@@ -49,7 +50,8 @@ class CreditBureauUrlValidatorTest {
 
     @Test
     void acceptsPublicHttpsUrl() {
-        assertEquals(Optional.empty(), new CreditBureauUrlValidator("", false, PUBLIC_DNS).findViolation("https://api.bureau.example/search/"));
+        assertEquals(Optional.empty(),
+                new CreditBureauUrlValidator("", false, PUBLIC_DNS).findViolation("https://api.bureau.example/search/"));
         assertEquals(Optional.empty(), new CreditBureauUrlValidator("", false).findViolation("https://93.184.215.14/token"));
     }
 
