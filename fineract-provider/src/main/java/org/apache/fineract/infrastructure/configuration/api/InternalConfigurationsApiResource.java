@@ -34,6 +34,7 @@ import org.apache.fineract.infrastructure.configuration.service.MoneyHelperIniti
 import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -45,6 +46,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class InternalConfigurationsApiResource implements InitializingBean {
 
+    private static final String UPDATE_CONFIGURATION_PERMISSION = "UPDATE_CONFIGURATION";
+
+    private final PlatformSecurityContext context;
     private final GlobalConfigurationRepositoryWrapper repository;
     private final MoneyHelperInitializationService moneyHelperInitializationService;
 
@@ -67,6 +71,8 @@ public class InternalConfigurationsApiResource implements InitializingBean {
     @Produces({ MediaType.APPLICATION_JSON })
     @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public Response updateGlobalConfiguration(@PathParam("configName") String configName, @PathParam("configValue") Long configValue) {
+        context.authenticatedUser().validateHasPermissionTo(UPDATE_CONFIGURATION_PERMISSION);
+
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
         log.warn("Update trap-door config: {}", configName);
