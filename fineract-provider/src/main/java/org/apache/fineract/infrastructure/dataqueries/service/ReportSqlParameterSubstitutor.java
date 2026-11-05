@@ -29,6 +29,10 @@ import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidati
  * each placeholder so that they can only ever form a literal: inside a quoted literal the quote character is doubled
  * and backslashes are rejected; outside a literal only numbers, ISO dates, booleans, number lists or lists of
  * single-quoted literals are accepted.
+ *
+ * Once the SQL contains a construct whose meaning differs between MySQL and PostgreSQL ({@code #} or a backslash), the
+ * lexical context of later placeholders cannot be trusted, so from there on only values that are safe in any context
+ * (numbers, ISO dates, booleans and number lists) are accepted.
  */
 public final class ReportSqlParameterSubstitutor {
 
@@ -43,6 +47,7 @@ public final class ReportSqlParameterSubstitutor {
         final int length = sql.length();
         final StringBuilder result = new StringBuilder(length);
         char quote = 0;
+        boolean ambiguous = false;
         int i = 0;
         while (i < length) {
             final char c = sql.charAt(i);
@@ -50,6 +55,13 @@ public final class ReportSqlParameterSubstitutor {
             if (quote == 0) {
                 if (c == '-' && next == '-') {
                     final int end = indexOrLength(sql, "\n", i + 2, 0);
+                    result.append(sql, i, end);
+                    i = end;
+                    continue;
+                }
+                if (c == '#') {
+                    ambiguous = true;
+                    final int end = indexOrLength(sql, "\n", i + 1, 0);
                     result.append(sql, i, end);
                     i = end;
                     continue;
@@ -66,6 +78,11 @@ public final class ReportSqlParameterSubstitutor {
                     i++;
                     continue;
                 }
+            } else if (c == '\\' && next != 0) {
+                ambiguous = true;
+                result.append(c).append(next);
+                i += 2;
+                continue;
             } else if (c == quote) {
                 if (next == quote) {
                     result.append(c).append(next);
@@ -78,6 +95,9 @@ public final class ReportSqlParameterSubstitutor {
                 continue;
             }
 
+            if (c == '\\') {
+                ambiguous = true;
+            }
             if (c == '$' && next == '{') {
                 final int end = sql.indexOf('}', i + 2);
                 if (end > 0) {
@@ -88,7 +108,11 @@ public final class ReportSqlParameterSubstitutor {
                         continue;
                     }
                     if (requestParams.containsKey(key)) {
-                        result.append(toSqlFragment(key, requestParams.get(key), quote));
+                        final String fragment = toSqlFragment(key, requestParams.get(key), quote, ambiguous);
+                        if (fragment.startsWith("-") && !result.isEmpty() && result.charAt(result.length() - 1) == '-') {
+                            result.append(' ');
+                        }
+                        result.append(fragment);
                         i = end + 1;
                         continue;
                     }
@@ -105,19 +129,24 @@ public final class ReportSqlParameterSubstitutor {
         return index < 0 ? sql.length() : index + tokenLength;
     }
 
-    private static String toSqlFragment(final String key, final String rawValue, final char quote) {
+    private static String toSqlFragment(final String key, final String rawValue, final char quote, final boolean ambiguous) {
         final String value = rawValue == null ? "" : rawValue;
-        final boolean valid = switch (quote) {
-            case '\'', '"' -> value.indexOf('\\') < 0 && value.indexOf('\0') < 0;
-            case '`' -> NUMBER.matcher(value).matches();
-            default -> UNQUOTED_VALUE.matcher(value).matches() || QUOTED_LITERAL_LIST.matcher(value).matches();
-        };
+        final boolean valid;
+        if (ambiguous) {
+            valid = UNQUOTED_VALUE.matcher(value).matches();
+        } else {
+            valid = switch (quote) {
+                case '\'', '"' -> value.indexOf('\\') < 0 && value.indexOf('\0') < 0;
+                case '`' -> NUMBER.matcher(value).matches();
+                default -> UNQUOTED_VALUE.matcher(value).matches() || QUOTED_LITERAL_LIST.matcher(value).matches();
+            };
+        }
         if (!valid) {
             final String parameterName = "R_" + key.substring(2, key.length() - 1);
             throw new PlatformApiDataValidationException("validation.msg.report.parameter.value.invalid",
                     "Invalid value for report parameter " + parameterName, parameterName);
         }
-        if (quote == '\'' || quote == '"') {
+        if (!ambiguous && (quote == '\'' || quote == '"')) {
             return value.replace(String.valueOf(quote), String.valueOf(quote) + quote);
         }
         return value;

@@ -104,4 +104,32 @@ class ReportSqlParameterSubstitutorTest {
         assertThrows(PlatformApiDataValidationException.class,
                 () -> substitute("select `${column}` from t", Map.of("${column}", "password")));
     }
+
+    @Test
+    void ignoresPlaceholdersInHashComments() {
+        assertEquals("select 1 # ${officeId}\nwhere o.id = 1",
+                substitute("select 1 # ${officeId}\nwhere o.id = ${officeId}", Map.of("${officeId}", "1")));
+    }
+
+    @Test
+    void hashCommentApostropheCannotHideUnquotedPlaceholder() {
+        final String sql = "select 1 from m_office o # don't\nwhere o.id = ${officeId}";
+        assertThrows(PlatformApiDataValidationException.class, () -> substitute(sql, Map.of("${officeId}", "0 or 2>1")));
+        assertEquals("select 1 from m_office o # don't\nwhere o.id = 5", substitute(sql, Map.of("${officeId}", "5")));
+    }
+
+    @Test
+    void afterBackslashOnlyContextFreeValuesAreAccepted() {
+        final String sql = "select 'C:\\' as p, x from t where c = '${currencyId}' and o.id = ${officeId}";
+        assertThrows(PlatformApiDataValidationException.class, () -> substitute(sql, Map.of("${officeId}", "0 or 2>1")));
+        assertThrows(PlatformApiDataValidationException.class, () -> substitute(sql, Map.of("${currencyId}", "USD")));
+        assertEquals("select 'C:\\' as p, x from t where c = '2024-01-31' and o.id = 3",
+                substitute(sql, Map.of("${currencyId}", "2024-01-31", "${officeId}", "3")));
+    }
+
+    @Test
+    void negativeValueCannotFormLineComment() {
+        assertEquals("select 5 - -1 from t", substitute("select 5 -${n} from t", Map.of("${n}", "-1")));
+        assertEquals("select 5 - -1 from t", substitute("select 5 - ${n} from t", Map.of("${n}", "-1")));
+    }
 }
