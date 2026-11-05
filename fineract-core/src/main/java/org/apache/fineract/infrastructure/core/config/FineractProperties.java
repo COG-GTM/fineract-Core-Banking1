@@ -91,6 +91,16 @@ public class FineractProperties {
 
     private RetryProperties retry;
 
+    private FineractHooksProperties hooks;
+
+    @Getter
+    @Setter
+    public static class FineractHooksProperties {
+
+        private List<String> allowedSchemes = new ArrayList<>(List.of("https"));
+        private List<String> allowedHosts = new ArrayList<>();
+    }
+
     @Getter
     @Setter
     public static class FineractTenantProperties {

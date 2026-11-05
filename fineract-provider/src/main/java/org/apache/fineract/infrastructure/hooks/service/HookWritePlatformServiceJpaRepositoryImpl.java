@@ -271,7 +271,8 @@ public class HookWritePlatformServiceJpaRepositoryImpl implements HookWritePlatf
                 try {
                     final WebHookService service = processorHelper.createWebHookService(fieldValue);
                     service.sendEmptyRequest().execute();
-                } catch (IOException re) {
+                } catch (IOException | IllegalArgumentException re) {
+                    // same error for rejected and unreachable URLs, so this check cannot be used to probe hosts
                     String errorMessage = "url.invalid";
                     baseDataValidator.reset().failWithCodeNoParameterAddedToErrorCode(errorMessage);
                 }
