@@ -27,9 +27,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.adhocquery.data.AdHocData;
 import org.apache.fineract.adhocquery.domain.ReportRunFrequency;
+import org.apache.fineract.adhocquery.service.AdHocDataValidator;
 import org.apache.fineract.adhocquery.service.AdHocReadPlatformService;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.security.exception.SqlValidationException;
+import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -42,6 +45,7 @@ public class GenerateAdhocClientScheduleTasklet implements Tasklet {
 
     private final AdHocReadPlatformService adHocReadPlatformService;
     private final JdbcTemplate jdbcTemplate;
+    private final SqlValidator sqlValidator;
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
@@ -79,6 +83,12 @@ public class GenerateAdhocClientScheduleTasklet implements Tasklet {
                     }
                 }
 
+                if (run && !isSafeToExecute(adhoc)) {
+                    log.warn("{}: Skipping execution of {}, stored table name, fields or query failed validation",
+                            ThreadLocalContextUtil.getTenant().getName(), adhoc.getName());
+                    run = false;
+                }
+
                 if (run) {
                     final StringBuilder insertSqlBuilder = new StringBuilder(900);
                     insertSqlBuilder.append("INSERT INTO ").append(adhoc.getTableName()).append("(").append(adhoc.getTableFields())
@@ -99,5 +109,18 @@ public class GenerateAdhocClientScheduleTasklet implements Tasklet {
             log.debug("{}: Nothing to update by generateClientSchedule", ThreadLocalContextUtil.getTenant().getName());
         }
         return RepeatStatus.FINISHED;
+    }
+
+    private boolean isSafeToExecute(final AdHocData adhoc) {
+        if (adhoc.getTableName() == null || !adhoc.getTableName().matches(AdHocDataValidator.TABLE_NAME_REGEX)
+                || adhoc.getTableFields() == null || !adhoc.getTableFields().matches(AdHocDataValidator.TABLE_FIELDS_REGEX)) {
+            return false;
+        }
+        try {
+            sqlValidator.validate("adhoc", adhoc.getQuery());
+            return true;
+        } catch (SqlValidationException e) {
+            return false;
+        }
     }
 }

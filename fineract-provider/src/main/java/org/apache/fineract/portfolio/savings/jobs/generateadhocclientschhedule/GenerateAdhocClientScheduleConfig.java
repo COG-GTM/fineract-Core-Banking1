@@ -20,6 +20,7 @@ package org.apache.fineract.portfolio.savings.jobs.generateadhocclientschhedule;
 
 import org.apache.fineract.adhocquery.service.AdHocReadPlatformService;
 import org.apache.fineract.infrastructure.jobs.service.JobName;
+import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -43,6 +44,8 @@ public class GenerateAdhocClientScheduleConfig {
     private AdHocReadPlatformService adHocReadPlatformService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private SqlValidator sqlValidator;
 
     @Bean
     protected Step generateAdhocClientScheduleStep() {
@@ -58,6 +61,6 @@ public class GenerateAdhocClientScheduleConfig {
 
     @Bean
     public GenerateAdhocClientScheduleTasklet generateAdhocClientScheduleTasklet() {
-        return new GenerateAdhocClientScheduleTasklet(adHocReadPlatformService, jdbcTemplate);
+        return new GenerateAdhocClientScheduleTasklet(adHocReadPlatformService, jdbcTemplate, sqlValidator);
     }
 }

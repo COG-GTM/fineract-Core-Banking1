@@ -47,6 +47,8 @@ public final class AdHocDataValidator {
     public static final String EMAIL = "email";
     public static final String REPORT_RUN_FREQUENCY = "reportRunFrequency";
     public static final String REPORT_RUN_EVERY = "reportRunEvery";
+    public static final String TABLE_NAME_REGEX = "^[A-Za-z_][A-Za-z0-9_]*$";
+    public static final String TABLE_FIELDS_REGEX = "^\\s*[A-Za-z_][A-Za-z0-9_]*(\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*)*\\s*$";
     /**
      * The parameters supported for this command.
      */
@@ -80,10 +82,12 @@ public final class AdHocDataValidator {
         baseDataValidator.reset().parameter(QUERY).value(description).notBlank().notExceedingLengthOf(2000);
 
         final String tableName = this.fromApiJsonHelper.extractStringNamed(TABLE_NAME, element);
-        baseDataValidator.reset().parameter(TABLE_NAME).value(tableName).notBlank().notExceedingLengthOf(100);
+        baseDataValidator.reset().parameter(TABLE_NAME).value(tableName).notBlank().notExceedingLengthOf(100)
+                .matchesRegularExpression(TABLE_NAME_REGEX);
 
         final String tableFields = this.fromApiJsonHelper.extractStringNamed(TABLE_FIELDS, element);
-        baseDataValidator.reset().parameter(TABLE_FIELDS).value(tableFields).notBlank().notExceedingLengthOf(1000);
+        baseDataValidator.reset().parameter(TABLE_FIELDS).value(tableFields).notBlank().notExceedingLengthOf(1000)
+                .matchesRegularExpression(TABLE_FIELDS_REGEX);
 
         final String email = this.fromApiJsonHelper.extractStringNamed(EMAIL, element);
         baseDataValidator.reset().parameter(EMAIL).value(email).ignoreIfNull().notExceedingLengthOf(500);
@@ -126,11 +130,13 @@ public final class AdHocDataValidator {
         }
         if (this.fromApiJsonHelper.parameterExists(TABLE_NAME, element)) {
             final String tableName = this.fromApiJsonHelper.extractStringNamed(TABLE_NAME, element);
-            baseDataValidator.reset().parameter(TABLE_NAME).value(tableName).notBlank().notExceedingLengthOf(100);
+            baseDataValidator.reset().parameter(TABLE_NAME).value(tableName).notBlank().notExceedingLengthOf(100)
+                    .matchesRegularExpression(TABLE_NAME_REGEX);
         }
         if (this.fromApiJsonHelper.parameterExists(TABLE_FIELDS, element)) {
             final String tableField = this.fromApiJsonHelper.extractStringNamed(TABLE_FIELDS, element);
-            baseDataValidator.reset().parameter(TABLE_FIELDS).value(tableField).notBlank().notExceedingLengthOf(2000);
+            baseDataValidator.reset().parameter(TABLE_FIELDS).value(tableField).notBlank().notExceedingLengthOf(2000)
+                    .matchesRegularExpression(TABLE_FIELDS_REGEX);
         }
         if (this.fromApiJsonHelper.parameterExists(EMAIL, element)) {
             final String email = this.fromApiJsonHelper.extractStringNamed(EMAIL, element);
