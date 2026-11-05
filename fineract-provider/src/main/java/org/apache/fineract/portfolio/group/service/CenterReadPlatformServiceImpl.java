@@ -199,7 +199,7 @@ public class CenterReadPlatformServiceImpl implements CenterReadPlatformService 
                     + " join m_group_client gc on gc.group_id=g.id" + " join m_client cl on cl.id=gc.client_id"
                     + " join m_loan l on l.client_id = cl.id"
                     + " join m_loan_repayment_schedule lrs on lrs.loan_id=l.id join m_staff s on g.staff_id = s.id"
-                    + " where g.office_id=?";
+                    + " join m_office o on o.id = g.office_id" + " where g.office_id=? and o.hierarchy like ?";
         }
 
         public String schema() {
@@ -491,6 +491,7 @@ public class CenterReadPlatformServiceImpl implements CenterReadPlatformService 
     public Collection<StaffCenterData> retriveAllCentersByMeetingDate(final Long officeId, final LocalDate meetingDate,
             final Long staffId) {
         validateForGenerateCollectionSheet(staffId);
+        final String hierarchySearchString = this.context.authenticatedUser().getOffice().getHierarchy() + "%";
         final CenterCalendarDataMapper centerCalendarMapper = new CenterCalendarDataMapper();
         String sql = centerCalendarMapper.schema();
         Collection<CenterData> centerDataArray;
@@ -499,10 +500,11 @@ public class CenterReadPlatformServiceImpl implements CenterReadPlatformService 
             sql += " and lrs.duedate <= ? "; // and l.loan_type_enum = 3 ";
             sql += " group by c.id, ci.id, g.account_no, g.external_id, g.status_enum, g.activation_date, g.hierarchy";
             centerDataArray = this.jdbcTemplate.query(sql, centerCalendarMapper, // NOSONAR
-                    meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, officeId, staffId, meetingDate);
+                    meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, officeId, hierarchySearchString, staffId,
+                    meetingDate);
         } else {
             centerDataArray = this.jdbcTemplate.query(sql, centerCalendarMapper, // NOSONAR
-                    meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, officeId);
+                    meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, meetingDate, officeId, hierarchySearchString);
         }
 
         Collection<StaffCenterData> staffCenterDataArray = new ArrayList<>();
