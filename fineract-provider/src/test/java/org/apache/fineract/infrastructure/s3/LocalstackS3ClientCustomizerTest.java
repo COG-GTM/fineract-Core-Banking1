@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.net.URI;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,14 @@ class LocalstackS3ClientCustomizerTest {
     }
 
     @Test
-    void notRegisteredWhenEndpointNotConfigured() {
-        contextRunner.run(context -> assertThat(context).doesNotHaveBean(LocalstackS3ClientCustomizer.class));
+    void registeredButNoOpWhenEndpointNotConfigured() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(LocalstackS3ClientCustomizer.class);
+
+            S3ClientBuilder builder = mock(S3ClientBuilder.class, RETURNS_SELF);
+            context.getBean(LocalstackS3ClientCustomizer.class).customize(builder);
+
+            verifyNoInteractions(builder);
+        });
     }
 }

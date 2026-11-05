@@ -21,14 +21,12 @@ package org.apache.fineract.infrastructure.s3;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.util.StringUtil;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "AWS_ENDPOINT_URL")
 public class LocalstackS3ClientCustomizer implements S3ClientCustomizer {
 
     private final Environment environment;
