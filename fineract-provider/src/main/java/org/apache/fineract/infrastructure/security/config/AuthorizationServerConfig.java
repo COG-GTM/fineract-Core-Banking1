@@ -57,6 +57,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationDetailsSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
@@ -88,6 +89,7 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -100,6 +102,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class AuthorizationServerConfig {
 
     public static final String TENANT_ID = "tenantId";
+    private static final PathPatternRequestMatcher.Builder API_MATCHER = PathPatternRequestMatcher.withDefaults();
+
     @Autowired
     private TenantAwareJpaPlatformUserDetailsService userDetailsService;
 
@@ -178,7 +182,10 @@ public class AuthorizationServerConfig {
                     if (fineractProperties.getModule().getSelfService().isEnabled()) {
                         authorizationManagers.add(selfServiceUserAuthManager());
                     }
-                    auth.anyRequest().access(AuthorizationManagers.allOf(authorizationManagers.toArray(new AuthorizationManager[0])));
+                    // two-factor setup routes must stay reachable before TWOFACTOR_AUTHENTICATED is granted (see SecurityConfig)
+                    auth.requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/twofactor/validate")).authenticated()
+                            .requestMatchers(API_MATCHER.matcher("/api/*/twofactor")).authenticated().anyRequest()
+                            .access(AuthorizationManagers.allOf(authorizationManagers.toArray(new AuthorizationManager[0])));
                 }).formLogin(form -> form.loginPage("/login").authenticationDetailsSource(tenantAuthDetailsSource()).permitAll())
                 .oauth2ResourceServer(
                         resourceServer -> resourceServer.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))
