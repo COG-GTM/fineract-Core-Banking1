@@ -135,9 +135,8 @@ public class BulkImportWorkbookServiceImpl implements BulkImportWorkbookService 
 
     private static GlobalEntityType resolveImportEntityType(final String entity) {
         final String name = entity.trim();
-        return IMPORT_PERMISSIONS.keySet().stream().filter(type -> type.toString().equalsIgnoreCase(name)).findFirst()
-                .orElseThrow(() -> new GeneralPlatformDomainRuleException("error.msg.unable.to.find.resource",
-                        "Unable to find requested resource"));
+        return IMPORT_PERMISSIONS.keySet().stream().filter(type -> type.toString().equalsIgnoreCase(name)).findFirst().orElseThrow(
+                () -> new GeneralPlatformDomainRuleException("error.msg.unable.to.find.resource", "Unable to find requested resource"));
     }
 
     private byte[] readBounded(final InputStream inputStream) throws IOException {
