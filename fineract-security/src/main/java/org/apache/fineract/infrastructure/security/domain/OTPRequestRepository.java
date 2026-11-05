@@ -74,15 +74,17 @@ public class OTPRequestRepository {
      * Puts {@code previous} back if {@code request} is still the user's current request, e.g. when delivering it failed.
      */
     public void restoreOTPRequest(AppUser user, OTPRequest request, OTPRequest previous) {
-        if (previous == null) {
-            OTT_REQUESTS.remove(keyFor(user), request);
-        } else {
-            OTT_REQUESTS.replace(keyFor(user), request, previous);
-        }
+        replaceIfCurrent(user, request, previous);
     }
 
-    public boolean deleteOTPRequestForUser(AppUser user, OTPRequest request) {
-        return OTT_REQUESTS.remove(keyFor(user), request);
+    public void deleteOTPRequestForUser(AppUser user, OTPRequest request) {
+        replaceIfCurrent(user, request, null);
+    }
+
+    // Identity, not equals(): a different request with the same token and metadata must not be affected.
+    @SuppressWarnings("ReferenceEquality")
+    private static void replaceIfCurrent(AppUser user, OTPRequest expected, OTPRequest replacement) {
+        OTT_REQUESTS.computeIfPresent(keyFor(user), (key, current) -> current == expected ? replacement : current);
     }
 
     private static String keyFor(AppUser user) {
