@@ -23,15 +23,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.shareaccounts.data.ShareAccountData;
 import org.apache.fineract.portfolio.shareaccounts.data.ShareAccountDividendData;
 import org.apache.fineract.portfolio.shareaccounts.domain.ShareAccountDividendStatusType;
@@ -42,8 +45,16 @@ import org.springframework.jdbc.core.RowMapper;
 @RequiredArgsConstructor
 public class ShareAccountDividendReadPlatformServiceImpl implements ShareAccountDividendReadPlatformService {
 
+    static final Map<String, String> SORTABLE_COLUMNS = Map.ofEntries(Map.entry("id", "sadd.id"), Map.entry("sadd.id", "sadd.id"),
+            Map.entry("amount", "sadd.amount"), Map.entry("sadd.amount", "sadd.amount"), Map.entry("status", "sadd.status"),
+            Map.entry("sadd.status", "sadd.status"), Map.entry("savingsTransactionId", "sadd.savings_transaction_id"),
+            Map.entry("sadd.savings_transaction_id", "sadd.savings_transaction_id"), Map.entry("accountId", "sa.id"),
+            Map.entry("sa.id", "sa.id"), Map.entry("accountNumber", "sa.account_no"), Map.entry("accountNo", "sa.account_no"),
+            Map.entry("sa.account_no", "sa.account_no"), Map.entry("clientId", "mc.id"), Map.entry("mc.id", "mc.id"),
+            Map.entry("clientName", "mc.display_name"), Map.entry("mc.display_name", "mc.display_name"));
+    private static final Set<String> SORT_ORDERS = Set.of("ASC", "DESC");
+
     private final JdbcTemplate jdbcTemplate;
-    private final ColumnValidator columnValidator;
     private final PaginationHelper paginationHelper;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
 
@@ -75,13 +86,9 @@ public class ShareAccountDividendReadPlatformServiceImpl implements ShareAccount
             params.add(searchParameters.getAccountNo());
         }
         if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-
+            sqlBuilder.append(" order by ").append(resolveOrderByColumn(searchParameters.getOrderBy()));
             if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-
+                sqlBuilder.append(' ').append(resolveSortOrder(searchParameters.getSortOrder()));
             }
         }
 
@@ -96,6 +103,31 @@ public class ShareAccountDividendReadPlatformServiceImpl implements ShareAccount
 
         Object[] paramsObj = params.toArray();
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), paramsObj, shareAccountDividendMapper);
+    }
+
+    private static String resolveOrderByColumn(final String orderBy) {
+        final String column = SORTABLE_COLUMNS.get(orderBy.trim());
+        if (column == null) {
+            throw invalidParameter("orderBy", orderBy, SORTABLE_COLUMNS.keySet());
+        }
+        return column;
+    }
+
+    private static String resolveSortOrder(final String sortOrder) {
+        final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
+        if (!SORT_ORDERS.contains(normalized)) {
+            throw invalidParameter("sortOrder", sortOrder, SORT_ORDERS);
+        }
+        return normalized;
+    }
+
+    private static PlatformApiDataValidationException invalidParameter(final String parameter, final String value,
+            final Set<String> supportedValues) {
+        final String defaultUserMessage = "The " + parameter + " value is not supported. The supported " + parameter + " values are "
+                + supportedValues.stream().sorted().toList();
+        final String messageCode = "validation.msg.sharedividend." + parameter + ".value.is.not.supported";
+        final ApiParameterError error = ApiParameterError.parameterError(messageCode, defaultUserMessage, parameter, value);
+        return new PlatformApiDataValidationException(List.of(error));
     }
 
     private static final class ShareAccountDividendMapper implements RowMapper<ShareAccountDividendData> {
