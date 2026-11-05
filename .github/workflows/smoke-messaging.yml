@@ -41,6 +41,8 @@ jobs:
         run: ./gradlew --no-daemon --console=plain :fineract-provider:jibDockerBuild -Djib.to.image=$IMAGE_NAME -x test -x cucumber
 
       - name: Start the ${{ matrix.messaging }} Stack
+        env:
+          FINERACT_SPRING_PROFILES_ACTIVE: test,diagnostics
         run: docker compose -f ${{ matrix.compose_file }} up --scale fineract-worker=1 -d
 
       - name: Check the stack
