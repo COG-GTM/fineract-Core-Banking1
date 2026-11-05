@@ -24,15 +24,9 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
-import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
@@ -61,9 +55,6 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
 
     private final OfficeRepository officeRepository;
     private final OfficeDataMapper officeDataMapper;
-    private static final Map<String, String> ORDER_BY_COLUMNS = orderByColumns();
-    private static final String ALLOWED_ORDER_BY = "id, name, externalId, openingDate, hierarchy, parentId, parentName";
-    private static final List<String> SORT_ORDERS = List.of("ASC", "DESC");
     private static final String nameDecoratedBaseOnHierarchy = "concat(substring('........................................', 1, ((LENGTH(o.hierarchy) - LENGTH(REPLACE(o.hierarchy, '.', '')) - 1) * 4)), o.name)";
 
     private static final class OfficeMapper implements RowMapper<OfficeData> {
@@ -166,9 +157,9 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         sqlBuilder.append(rm.officeSchema());
         sqlBuilder.append(" where o.hierarchy like ? ");
         if (searchParameters != null) {
-            final String sortOrder = searchParameters.hasSortOrder() ? resolveSortOrder(searchParameters.getSortOrder()) : null;
+            final String sortOrder = searchParameters.hasSortOrder() ? OfficeSearchSort.sortOrder(searchParameters.getSortOrder()) : null;
             if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append("order by ").append(resolveOrderByColumn(searchParameters.getOrderBy()));
+                sqlBuilder.append("order by ").append(OfficeSearchSort.orderByColumn(searchParameters.getOrderBy()));
                 if (sortOrder != null) {
                     sqlBuilder.append(' ').append(sortOrder);
                 }
@@ -178,48 +169,6 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         }
 
         return this.jdbcTemplate.query(sqlBuilder.toString(), rm, new Object[] { hierarchySearchString }); // NOSONAR
-    }
-
-    private static Map<String, String> orderByColumns() {
-        final Map<String, String> columns = new HashMap<>();
-        addOrderByColumn(columns, "o.id", "id");
-        addOrderByColumn(columns, "o.name", "name");
-        addOrderByColumn(columns, "o.external_id", "externalId", "external_id");
-        addOrderByColumn(columns, "o.opening_date", "openingDate", "opening_date");
-        addOrderByColumn(columns, "o.hierarchy", "hierarchy");
-        addOrderByColumn(columns, "o.parent_id", "parentId", "parent_id", "parent.id");
-        addOrderByColumn(columns, "parent.name", "parentName");
-        return Map.copyOf(columns);
-    }
-
-    private static void addOrderByColumn(final Map<String, String> columns, final String column, final String... aliases) {
-        columns.put(column, column);
-        for (final String alias : aliases) {
-            columns.put(alias.toLowerCase(Locale.ROOT), column);
-        }
-    }
-
-    private static String resolveOrderByColumn(final String orderBy) {
-        final String column = ORDER_BY_COLUMNS.get(orderBy.trim().toLowerCase(Locale.ROOT));
-        if (column == null) {
-            throw invalidSearchParameter("orderBy", "Unsupported orderBy value. Allowed values: " + ALLOWED_ORDER_BY + ".", orderBy);
-        }
-        return column;
-    }
-
-    private static String resolveSortOrder(final String sortOrder) {
-        final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
-        if (!SORT_ORDERS.contains(normalized)) {
-            throw invalidSearchParameter("sortOrder", "Unsupported sortOrder value. Allowed values: ASC, DESC.", sortOrder);
-        }
-        return normalized;
-    }
-
-    private static PlatformApiDataValidationException invalidSearchParameter(final String parameterName, final String defaultUserMessage,
-            final String value) {
-        final ApiParameterError error = ApiParameterError.parameterError("validation.msg.office." + parameterName + ".is.not.supported",
-                defaultUserMessage, parameterName, value);
-        return new PlatformApiDataValidationException(List.of(error));
     }
 
     @Override
