@@ -91,6 +91,8 @@ public class FineractProperties {
 
     private RetryProperties retry;
 
+    private FineractHooksProperties hooks;
+
     @Getter
     @Setter
     public static class FineractTenantProperties {
@@ -620,6 +622,21 @@ public class FineractProperties {
     @Setter
     public static class FineractLoanOriginationModuleProperties extends AbstractFineractModuleProperties {
 
+    }
+
+    @Getter
+    @Setter
+    public static class FineractHooksProperties {
+
+        private FineractTwilioHookProperties twilio;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractTwilioHookProperties {
+
+        private List<String> allowedHosts = new ArrayList<>();
+        private String bridgeToken;
     }
 
     @Getter
