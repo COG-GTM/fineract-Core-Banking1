@@ -124,15 +124,7 @@ public class ClientIdentifiersApiResource {
 
             return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } catch (final DuplicateClientIdentifierException e) {
-            DuplicateClientIdentifierException rethrowas = e;
-            if (e.getDocumentTypeId() != null) {
-                // need to fetch client info
-                final ClientData clientInfo = this.clientReadPlatformService.retrieveClientByIdentifier(e.getDocumentTypeId(),
-                        e.getIdentifierKey());
-                rethrowas = new DuplicateClientIdentifierException(clientInfo.getDisplayName(), clientInfo.getOfficeName(),
-                        e.getIdentifierType(), e.getIdentifierKey());
-            }
-            throw rethrowas;
+            throw withHolderDetailsIfVisible(e);
         }
     }
 
@@ -179,14 +171,7 @@ public class ClientIdentifiersApiResource {
             return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 
         } catch (final DuplicateClientIdentifierException e) {
-            DuplicateClientIdentifierException reThrowAs = e;
-            if (e.getDocumentTypeId() != null) {
-                final ClientData clientInfo = this.clientReadPlatformService.retrieveClientByIdentifier(e.getDocumentTypeId(),
-                        e.getIdentifierKey());
-                reThrowAs = new DuplicateClientIdentifierException(clientInfo.getDisplayName(), clientInfo.getOfficeName(),
-                        e.getIdentifierType(), e.getIdentifierKey());
-            }
-            throw reThrowAs;
+            throw withHolderDetailsIfVisible(e);
         }
     }
 
@@ -202,5 +187,18 @@ public class ClientIdentifiersApiResource {
         final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteClientIdentifier(clientId, clientIdentifierId).build();
 
         return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
+    }
+
+    private DuplicateClientIdentifierException withHolderDetailsIfVisible(final DuplicateClientIdentifierException e) {
+        if (e.getDocumentTypeId() == null) {
+            return e;
+        }
+        final ClientData clientInfo = this.clientReadPlatformService.retrieveClientByIdentifier(e.getDocumentTypeId(),
+                e.getIdentifierKey());
+        if (clientInfo == null) {
+            return e;
+        }
+        return new DuplicateClientIdentifierException(clientInfo.getDisplayName(), clientInfo.getOfficeName(), e.getIdentifierType(),
+                e.getIdentifierKey());
     }
 }
