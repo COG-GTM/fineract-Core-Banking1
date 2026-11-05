@@ -60,7 +60,7 @@ public class DatatableUtil {
     private static final String APPLICATION_TABLE_NAME = "application_table_name";
     private static final Pattern ORDER_TERM = Pattern.compile("^\\s*(?:`([^`]+)`|([^\\s`]+))(?:\\s+(asc|desc))?\\s*$",
             Pattern.CASE_INSENSITIVE);
-    private static final String ORDER_TERM_SEPARATOR = ",(?=(?:[^`]*`[^`]*`)*[^`]*$)";
+    private static final Pattern ORDER_TERM_SEPARATOR = Pattern.compile(",(?=(?:[^`]*`[^`]*`)*[^`]*$)");
 
     private final SearchUtil searchUtil;
     private final JdbcTemplate jdbcTemplate;
@@ -256,7 +256,7 @@ public class DatatableUtil {
 
     private String resolveDatatableOrder(final String order, final List<ResultsetColumnHeaderData> columnHeaders) {
         final List<String> resolved = new ArrayList<>();
-        for (String term : order.split(ORDER_TERM_SEPARATOR)) {
+        for (String term : ORDER_TERM_SEPARATOR.split(order, -1)) {
             final Matcher matcher = ORDER_TERM.matcher(term);
             String column = null;
             if (matcher.matches()) {
