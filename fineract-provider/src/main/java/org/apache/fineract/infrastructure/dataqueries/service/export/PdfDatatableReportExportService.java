@@ -20,7 +20,6 @@ package org.apache.fineract.infrastructure.dataqueries.service.export;
 
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
-import java.io.File;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.dataqueries.service.DatatableExportTargetParameter;
@@ -36,13 +35,14 @@ public class PdfDatatableReportExportService implements DatatableReportExportSer
     @Override
     public ResponseHolder export(String reportName, MultivaluedMap<String, String> queryParams, Map<String, String> reportParams,
             boolean isSelfServiceUserReport, String parameterTypeValue) {
-        final String pdfFileName = this.readExtraDataAndReportingService.retrieveReportPDF(reportName, parameterTypeValue, reportParams,
+        final byte[] pdf = this.readExtraDataAndReportingService.retrieveReportPDF(reportName, parameterTypeValue, reportParams,
                 isSelfServiceUserReport);
 
-        final File file = new File(pdfFileName);
-
         return new ResponseHolder(Response.Status.OK).contentType("application/pdf")
-                .addHeader("Content-Disposition", "attachment; filename=\"" + pdfFileName + "\"").entity(file);
+                .addHeader("Content-Disposition",
+                        "attachment; filename=\"" + DatatableExportUtil.generatePlainExportFileName(255, "pdf", reportName, reportParams)
+                                + "\"")
+                .entity(pdf);
     }
 
     @Override
