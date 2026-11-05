@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.campaigns.email.EmailApiConstants;
 import org.apache.fineract.infrastructure.campaigns.email.data.EmailConfigurationValidator;
 import org.apache.fineract.infrastructure.campaigns.email.domain.EmailConfiguration;
 import org.apache.fineract.infrastructure.campaigns.email.domain.EmailConfigurationRepository;
@@ -62,8 +63,13 @@ public class EmailConfigurationWritePlatformServiceImpl implements EmailConfigur
         for (EmailConfiguration config : configurations) {
             if (config.getName() != null) {
                 String value = command.stringValueOfParameterNamed(config.getName());
+                final boolean secret = EmailApiConstants.isSecretConfiguration(config.getName());
+                if (secret && EmailApiConstants.MASKED_SECRET_VALUE.equals(value)) {
+                    // client echoed back the masked value from GET; keep the stored secret
+                    continue;
+                }
                 config.setValue(value);
-                changes.put(config.getName(), value);
+                changes.put(config.getName(), secret ? EmailApiConstants.MASKED_SECRET_VALUE : value);
                 this.repository.saveAndFlush(config);
             }
         }

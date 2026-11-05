@@ -50,6 +50,13 @@ public final class EmailApiConstants {
 
     public static final Set<String> UPDATE_REQUEST_DATA_PARAMETERS = new HashSet<>(Arrays.asList(messageParamName));
 
+    public static final Set<String> SECRET_CONFIGURATION_NAMES = Set.of(EmailApiConstants.SMTP_PASSWORD);
+    public static final String MASKED_SECRET_VALUE = "********";
+
+    public static boolean isSecretConfiguration(final String name) {
+        return name != null && SECRET_CONFIGURATION_NAMES.contains(name);
+    }
+
     public static final String SMTP_SERVER = "SMTP_SERVER";
     public static final String SMTP_PORT = "SMTP_PORT";
     public static final String SMTP_USERNAME = "SMTP_USERNAME";

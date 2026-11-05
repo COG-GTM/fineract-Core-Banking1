@@ -22,6 +22,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.fineract.infrastructure.campaigns.email.EmailApiConstants;
 import org.apache.fineract.infrastructure.campaigns.email.data.EmailConfigurationData;
 import org.apache.fineract.infrastructure.campaigns.email.exception.EmailConfigurationNotFoundException;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
@@ -67,7 +69,10 @@ public class EmailConfigurationReadPlatformServiceImpl implements EmailConfigura
 
             final Long id = JdbcSupport.getLong(rs, "id");
             final String name = rs.getString("name");
-            final String value = rs.getString("value");
+            String value = rs.getString("value");
+            if (EmailApiConstants.isSecretConfiguration(name) && StringUtils.isNotEmpty(value)) {
+                value = EmailApiConstants.MASKED_SECRET_VALUE;
+            }
 
             return EmailConfigurationData.instance(id, name, value);
         }
