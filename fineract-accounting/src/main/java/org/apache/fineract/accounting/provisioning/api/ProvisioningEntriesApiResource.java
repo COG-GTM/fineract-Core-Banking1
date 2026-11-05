@@ -66,6 +66,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ProvisioningEntriesApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSION = "PROVISIONENTRIES";
+
     private final PlatformSecurityContext platformSecurityContext;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final DefaultToApiJsonSerializer<ProvisioningEntryData> toApiJsonSerializer;
@@ -112,7 +114,7 @@ public class ProvisioningEntriesApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Retrieves a Provisioning Entry", description = "Returns the details of a generated Provisioning Entry.")
     public ProvisioningEntryData retrieveProvisioningEntry(@PathParam("entryId") @Parameter(description = "entryId") final Long entryId) {
-        platformSecurityContext.authenticatedUser();
+        platformSecurityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
         return provisioningEntriesReadPlatformService.retrieveProvisioningEntryData(entryId);
     }
 
@@ -124,7 +126,7 @@ public class ProvisioningEntriesApiResource {
             @QueryParam("offset") final Integer offset, @QueryParam("limit") final Integer limit,
             @QueryParam("officeId") final Long officeId, @QueryParam("productId") final Long productId,
             @QueryParam("categoryId") final Long categoryId) {
-        platformSecurityContext.authenticatedUser();
+        platformSecurityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
         final SearchParameters params = SearchParameters.builder().limit(limit).offset(offset).provisioningEntryId(entryId)
                 .officeId(officeId).productId(productId).categoryId(categoryId).build();
 
@@ -138,7 +140,7 @@ public class ProvisioningEntriesApiResource {
     public Page<ProvisioningEntryData> retrieveAllProvisioningEntries(
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformSecurityContext.authenticatedUser();
+        platformSecurityContext.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
         return provisioningEntriesReadPlatformService.retrieveAllProvisioningEntries(offset, limit);
     }
 
