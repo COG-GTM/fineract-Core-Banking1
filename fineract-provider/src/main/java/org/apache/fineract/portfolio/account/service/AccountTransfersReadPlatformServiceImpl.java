@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
@@ -33,7 +34,7 @@ import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
+import org.apache.fineract.infrastructure.security.utils.SqlOrderByAllowlist;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
@@ -53,11 +54,28 @@ import org.springframework.util.CollectionUtils;
 public class AccountTransfersReadPlatformServiceImpl implements AccountTransfersReadPlatformService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final SqlOrderByAllowlist SORTABLE_COLUMNS = new SqlOrderByAllowlist(Map.ofEntries(Map.entry("id", "att.id"),
+            Map.entry("isReversed", "att.is_reversed"), Map.entry("transferDate", "att.transaction_date"),
+            Map.entry("transferAmount", "att.amount"), Map.entry("transferDescription", "att.description"),
+            Map.entry("currencyCode", "att.currency_code"), Map.entry("fromOfficeId", "fromoff.id"),
+            Map.entry("fromOfficeName", "fromoff.name"), Map.entry("toOfficeId", "tooff.id"), Map.entry("toOfficeName", "tooff.name"),
+            Map.entry("fromClientId", "fromclient.id"), Map.entry("fromClientName", "fromclient.display_name"),
+            Map.entry("toClientId", "toclient.id"), Map.entry("toClientName", "toclient.display_name"),
+            Map.entry("fromSavingsAccountNo", "fromsavacc.account_no"), Map.entry("fromLoanAccountNo", "fromloanacc.account_no"),
+            Map.entry("toSavingsAccountNo", "tosavacc.account_no"), Map.entry("toLoanAccountNo", "toloanacc.account_no"),
+            Map.entry("currencyDigits", "att.currency_digits"), Map.entry("inMultiplesOf", "att.currency_multiplesof"),
+            Map.entry("currencyName", "curr.name"), Map.entry("currencyNameCode", "curr.internationalized_name_code"),
+            Map.entry("currencyDisplaySymbol", "curr.display_symbol"), Map.entry("fromSavingsAccountId", "fromsavacc.id"),
+            Map.entry("fromLoanAccountId", "fromloanacc.id"), Map.entry("toSavingsAccountId", "tosavacc.id"),
+            Map.entry("toLoanAccountId", "toloanacc.id"), Map.entry("fromSavingsAccountTransactionId", "fromsavtran.id"),
+            Map.entry("fromSavingsAccountTransactionType", "fromsavtran.transaction_type_enum"),
+            Map.entry("toSavingsAccountTransactionId", "tosavtran.id"),
+            Map.entry("toSavingsAccountTransactionType", "tosavtran.transaction_type_enum")));
+
     private final JdbcTemplate jdbcTemplate;
     private final ClientReadPlatformService clientReadPlatformService;
     private final OfficeReadPlatformService officeReadPlatformService;
     private final PortfolioAccountReadPlatformService portfolioAccountReadPlatformService;
-    private final ColumnValidator columnValidator;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     // mapper
     private final AccountTransfersMapper accountTransfersMapper;
@@ -198,6 +216,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
     public Page<AccountTransferData> retrieveAll(final SearchParameters searchParameters, final Long accountDetailId) {
         Stream.of(searchParameters.getOrderBy(), searchParameters.getSortOrder(), searchParameters.getExternalId())
                 .forEach(sqlValidator::validate);
+        final String orderByClause = SORTABLE_COLUMNS.orderByClause(searchParameters);
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(this.accountTransfersMapper.schema());
@@ -207,14 +226,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
             finalObjectArray = new Object[] { accountDetailId };
         }
 
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-            }
-        }
+        sqlBuilder.append(orderByClause);
 
         if (searchParameters.hasLimit()) {
             sqlBuilder.append(" limit ").append(searchParameters.getLimit());
@@ -268,6 +280,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
 
     @Override
     public Page<AccountTransferData> retrieveByStandingInstruction(final Long id, final SearchParameters searchParameters) {
+        final String orderByClause = SORTABLE_COLUMNS.orderByClause(searchParameters);
 
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
@@ -276,14 +289,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
         sqlBuilder.append(" where atsi.id = ?");
 
         if (searchParameters != null) {
-            if (searchParameters.hasOrderBy()) {
-                sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-                if (searchParameters.hasSortOrder()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
-                }
-            }
+            sqlBuilder.append(orderByClause);
 
             if (searchParameters.hasLimit()) {
                 sqlBuilder.append(" ");
