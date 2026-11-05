@@ -76,14 +76,14 @@ class ImageReadPlatformServiceImplTest {
     }
 
     @Test
-    void testRetrieveImage_OutsideOfficeHierarchy_ThrowsAndDoesNotTouchStore() {
+    void testValidateAccess_DelegatesToMatchingAdapter() {
         String entityType = "clients";
         Long entityId = 4711L;
 
         when(imageIdAdapter.accept(entityType)).thenReturn(true);
         doThrow(new ClientNotFoundException(entityId)).when(imageIdAdapter).validateAccess(entityId);
 
-        assertThrows(ClientNotFoundException.class, () -> imageReadPlatformService.retrieveImage(entityType, entityId));
+        assertThrows(ClientNotFoundException.class, () -> imageReadPlatformService.validateAccess(entityType, entityId));
 
         verify(imageIdAdapter).validateAccess(entityId);
         verifyNoInteractions(imageRepository, storeService);

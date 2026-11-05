@@ -108,9 +108,8 @@ class ImagesApiResourceTest {
 
     @Test
     void retrieveImageShouldRejectEntityOutsideUserHierarchy() {
-        doThrow(new DocumentNotFoundException(ENTITY_TYPE, ENTITY_ID, -1L)).when(imageReadPlatformService).retrieveImage(ENTITY_TYPE,
-                ENTITY_ID);
-
         assertThrows(DocumentNotFoundException.class, () -> underTest.retrieveImage(ENTITY_TYPE, ENTITY_ID, null, null, null, null));
+
+        verify(imageReadPlatformService, never()).retrieveImage(ENTITY_TYPE, ENTITY_ID);
     }
 }
