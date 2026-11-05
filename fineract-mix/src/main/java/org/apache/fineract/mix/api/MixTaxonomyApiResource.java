@@ -26,6 +26,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.mix.data.MixTaxonomyData;
 import org.apache.fineract.mix.service.MixTaxonomyReadService;
 import org.springframework.stereotype.Component;
@@ -36,12 +37,16 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class MixTaxonomyApiResource {
 
+    private static final String RESOURCE_NAME_FOR_PERMISSIONS = "MIX_TAXONOMY";
+
+    private final PlatformSecurityContext context;
     private final MixTaxonomyReadService readTaxonomyService;
 
     @GET
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public List<MixTaxonomyData> retrieveAll() {
+        context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         return readTaxonomyService.retrieveAll();
     }
 }
