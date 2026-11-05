@@ -29,6 +29,7 @@ import java.util.Optional;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.client.domain.Client;
+import org.apache.fineract.portfolio.group.domain.Group;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepaymentScheduleInstallmentRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
@@ -61,6 +62,8 @@ class RepaymentWithPostDatedChecksReadPlatformServiceImplTest {
     private Loan loan;
     @Mock
     private Client client;
+    @Mock
+    private Group group;
 
     private RepaymentWithPostDatedChecksReadPlatformServiceImpl underTest;
 
@@ -77,7 +80,7 @@ class RepaymentWithPostDatedChecksReadPlatformServiceImplTest {
     void getPostDatedChecksAllowsLoanInUserOfficeHierarchy() {
         when(context.officeHierarchy()).thenReturn(".1.");
         final Office loanOffice = office(".1.2.");
-        when(loan.getOffice()).thenReturn(loanOffice);
+        when(client.getOffice()).thenReturn(loanOffice);
 
         List<PostDatedChecksData> result = underTest.getPostDatedChecks(LOAN_ID);
 
@@ -89,7 +92,7 @@ class RepaymentWithPostDatedChecksReadPlatformServiceImplTest {
         when(context.officeHierarchy()).thenReturn(".1.3.");
         final Office loanOffice = office(".1.2.");
         final Office transferToOffice = office(".1.3.");
-        when(loan.getOffice()).thenReturn(loanOffice);
+        when(client.getOffice()).thenReturn(loanOffice);
         when(client.getTransferToOffice()).thenReturn(transferToOffice);
 
         assertTrue(underTest.getPostDatedChecks(LOAN_ID).isEmpty());
@@ -99,7 +102,7 @@ class RepaymentWithPostDatedChecksReadPlatformServiceImplTest {
     void getPostDatedChecksRejectsLoanOutsideUserOfficeHierarchy() {
         when(context.officeHierarchy()).thenReturn(".1.3.");
         final Office loanOffice = office(".1.2.");
-        when(loan.getOffice()).thenReturn(loanOffice);
+        when(client.getOffice()).thenReturn(loanOffice);
 
         LoanNotFoundException e = assertThrows(LoanNotFoundException.class, () -> underTest.getPostDatedChecks(LOAN_ID));
         assertEquals("error.msg.loan.id.invalid", e.getGlobalisationMessageCode());
@@ -109,9 +112,44 @@ class RepaymentWithPostDatedChecksReadPlatformServiceImplTest {
     void getPostDatedCheckByInstallmentIdRejectsLoanOutsideUserOfficeHierarchy() {
         when(context.officeHierarchy()).thenReturn(".1.3.");
         final Office loanOffice = office(".1.2.");
-        when(loan.getOffice()).thenReturn(loanOffice);
+        when(client.getOffice()).thenReturn(loanOffice);
 
         assertThrows(LoanNotFoundException.class, () -> underTest.getPostDatedCheckByInstallmentId(1, LOAN_ID));
+    }
+
+    @Test
+    void getPostDatedChecksAllowsGroupLoanInUserOfficeHierarchyWhenClientMovedAway() {
+        when(context.officeHierarchy()).thenReturn(".1.2.");
+        final Office clientOffice = office(".1.3.");
+        final Office groupOffice = office(".1.2.");
+        when(client.getOffice()).thenReturn(clientOffice);
+        when(loan.getGroup()).thenReturn(group);
+        when(group.getOffice()).thenReturn(groupOffice);
+
+        assertTrue(underTest.getPostDatedChecks(LOAN_ID).isEmpty());
+    }
+
+    @Test
+    void getPostDatedChecksAllowsGroupOnlyLoanInUserOfficeHierarchy() {
+        when(context.officeHierarchy()).thenReturn(".1.");
+        final Office groupOffice = office(".1.2.");
+        when(loan.getClient()).thenReturn(null);
+        when(loan.getGroup()).thenReturn(group);
+        when(group.getOffice()).thenReturn(groupOffice);
+
+        assertTrue(underTest.getPostDatedChecks(LOAN_ID).isEmpty());
+    }
+
+    @Test
+    void getPostDatedChecksRejectsGroupLoanWhenNeitherClientNorGroupOfficeInHierarchy() {
+        when(context.officeHierarchy()).thenReturn(".1.4.");
+        final Office clientOffice = office(".1.3.");
+        final Office groupOffice = office(".1.2.");
+        when(client.getOffice()).thenReturn(clientOffice);
+        when(loan.getGroup()).thenReturn(group);
+        when(group.getOffice()).thenReturn(groupOffice);
+
+        assertThrows(LoanNotFoundException.class, () -> underTest.getPostDatedChecks(LOAN_ID));
     }
 
     private static Office office(final String hierarchy) {

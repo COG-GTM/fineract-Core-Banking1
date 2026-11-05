@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
+import org.apache.fineract.portfolio.client.domain.Client;
+import org.apache.fineract.portfolio.group.domain.Group;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepaymentScheduleInstallmentRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
@@ -94,8 +96,12 @@ public class RepaymentWithPostDatedChecksReadPlatformServiceImpl implements Repa
     private Loan retrieveLoanWithinUserHierarchy(final Long loanId) {
         final Loan loan = this.loanRepository.findById(loanId).orElseThrow(() -> new LoanNotFoundException(loanId));
         final String userHierarchy = this.context.officeHierarchy();
-        final Office transferToOffice = loan.getClient() != null ? loan.getClient().getTransferToOffice() : null;
-        if (!isWithinHierarchy(loan.getOffice(), userHierarchy) && !isWithinHierarchy(transferToOffice, userHierarchy)) {
+        final Client client = loan.getClient();
+        final Group group = loan.getGroup();
+        final boolean accessible = isWithinHierarchy(client != null ? client.getOffice() : null, userHierarchy)
+                || isWithinHierarchy(group != null ? group.getOffice() : null, userHierarchy)
+                || isWithinHierarchy(client != null ? client.getTransferToOffice() : null, userHierarchy);
+        if (!accessible) {
             throw new LoanNotFoundException(loanId);
         }
         return loan;
