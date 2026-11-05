@@ -20,10 +20,12 @@ package org.apache.fineract.infrastructure.dataqueries.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,11 +36,15 @@ import java.util.List;
 import java.util.Map;
 import org.apache.fineract.infrastructure.codes.service.CodeReadPlatformService;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
+import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.DatatableCommandFromApiJsonDeserializer;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.core.service.database.DatabaseType;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseTypeResolver;
+import org.apache.fineract.infrastructure.core.service.database.JdbcJavaType;
 import org.apache.fineract.infrastructure.dataqueries.data.DataTableValidator;
+import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.search.service.SearchUtil;
@@ -244,5 +250,63 @@ class DatatableWriteServiceImplTest {
         String sql = sqlCaptor.getValue();
         assertTrue(sql.contains("INSERT INTO x_table_column_code_mappings"), "SQL should insert into code mappings table");
         assertTrue(sql.contains("VALUES (?, ?)"), "SQL should use ? placeholders");
+    }
+
+    @Test
+    void testParseDatatableColumnForAddRejectsInjectedAfter() {
+        mockMySQL();
+        JsonObject column = addColumn("c1");
+        column.addProperty("after", "id`, RENAME TO `zz` -- ");
+        StringBuilder sqlBuilder = new StringBuilder();
+
+        assertThrows(PlatformDataIntegrityException.class, () -> ReflectionTestUtils.invokeMethod(underTest, "parseDatatableColumnForAdd",
+                column, sqlBuilder, DATATABLE_NAME, new StringBuilder(), new HashMap<String, Long>(), true));
+        assertFalse(sqlBuilder.toString().contains("RENAME"), "Injected SQL must not reach the ALTER TABLE statement");
+    }
+
+    @Test
+    void testParseDatatableColumnForAddAppendsValidAfter() {
+        mockMySQL();
+        JsonObject column = addColumn("c1");
+        column.addProperty("after", "id");
+        StringBuilder sqlBuilder = new StringBuilder();
+
+        ReflectionTestUtils.invokeMethod(underTest, "parseDatatableColumnForAdd", column, sqlBuilder, DATATABLE_NAME, new StringBuilder(),
+                new HashMap<String, Long>(), true);
+
+        assertTrue(sqlBuilder.toString().endsWith(" AFTER `id`"), "Valid column should be used for AFTER: " + sqlBuilder);
+    }
+
+    @Test
+    void testParseDatatableColumnForUpdateRejectsInjectedAfter() {
+        mockMySQL();
+        JsonObject column = new JsonObject();
+        column.addProperty("name", "c1");
+        column.addProperty("after", "id`, DROP COLUMN `password` -- ");
+        ResultsetColumnHeaderData header = mock(ResultsetColumnHeaderData.class);
+        when(header.getColumnType()).thenReturn(JdbcJavaType.VARCHAR);
+        Map<String, ResultsetColumnHeaderData> columns = new HashMap<>();
+        columns.put("c1", header);
+        StringBuilder changeBuilder = new StringBuilder();
+
+        assertThrows(PlatformDataIntegrityException.class,
+                () -> ReflectionTestUtils.invokeMethod(underTest, "parseDatatableColumnForUpdate", column, columns, DATATABLE_NAME,
+                        new StringBuilder(), changeBuilder, new StringBuilder(), new HashMap<String, Long>(), new ArrayList<String>(),
+                        true));
+        assertFalse(changeBuilder.toString().contains("DROP"), "Injected SQL must not reach the ALTER TABLE statement");
+    }
+
+    private void mockMySQL() {
+        when(databaseTypeResolver.isMySQL()).thenReturn(true);
+        when(databaseTypeResolver.databaseType()).thenReturn(DatabaseType.MYSQL);
+        when(sqlGenerator.escape(anyString())).thenAnswer(invocation -> "`" + invocation.getArgument(0) + "`");
+    }
+
+    private static JsonObject addColumn(String name) {
+        JsonObject column = new JsonObject();
+        column.addProperty("name", name);
+        column.addProperty("type", "String");
+        column.addProperty("length", 10);
+        return column;
     }
 }

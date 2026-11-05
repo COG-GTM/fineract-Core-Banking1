@@ -727,6 +727,14 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         }
     }
 
+    private static String validateColumnIdentifier(final String parameterName, final String identifier) {
+        if (!identifier.matches(DatatableCommandFromApiJsonDeserializer.DATATABLE_COLUMN_NAME_REGEX_PATTERN)) {
+            throw new PlatformDataIntegrityException("error.msg.datatables.datatable.column.invalid.identifier",
+                    "Invalid column name provided for parameter `" + parameterName + "`.", parameterName);
+        }
+        return identifier;
+    }
+
     private void parseDatatableColumnForAdd(final JsonObject column, StringBuilder sqlBuilder, final String dataTableNameAlias,
             final StringBuilder constrainBuilder, final Map<String, Long> codeMappings, final boolean isConstraintApproach) {
 
@@ -735,7 +743,8 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         final Integer length = column.has(API_FIELD_LENGTH) ? column.get(API_FIELD_LENGTH).getAsInt() : null;
         final boolean mandatory = column.has(API_FIELD_MANDATORY) && column.get(API_FIELD_MANDATORY).getAsBoolean();
         final boolean unique = column.has(API_FIELD_UNIQUE) && column.get(API_FIELD_UNIQUE).getAsBoolean();
-        final String after = column.has(API_FIELD_AFTER) ? column.get(API_FIELD_AFTER).getAsString() : null;
+        final String rawAfter = column.has(API_FIELD_AFTER) ? column.get(API_FIELD_AFTER).getAsString() : null;
+        final String after = rawAfter == null ? null : validateColumnIdentifier(API_FIELD_AFTER, rawAfter);
         final String code = column.has(API_FIELD_CODE) ? column.get(API_FIELD_CODE).getAsString() : null;
 
         if (StringUtils.isNotBlank(code)) {
@@ -781,7 +790,8 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         Long length = StringUtils.isNotBlank(lengthStr) ? Long.parseLong(lengthStr) : null;
         String newName = column.has(API_FIELD_NEWNAME) ? column.get(API_FIELD_NEWNAME).getAsString() : null;
         final Boolean newMandatory = column.has(API_FIELD_MANDATORY) ? column.get(API_FIELD_MANDATORY).getAsBoolean() : null;
-        final String after = column.has(API_FIELD_AFTER) ? column.get(API_FIELD_AFTER).getAsString() : null;
+        final String rawAfter = column.has(API_FIELD_AFTER) ? column.get(API_FIELD_AFTER).getAsString() : null;
+        final String after = rawAfter == null ? null : validateColumnIdentifier(API_FIELD_AFTER, rawAfter);
         final String code = column.has(API_FIELD_CODE) ? column.get(API_FIELD_CODE).getAsString() : null;
         final String newCode = column.has(API_FIELD_NEWCODE) ? column.get(API_FIELD_NEWCODE).getAsString() : null;
         final String dataTableNameAlias = datatableName.toLowerCase().replaceAll("\\s", "_");

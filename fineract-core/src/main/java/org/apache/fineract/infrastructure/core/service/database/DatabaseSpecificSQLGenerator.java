@@ -52,9 +52,9 @@ public class DatabaseSpecificSQLGenerator {
 
     public String escape(String arg) {
         if (databaseTypeResolver.isMySQL()) {
-            return format("`%s`", arg);
+            return format("`%s`", arg == null ? null : arg.replace("`", "``"));
         } else if (databaseTypeResolver.isPostgreSQL()) {
-            return format("\"%s\"", arg);
+            return format("\"%s\"", arg == null ? null : arg.replace("\"", "\"\""));
         }
         return arg;
     }

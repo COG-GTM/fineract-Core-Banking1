@@ -241,8 +241,9 @@ public class DatatableCommandFromApiJsonDeserializer {
                 baseDataValidator.reset().parameter(API_FIELD_MANDATORY).value(mandatory).ignoreIfNull().notBlank().isOneOfTheseValues(true,
                         false);
 
-                final Boolean after = this.fromApiJsonHelper.extractBooleanNamed(API_FIELD_AFTER, column);
-                baseDataValidator.reset().parameter(API_FIELD_AFTER).value(after).ignoreIfNull().notBlank().isOneOfTheseValues(true, false);
+                final String after = this.fromApiJsonHelper.extractStringNamed(API_FIELD_AFTER, column);
+                baseDataValidator.reset().parameter(API_FIELD_AFTER).value(after).ignoreIfNull().notBlank().notExceedingLengthOf(50)
+                        .matchesRegularExpression(DATATABLE_COLUMN_NAME_REGEX_PATTERN);
 
                 final Boolean unique = this.fromApiJsonHelper.extractBooleanNamed(API_FIELD_UNIQUE, column);
                 baseDataValidator.reset().parameter(API_FIELD_UNIQUE).value(unique).ignoreIfNull().notBlank().isOneOfTheseValues(true,
@@ -271,8 +272,9 @@ public class DatatableCommandFromApiJsonDeserializer {
                 baseDataValidator.reset().parameter(API_FIELD_MANDATORY).value(mandatory).ignoreIfNull().notBlank().isOneOfTheseValues(true,
                         false);
 
-                final Boolean after = this.fromApiJsonHelper.extractBooleanNamed(API_FIELD_AFTER, column);
-                baseDataValidator.reset().parameter(API_FIELD_AFTER).value(after).ignoreIfNull().notBlank().isOneOfTheseValues(true, false);
+                final String after = this.fromApiJsonHelper.extractStringNamed(API_FIELD_AFTER, column);
+                baseDataValidator.reset().parameter(API_FIELD_AFTER).value(after).ignoreIfNull().notBlank().notExceedingLengthOf(50)
+                        .matchesRegularExpression(DATATABLE_COLUMN_NAME_REGEX_PATTERN);
 
                 final Boolean unique = this.fromApiJsonHelper.extractBooleanNamed(API_FIELD_UNIQUE, column);
                 baseDataValidator.reset().parameter(API_FIELD_UNIQUE).value(unique).ignoreIfNull().notBlank().isOneOfTheseValues(true,

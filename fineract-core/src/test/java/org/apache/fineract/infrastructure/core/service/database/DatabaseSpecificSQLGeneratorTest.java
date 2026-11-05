@@ -63,4 +63,18 @@ public class DatabaseSpecificSQLGeneratorTest {
         String countQuery = databaseSpecificSQLGenerator.countQueryResult(sql);
         Assertions.assertEquals("SELECT COUNT(*) FROM (SELECT 1 FROM test_table WHERE asd=2) AS temp", countQuery);
     }
+
+    @Test
+    public void testEscapeDoublesBacktickOnMySQL() {
+        Mockito.when(databaseTypeResolver.isMySQL()).thenReturn(true);
+        Assertions.assertEquals("`id``, RENAME TO ``zz`` -- `", databaseSpecificSQLGenerator.escape("id`, RENAME TO `zz` -- "));
+        Assertions.assertEquals("`col_1`", databaseSpecificSQLGenerator.escape("col_1"));
+    }
+
+    @Test
+    public void testEscapeDoublesDoubleQuoteOnPostgreSQL() {
+        Mockito.when(databaseTypeResolver.isPostgreSQL()).thenReturn(true);
+        Assertions.assertEquals("\"id\"\"; DROP TABLE x; --\"", databaseSpecificSQLGenerator.escape("id\"; DROP TABLE x; --"));
+        Assertions.assertEquals("\"col_1\"", databaseSpecificSQLGenerator.escape("col_1"));
+    }
 }
