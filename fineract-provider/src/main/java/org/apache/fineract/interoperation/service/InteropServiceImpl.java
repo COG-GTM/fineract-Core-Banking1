@@ -54,6 +54,7 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.MathUtil;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.interoperation.data.InteropAccountData;
 import org.apache.fineract.interoperation.data.InteropIdentifierAccountResponseData;
@@ -86,6 +87,7 @@ import org.apache.fineract.organisation.monetary.domain.ApplicationCurrency;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepository;
 import org.apache.fineract.organisation.monetary.domain.MonetaryCurrency;
 import org.apache.fineract.organisation.monetary.domain.Money;
+import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.account.exception.DifferentCurrenciesException;
 import org.apache.fineract.portfolio.loanaccount.data.LoanAccountData;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
@@ -197,7 +199,7 @@ public class InteropServiceImpl implements InteropService {
     @Override
     @Transactional
     public InteropAccountData getAccountDetails(@NonNull String accountId) {
-        return InteropAccountData.build(validateAndGetSavingAccount(accountId));
+        return InteropAccountData.build(validateAndGetReadableSavingAccount(accountId));
     }
 
     @NonNull
@@ -205,7 +207,7 @@ public class InteropServiceImpl implements InteropService {
     @Transactional
     public InteropTransactionsData getAccountTransactions(@NonNull String accountId, boolean debit, boolean credit,
             java.time.LocalDateTime transactionsFrom, java.time.LocalDateTime transactionsTo) {
-        SavingsAccount savingsAccount = validateAndGetSavingAccount(accountId);
+        SavingsAccount savingsAccount = validateAndGetReadableSavingAccount(accountId);
 
         Predicate<SavingsAccountTransaction> transFilter = t -> {
             SavingsAccountTransactionType transactionType = t.getTransactionType();
@@ -248,7 +250,7 @@ public class InteropServiceImpl implements InteropService {
     @Override
     @Transactional
     public InteropIdentifiersResponseData getAccountIdentifiers(@NonNull String accountId) {
-        SavingsAccount savingsAccount = validateAndGetSavingAccount(accountId);
+        SavingsAccount savingsAccount = validateAndGetReadableSavingAccount(accountId);
         return InteropIdentifiersResponseData.build(savingsAccount);
     }
 
@@ -261,6 +263,7 @@ public class InteropServiceImpl implements InteropService {
         if (identifier == null) {
             throw new InteropAccountNotFoundException(idType, idValue, subIdOrType);
         }
+        validateOfficeAccess(identifier.getAccount());
 
         return InteropIdentifierAccountResponseData.build(identifier.getId(), identifier.getAccount().getExternalId().getValue());
     }
@@ -508,7 +511,7 @@ public class InteropServiceImpl implements InteropService {
     @Override
     public @NonNull InteropKycResponseData getKyc(@NonNull String accountId) {
 
-        SavingsAccount savingsAccount = validateAndGetSavingAccount(accountId);
+        SavingsAccount savingsAccount = validateAndGetReadableSavingAccount(accountId);
         Long clientId = savingsAccount.getClient().getId();
 
         try {
@@ -555,6 +558,20 @@ public class InteropServiceImpl implements InteropService {
             throw new SavingsAccountNotFoundException(accountId);
         }
         return savingsAccount;
+    }
+
+    private SavingsAccount validateAndGetReadableSavingAccount(String accountId) {
+        SavingsAccount savingsAccount = validateAndGetSavingAccount(accountId);
+        validateOfficeAccess(savingsAccount);
+        return savingsAccount;
+    }
+
+    private void validateOfficeAccess(SavingsAccount savingsAccount) {
+        Office office = savingsAccount.office();
+        if (office == null) {
+            throw new NoAuthorizationException("The user doesn't have enough permissions to access the resource.");
+        }
+        securityContext.validateAccessRights(office.getHierarchy());
     }
 
     private Loan validateAndGetLoan(String accountId) {
