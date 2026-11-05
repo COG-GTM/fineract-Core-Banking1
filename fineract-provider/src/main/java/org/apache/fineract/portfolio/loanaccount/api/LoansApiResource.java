@@ -1413,6 +1413,8 @@ public class LoansApiResource {
     private List<LoanApprovedAmountHistoryData> getLoanApprovedAmountHistory(Long loanId, ExternalId loanExternalId) {
         context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
         Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
+        // Enforces the caller's office hierarchy scope; throws LoanNotFoundException otherwise
+        loanReadPlatformService.retrieveOne(resolvedLoanId);
         Pageable sortedByCreationDate = Pageable.unpaged(Sort.by("createdDate").ascending());
         return loanApprovedAmountHistoryRepository.findAllByLoanId(resolvedLoanId, sortedByCreationDate);
     }

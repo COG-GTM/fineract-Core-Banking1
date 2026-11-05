@@ -22,6 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -35,15 +38,22 @@ import org.apache.fineract.client.models.PostLoansDisbursementData;
 import org.apache.fineract.client.models.PostLoansLoanIdRequest;
 import org.apache.fineract.client.models.PostLoansLoanIdTransactionsResponse;
 import org.apache.fineract.client.models.PostLoansResponse;
+import org.apache.fineract.client.models.PostUsersRequest;
 import org.apache.fineract.client.models.PutLoansApprovedAmountResponse;
 import org.apache.fineract.client.models.PutLoansAvailableDisbursementAmountResponse;
 import org.apache.fineract.client.util.CallFailedRuntimeException;
 import org.apache.fineract.integrationtests.common.ClientHelper;
+import org.apache.fineract.integrationtests.common.OfficeHelper;
+import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.externalevents.LoanBusinessEvent;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class LoanModifyApprovedAmountTest extends BaseLoanIntegrationTest {
+
+    private static final Long SUPER_USER_ROLE_ID = 1L;
 
     @Test
     public void testValidLoanApprovedAmountModification() {
@@ -698,6 +708,34 @@ public class LoanModifyApprovedAmountTest extends BaseLoanIntegrationTest {
 
             Assertions.assertEquals(sixHundred, loanApprovedAmountHistory.get(2).getOldApprovedAmount().setScale(1, RoundingMode.HALF_UP));
             Assertions.assertEquals(fourHundred, loanApprovedAmountHistory.get(2).getNewApprovedAmount().setScale(1, RoundingMode.HALF_UP));
+        });
+    }
+
+    @Test
+    public void testLoanApprovedAmountHistoryNotVisibleOutsideOfficeHierarchy() {
+        final PostClientsResponse client = clientHelper.createClient(ClientHelper.defaultClientCreationRequest());
+        final PostLoanProductsResponse loanProductsResponse = loanProductHelper.createLoanProduct(create4IProgressive());
+        runAt("1 January 2024", () -> {
+            Long loanId = applyAndApproveProgressiveLoan(client.getClientId(), loanProductsResponse.getResourceId(), "1 January 2024",
+                    1000.0, 10.0, 4, null);
+            modifyLoanApprovedAmount(loanId, BigDecimal.valueOf(800.0));
+            Assertions.assertEquals(1, getLoanApprovedAmountHistory(loanId).size());
+
+            Integer branchOfficeId = new OfficeHelper(requestSpec, responseSpec).createOffice("01 January 2023");
+            String password = "QwE!5rTy#9uP0";
+            String branchUsername = Utils.uniqueRandomStringGenerator("BranchUser", 4);
+            PostUsersRequest branchUserRequest = new PostUsersRequest().username(branchUsername).firstname(Utils.randomFirstNameGenerator())
+                    .lastname(Utils.randomLastNameGenerator()).email("whatever@mifos.org").password(password).repeatPassword(password)
+                    .sendPasswordToEmail(false).officeId(branchOfficeId.longValue()).roles(List.of(SUPER_USER_ROLE_ID));
+            Assertions.assertNotNull(UserHelper.createUser(requestSpec, responseSpec, branchUserRequest).getResourceId());
+
+            RequestSpecification branchUserRequestSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+            branchUserRequestSpec.header("Authorization",
+                    "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(branchUsername, password));
+            branchUserRequestSpec.header("Fineract-Platform-TenantId", "default");
+
+            Utils.performServerGet(branchUserRequestSpec, createResponseSpecification(Matchers.is(404)),
+                    "/fineract-provider/api/v1/loans/" + loanId + "/approved-amount?" + Utils.TENANT_IDENTIFIER);
         });
     }
 }
