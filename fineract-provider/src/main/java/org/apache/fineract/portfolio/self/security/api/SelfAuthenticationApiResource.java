@@ -56,6 +56,7 @@ public class SelfAuthenticationApiResource {
     @RequestBody(required = true, content = @Content(schema = @Schema(implementation = AuthenticationApiResourceSwagger.PostAuthenticationRequest.class)))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SelfAuthenticationApiResourceSwagger.PostSelfAuthenticationResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Request body is missing username or password"),
             @ApiResponse(responseCode = "403", description = "Password reset required") })
     public String authenticate(final String apiRequestBodyAsJson) {
         return this.authenticationApiResource.authenticate(apiRequestBodyAsJson, true);

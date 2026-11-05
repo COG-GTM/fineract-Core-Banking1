@@ -37,9 +37,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.apache.fineract.infrastructure.security.constants.TwoFactorConstants;
 import org.apache.fineract.infrastructure.security.data.AuthenticatedUserData;
@@ -68,6 +71,26 @@ public class AuthenticationApiResource {
     @Value("${fineract.security.2fa.enabled}")
     private boolean twoFactorEnabled;
 
+    // Never echo the request body or credential values: the exception message is logged and returned to the caller.
+    private static void validateRequest(final AuthenticateRequest request) {
+        if (request == null) {
+            throw new PlatformApiDataValidationException("validation.msg.authentication.request.body.invalid",
+                    "The request body must be a JSON object containing username and password (see FINERACT-726).", "body");
+        }
+        final List<ApiParameterError> errors = new ArrayList<>();
+        if (request.username == null) {
+            errors.add(ApiParameterError.parameterError("validation.msg.authentication.username.cannot.be.blank",
+                    "The parameter `username` is mandatory.", "username"));
+        }
+        if (request.password == null) {
+            errors.add(ApiParameterError.parameterError("validation.msg.authentication.password.cannot.be.blank",
+                    "The parameter `password` is mandatory.", "password"));
+        }
+        if (!errors.isEmpty()) {
+            throw new PlatformApiDataValidationException(errors);
+        }
+    }
+
     public static class AuthenticateRequest {
 
         public String username;
@@ -93,14 +116,7 @@ public class AuthenticationApiResource {
         // TODO FINERACT-819: sort out Jersey so JSON conversion does not have
         // to be done explicitly via GSON here, but implicit by arg
         AuthenticateRequest request = new Gson().fromJson(apiRequestBodyAsJson, AuthenticateRequest.class);
-        if (request == null) {
-            throw new IllegalArgumentException(
-                    "Invalid JSON in BODY (no longer URL param; see FINERACT-726) of POST to /authentication: " + apiRequestBodyAsJson);
-        }
-        if (request.username == null || request.password == null) {
-            throw new IllegalArgumentException("Username or Password is null in JSON (see FINERACT-726) of POST to /authentication: "
-                    + apiRequestBodyAsJson + "; username=" + request.username + ", password=" + request.password);
-        }
+        validateRequest(request);
 
         final Authentication authentication = new UsernamePasswordAuthenticationToken(request.username, request.password);
         final Authentication authenticationCheck = this.customAuthenticationProvider.authenticate(authentication);
