@@ -38,6 +38,7 @@ import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.organisation.office.domain.OfficeTransaction;
 import org.apache.fineract.organisation.office.domain.OfficeTransactionRepository;
+import org.apache.fineract.organisation.office.exception.OfficeTransactionNotFoundException;
 import org.apache.fineract.organisation.office.serialization.OfficeCommandFromApiJsonDeserializer;
 import org.apache.fineract.organisation.office.serialization.OfficeTransactionCommandFromApiJsonDeserializer;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -151,7 +152,7 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
     @Override
     public CommandProcessingResult officeTransaction(final JsonCommand command) {
 
-        this.context.authenticatedUser();
+        final AppUser currentUser = this.context.authenticatedUser();
 
         this.moneyTransferCommandFromApiJsonDeserializer.validateOfficeTransfer(command.json());
 
@@ -168,6 +169,8 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
             toOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(toOfficeId);
             officeId = toOffice.getId();
         }
+
+        validateUserPriviledgeOnOfficeTransaction(currentUser, fromOffice, toOffice);
 
         final String currencyCode = command.stringValueOfParameterNamed("currencyCode");
         final ApplicationCurrency appCurrency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currencyCode);
@@ -191,9 +194,14 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
     @Override
     public CommandProcessingResult deleteOfficeTransaction(final Long transactionId, final JsonCommand command) {
 
-        this.context.authenticatedUser();
+        final AppUser currentUser = this.context.authenticatedUser();
 
-        this.officeTransactionRepository.deleteById(transactionId);
+        final OfficeTransaction officeTransaction = this.officeTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new OfficeTransactionNotFoundException(transactionId));
+
+        validateUserPriviledgeOnOfficeTransaction(currentUser, officeTransaction.getFrom(), officeTransaction.getTo());
+
+        this.officeTransactionRepository.delete(officeTransaction);
 
         return new CommandProcessingResultBuilder() //
                 .withCommandId(command.commandId()) //
@@ -237,6 +245,21 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
         }
 
         return officeToReturn;
+    }
+
+    /*
+     * used to restrict modifying operations on office transactions to those that involve the users office or one of its
+     * child offices, mirroring the hierarchy filter applied when office transactions are retrieved
+     */
+    private void validateUserPriviledgeOnOfficeTransaction(final AppUser currentUser, final Office fromOffice, final Office toOffice) {
+        final String userHierarchy = currentUser.getOffice().getHierarchy();
+        if (!isInHierarchy(fromOffice, userHierarchy) && !isInHierarchy(toOffice, userHierarchy)) {
+            throw new NoAuthorizationException("User does not have sufficient priviledges to act on the provided office transaction.");
+        }
+    }
+
+    private static boolean isInHierarchy(final Office office, final String hierarchy) {
+        return office != null && hierarchy != null && office.getHierarchy() != null && office.getHierarchy().startsWith(hierarchy);
     }
 
     public PlatformSecurityContext getContext() {
