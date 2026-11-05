@@ -338,9 +338,9 @@ public class SavingsConfiguration {
     @ConditionalOnMissingBean(SavingsAccountReadPlatformService.class)
     public SavingsAccountReadPlatformService savingsAccountReadPlatformService(PlatformSecurityContext context, JdbcTemplate jdbcTemplate,
             SavingsAccountAssembler savingAccountAssembler, PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator,
-            SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper, ColumnValidator columnValidator) {
-        return new SavingsAccountReadPlatformServiceImpl(context, jdbcTemplate, savingAccountAssembler, paginationHelper, columnValidator,
-                sqlGenerator, savingsAccountRepositoryWrapper);
+            SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper) {
+        return new SavingsAccountReadPlatformServiceImpl(context, jdbcTemplate, savingAccountAssembler, paginationHelper, sqlGenerator,
+                savingsAccountRepositoryWrapper);
     }
 
     @Bean
