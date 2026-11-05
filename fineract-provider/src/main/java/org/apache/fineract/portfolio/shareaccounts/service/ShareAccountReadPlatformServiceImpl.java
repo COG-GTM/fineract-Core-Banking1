@@ -139,10 +139,16 @@ public class ShareAccountReadPlatformServiceImpl implements ShareAccountReadPlat
         Collection<ShareAccountTransactionData> purchasedShares = this.purchasedSharesReadPlatformService.retrievePurchasedShares(id);
 
         ShareAccountMapper mapper = new ShareAccountMapper(charges, purchasedShares);
-        String query = "select " + mapper.schema() + OFFICE_JOIN + " where sa.id=? and o.hierarchy like ?";
         ShareAccountData data;
         try {
-            data = (ShareAccountData) this.jdbcTemplate.queryForObject(query, mapper, id, userHierarchySearchString()); // NOSONAR
+            // Self-service access is authorized by the account-to-user mapping check in SelfShareAccountsApiResource.
+            if (this.context.authenticatedUser().isSelfServiceUser()) {
+                String query = "select " + mapper.schema() + " where sa.id=?";
+                data = (ShareAccountData) this.jdbcTemplate.queryForObject(query, mapper, id); // NOSONAR
+            } else {
+                String query = "select " + mapper.schema() + OFFICE_JOIN + " where sa.id=? and o.hierarchy like ?";
+                data = (ShareAccountData) this.jdbcTemplate.queryForObject(query, mapper, id, userHierarchySearchString()); // NOSONAR
+            }
         } catch (final EmptyResultDataAccessException e) {
             throw new ShareAccountNotFoundException(id, e);
         }
