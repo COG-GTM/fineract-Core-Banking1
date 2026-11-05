@@ -60,11 +60,13 @@ import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.springframework.stereotype.Component;
 
-@Path("/v1/accounts/{type}")
+@Path("/v1/accounts/{type: share}")
 @Component
 @Tag(name = "Share Account", description = "Share accounts are instances of a praticular share product created for an individual. An application process around the creation of accounts is also supported.")
 @RequiredArgsConstructor
 public class AccountsApiResource {
+
+    private static final String SHARE_ACCOUNT_RESOURCE_NAME = "SHAREACCOUNT";
 
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final DefaultToApiJsonSerializer<AccountData> toApiJsonSerializer;
@@ -85,7 +87,7 @@ public class AccountsApiResource {
     public ShareAccountData template(@PathParam("type") @Parameter(description = "type") final String accountType,
             @QueryParam("clientId") @Parameter(description = "clientId") final Long clientId,
             @QueryParam("productId") @Parameter(description = "productId") final Long productId) {
-        this.platformSecurityContext.authenticatedUser();
+        this.platformSecurityContext.authenticatedUser().validateHasReadPermission(SHARE_ACCOUNT_RESOURCE_NAME);
         return shareAccountReadPlatformService.retrieveTemplate(clientId, productId);
     }
 
@@ -98,6 +100,7 @@ public class AccountsApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = AccountsApiResourceSwagger.GetAccountsTypeAccountIdResponse.class)))
     public ShareAccountData retrieveAccount(@PathParam("accountId") @Parameter(description = "accountId") final Long accountId,
             @PathParam("type") @Parameter(description = "type") final String accountType, @Context final UriInfo uriInfo) {
+        this.platformSecurityContext.authenticatedUser().validateHasReadPermission(SHARE_ACCOUNT_RESOURCE_NAME);
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return shareAccountReadPlatformService.retrieveOne(accountId, settings.isTemplate());
     }
@@ -111,6 +114,7 @@ public class AccountsApiResource {
     public Page<AccountData> retrieveAllAccounts(@PathParam("type") @Parameter(description = "type") final String accountType,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
+        this.platformSecurityContext.authenticatedUser().validateHasReadPermission(SHARE_ACCOUNT_RESOURCE_NAME);
         return shareAccountReadPlatformService.retrieveAll(offset, limit);
     }
 
@@ -188,6 +192,7 @@ public class AccountsApiResource {
     public Response getSharedAccountsTemplate(@QueryParam("officeId") final Long officeId,
             @QueryParam("dateFormat") final String dateFormat,
             @PathParam("type") @Parameter(description = "type") final String accountType) {
+        this.platformSecurityContext.authenticatedUser().validateHasReadPermission(SHARE_ACCOUNT_RESOURCE_NAME);
         return bulkImportWorkbookPopulatorService.getTemplate(GlobalEntityType.SHARE_ACCOUNTS.toString(), officeId, null, dateFormat);
     }
 

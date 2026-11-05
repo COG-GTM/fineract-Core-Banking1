@@ -35,6 +35,7 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.accountdetails.data.ShareAccountSummaryData;
 import org.apache.fineract.portfolio.accounts.constants.ShareAccountApiConstants;
@@ -79,8 +80,14 @@ public class ShareAccountReadPlatformServiceImpl implements ShareAccountReadPlat
     private final PurchasedSharesReadPlatformService purchasedSharesReadPlatformService;
     private final JdbcTemplate jdbcTemplate;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final String OFFICE_JOIN = " join m_office o on o.id = c.office_id ";
     private final PaginationHelper shareAccountDataPaginationHelper;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
+    private final PlatformSecurityContext context;
+
+    private String userHierarchySearchString() {
+        return this.context.authenticatedUser().getOffice().getHierarchy() + "%";
+    }
 
     @Override
     public ShareAccountData retrieveTemplate(Long clientId, Long productId) {
@@ -132,8 +139,13 @@ public class ShareAccountReadPlatformServiceImpl implements ShareAccountReadPlat
         Collection<ShareAccountTransactionData> purchasedShares = this.purchasedSharesReadPlatformService.retrievePurchasedShares(id);
 
         ShareAccountMapper mapper = new ShareAccountMapper(charges, purchasedShares);
-        String query = "select " + mapper.schema() + "where sa.id=?";
-        ShareAccountData data = (ShareAccountData) this.jdbcTemplate.queryForObject(query, mapper, id); // NOSONAR
+        String query = "select " + mapper.schema() + OFFICE_JOIN + " where sa.id=? and o.hierarchy like ?";
+        ShareAccountData data;
+        try {
+            data = (ShareAccountData) this.jdbcTemplate.queryForObject(query, mapper, id, userHierarchySearchString()); // NOSONAR
+        } catch (final EmptyResultDataAccessException e) {
+            throw new ShareAccountNotFoundException(id, e);
+        }
         String serviceName = "share" + ProductsApiConstants.READPLATFORM_NAME;
         ShareProductReadPlatformService service = (ShareProductReadPlatformService) this.applicationContext.getBean(serviceName);
         final ShareProductData productData = (ShareProductData) service.retrieveOne(data.getProductId(), false);
@@ -171,7 +183,8 @@ public class ShareAccountReadPlatformServiceImpl implements ShareAccountReadPlat
         StringBuilder sqlBuilder = new StringBuilder();
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(mapper.schema());
-        sqlBuilder.append(" where sa.status_enum = ? ");
+        sqlBuilder.append(OFFICE_JOIN);
+        sqlBuilder.append(" where sa.status_enum = ? and o.hierarchy like ? ");
         if (limit != null) {
             sqlBuilder.append(" limit ").append(limit);
         }
@@ -179,7 +192,7 @@ public class ShareAccountReadPlatformServiceImpl implements ShareAccountReadPlat
             sqlBuilder.append(" offset ").append(offSet);
         }
 
-        Object[] whereClauseItemsitems = new Object[] { ShareAccountStatusType.ACTIVE.getValue() };
+        Object[] whereClauseItemsitems = new Object[] { ShareAccountStatusType.ACTIVE.getValue(), userHierarchySearchString() };
         return this.shareAccountDataPaginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), whereClauseItemsitems, mapper);
     }
 
