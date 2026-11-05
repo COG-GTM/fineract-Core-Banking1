@@ -182,7 +182,7 @@ public class AuthorizationServerConfig {
                     if (fineractProperties.getModule().getSelfService().isEnabled()) {
                         authorizationManagers.add(selfServiceUserAuthManager());
                     }
-                    // two-factor setup routes must stay reachable before TWOFACTOR_AUTHENTICATED is granted (see SecurityConfig)
+                    // 2FA setup routes must be reachable before TWOFACTOR_AUTHENTICATED is granted (see SecurityConfig)
                     auth.requestMatchers(API_MATCHER.matcher(HttpMethod.POST, "/api/*/twofactor/validate")).authenticated()
                             .requestMatchers(API_MATCHER.matcher("/api/*/twofactor")).authenticated().anyRequest()
                             .access(AuthorizationManagers.allOf(authorizationManagers.toArray(new AuthorizationManager[0])));
