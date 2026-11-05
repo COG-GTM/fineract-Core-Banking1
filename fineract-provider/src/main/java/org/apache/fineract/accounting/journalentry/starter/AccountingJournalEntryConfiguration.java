@@ -40,7 +40,6 @@ import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.investor.domain.ExternalAssetOwnerRepository;
 import org.apache.fineract.investor.service.AccountingService;
 import org.apache.fineract.organisation.monetary.domain.OrganisationCurrencyRepositoryWrapper;
@@ -77,10 +76,10 @@ public class AccountingJournalEntryConfiguration {
     @ConditionalOnMissingBean(JournalEntryReadPlatformService.class)
     public JournalEntryReadPlatformService journalEntryReadPlatformService(JdbcTemplate jdbcTemplate,
             GLAccountReadPlatformService glAccountReadPlatformService, OfficeReadPlatformService officeReadPlatformService,
-            ColumnValidator columnValidator, FinancialActivityAccountRepositoryWrapper financialActivityAccountRepositoryWrapper,
-            PaginationHelper paginationHelper, DatabaseSpecificSQLGenerator sqlGenerator) {
+            FinancialActivityAccountRepositoryWrapper financialActivityAccountRepositoryWrapper, PaginationHelper paginationHelper,
+            DatabaseSpecificSQLGenerator sqlGenerator) {
         return new JournalEntryReadPlatformServiceImpl(jdbcTemplate, glAccountReadPlatformService, officeReadPlatformService,
-                columnValidator, financialActivityAccountRepositoryWrapper, paginationHelper, sqlGenerator);
+                financialActivityAccountRepositoryWrapper, paginationHelper, sqlGenerator);
     }
 
     @Bean
