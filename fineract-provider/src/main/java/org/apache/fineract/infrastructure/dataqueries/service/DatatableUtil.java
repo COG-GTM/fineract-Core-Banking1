@@ -23,6 +23,8 @@ import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiCon
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.TABLE_FIELD_ID;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.TABLE_REGISTERED_TABLE;
 
+import com.google.common.base.CharMatcher;
+import com.google.common.base.Splitter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -256,11 +258,13 @@ public class DatatableUtil {
             final String trimmed = item.trim();
             String columnName = null;
             String direction = null;
-            final String[] tokens = trimmed.split("\\s+");
-            final String lastToken = tokens[tokens.length - 1].toUpperCase(Locale.ROOT);
-            if (tokens.length > 1 && (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken))) {
-                columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
-                direction = columnName == null ? null : lastToken;
+            final List<String> tokens = Splitter.on(CharMatcher.whitespace()).omitEmptyStrings().splitToList(trimmed);
+            if (tokens.size() > 1) {
+                final String lastToken = tokens.get(tokens.size() - 1).toUpperCase(Locale.ROOT);
+                if (ORDER_ASC.equals(lastToken) || ORDER_DESC.equals(lastToken)) {
+                    columnName = findColumnName(trimmed.substring(0, trimmed.length() - lastToken.length()).trim(), columnHeaders);
+                    direction = columnName == null ? null : lastToken;
+                }
             }
             if (columnName == null) {
                 columnName = findColumnName(trimmed, columnHeaders);
