@@ -30,11 +30,17 @@ import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.portfolio.client.domain.Client;
+import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
 import org.apache.fineract.portfolio.client.exception.ClientNotFoundException;
 import org.apache.fineract.portfolio.self.client.service.AppuserClientMapperReadService;
 import org.apache.fineract.portfolio.self.config.SelfServiceModuleIsEnabledCondition;
-import org.apache.fineract.spm.api.ScorecardApiResource;
 import org.apache.fineract.spm.data.ScorecardData;
+import org.apache.fineract.spm.domain.Survey;
+import org.apache.fineract.spm.service.ScorecardReadPlatformService;
+import org.apache.fineract.spm.service.ScorecardService;
+import org.apache.fineract.spm.service.SpmService;
+import org.apache.fineract.spm.util.ScorecardMapper;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
@@ -48,8 +54,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class SelfScorecardApiResource {
 
     private final PlatformSecurityContext context;
-    private final ScorecardApiResource scorecardApiResource;
     private final AppuserClientMapperReadService appuserClientMapperReadService;
+    private final SpmService spmService;
+    private final ScorecardService scorecardService;
+    private final ClientRepositoryWrapper clientRepositoryWrapper;
+    private final ScorecardReadPlatformService scorecardReadPlatformService;
 
     @GET
     @Path("clients/{clientId}")
@@ -59,7 +68,8 @@ public class SelfScorecardApiResource {
     public List<ScorecardData> findByClient(@PathParam("clientId") final Long clientId) {
 
         validateAppuserClientsMapping(clientId);
-        return this.scorecardApiResource.findByClient(clientId);
+        this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        return (List<ScorecardData>) this.scorecardReadPlatformService.retrieveScorecardByClient(clientId);
     }
 
     @POST
@@ -69,18 +79,21 @@ public class SelfScorecardApiResource {
     @Transactional
     public void createScorecard(@PathParam("surveyId") final Long surveyId, final ScorecardData scorecardData) {
         if (scorecardData.getClientId() != null) {
-            validateAppuserClientsMapping(scorecardData.getClientId());
-            this.scorecardApiResource.createScorecard(surveyId, scorecardData);
+            final AppUser appUser = validateAppuserClientsMapping(scorecardData.getClientId());
+            final Survey survey = this.spmService.findById(surveyId);
+            final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(scorecardData.getClientId());
+            this.scorecardService.createScorecard(ScorecardMapper.map(scorecardData, survey, appUser, client));
         }
 
     }
 
-    private void validateAppuserClientsMapping(final Long clientId) {
+    private AppUser validateAppuserClientsMapping(final Long clientId) {
         AppUser user = this.context.authenticatedUser();
         final boolean mappedClientId = this.appuserClientMapperReadService.isClientMappedToUser(clientId, user.getId());
         if (!mappedClientId) {
             throw new ClientNotFoundException(clientId);
         }
+        return user;
     }
 
 }
