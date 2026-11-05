@@ -77,8 +77,8 @@ class ImagesApiResourceTest {
 
     @Test
     void createMultipartImageShouldRejectEntityOutsideUserHierarchy() {
-        assertThrows(DocumentNotFoundException.class, () -> underTest.createImage(ENTITY_TYPE, ENTITY_ID, 3L,
-                new ByteArrayInputStream(new byte[] { 1, 2, 3 }), null, null));
+        assertThrows(DocumentNotFoundException.class,
+                () -> underTest.createImage(ENTITY_TYPE, ENTITY_ID, 3L, new ByteArrayInputStream(new byte[] { 1, 2, 3 }), null, null));
 
         verifyNoInteractions(fileUploadValidator, commandPipeline);
     }
