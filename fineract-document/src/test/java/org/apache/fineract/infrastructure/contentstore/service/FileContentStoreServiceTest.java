@@ -19,12 +19,17 @@
 package org.apache.fineract.infrastructure.contentstore.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.TestConfiguration;
+import org.apache.fineract.infrastructure.contentstore.exception.ContentPolicyException;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -60,6 +65,45 @@ class FileContentStoreServiceTest {
         log.info("Complete path: {}", p);
 
         assertTrue(Files.exists(p));
+    }
+
+    @Test
+    void uploadRejectsPathEscapingTenantRoot() throws IOException {
+        setTenant();
+
+        var rootFolder = getRootFolder();
+        var victim = rootFolder.getParent().resolve("OtherTenant/escape.pdf").toAbsolutePath().normalize();
+
+        Files.createDirectories(rootFolder);
+        Files.deleteIfExists(victim);
+
+        for (var path : List.of("documents/clients/1/x\n/../../../../../OtherTenant/escape.pdf",
+                "documents/clients/1/x\u0085/../../../../../OtherTenant/escape.pdf")) {
+            assertThrows(ContentPolicyException.class, () -> fileContentStoreService.upload(path,
+                    FileContentStoreServiceTest.class.getClassLoader().getResourceAsStream("test.jpg"), "image/jpeg"));
+        }
+
+        assertFalse(Files.exists(victim));
+        assertFalse(Files.exists(rootFolder.getParent().resolve("OtherTenant")));
+    }
+
+    @Test
+    void failedPostUploadCheckKeepsExistingFile() throws IOException {
+        setTenant();
+
+        var existing = getRootFolder().resolve("existing/test.png");
+
+        Files.createDirectories(existing.getParent());
+        Files.writeString(existing, "original");
+
+        assertThrows(ContentPolicyException.class, () -> fileContentStoreService.upload("existing/test.png",
+                FileContentStoreServiceTest.class.getClassLoader().getResourceAsStream("test.jpg"), "image/png"));
+
+        assertEquals("original", Files.readString(existing));
+
+        try (var entries = Files.list(existing.getParent())) {
+            assertEquals(1, entries.count());
+        }
     }
 
     @Test

@@ -60,4 +60,32 @@ class TraversalContentPolicyTest {
             assertThat(exception.getMessage()).startsWith("Trying to overwrite a sibling file:");
         });
     }
+
+    @Test
+    void pathWithLineTerminators() {
+        var paths = List.of("documents/clients/1/x\n/../../escape.pdf", "documents/clients/1/x\u0085/../../escape.pdf",
+                "documents/clients/1/x\r/../../escape.pdf", "documents/clients/1/x\u2028/../../escape.pdf",
+                "documents/clients/1/a\u0000.pdf");
+
+        paths.forEach(path -> {
+            var ctx = ContentPolicyContext.builder().path(path).mimeType("application/pdf").build();
+
+            assertThrows(ContentPolicyException.class, () -> traversalContentPolicy.check(ctx));
+        });
+    }
+
+    @Test
+    void backslashTraversal() {
+        var ctx = ContentPolicyContext.builder().path("documents\\..\\..\\escape.pdf").mimeType("application/pdf").build();
+
+        assertThrows(ContentPolicyException.class, () -> traversalContentPolicy.check(ctx));
+    }
+
+    @Test
+    void validPaths() {
+        var paths = List.of("documents/clients/1/AbCdEfGhIjKlMnOp/report.pdf",
+                "images/staff/1/PwVhJDLHyxUppiby/michael.vorburger-crepes.jpg", "documents/clients/1/AbCdEfGhIjKlMnOp/my..report.pdf");
+
+        paths.forEach(path -> traversalContentPolicy.check(ContentPolicyContext.builder().path(path).mimeType("image/jpeg").build()));
+    }
 }
