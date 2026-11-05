@@ -38,6 +38,8 @@ public interface LoanRescheduleRequestReadPlatformService {
      * @param requestId
      *            the loan reschedule request identifier
      * @return a LoanRescheduleRequestData object
+     * @throws org.apache.fineract.portfolio.loanaccount.rescheduleloan.exception.LoanRescheduleRequestNotFoundException
+     *             if the request does not exist or its loan is outside the current user's office hierarchy
      **/
     LoanRescheduleRequestData readLoanRescheduleRequest(Long requestId);
 
@@ -49,6 +51,16 @@ public interface LoanRescheduleRequestReadPlatformService {
      * @return list of LoanRescheduleRequestData objects
      **/
     List<LoanRescheduleRequestData> readLoanRescheduleRequests(Long loanId, Integer statusEnum);
+
+    /**
+     * Ensures the loan reschedule request exists and its loan is within the current user's office hierarchy.
+     *
+     * @param requestId
+     *            the loan reschedule request identifier
+     * @throws org.apache.fineract.portfolio.loanaccount.rescheduleloan.exception.LoanRescheduleRequestNotFoundException
+     *             if the request does not exist or its loan is outside the current user's office hierarchy
+     */
+    void validateLoanRescheduleRequestAccess(Long requestId);
 
     /**
      * get all loan reschedule reasons
