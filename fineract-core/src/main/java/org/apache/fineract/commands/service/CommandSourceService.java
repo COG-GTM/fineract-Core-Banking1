@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.commands.service;
 
+import static org.apache.fineract.commands.domain.CommandProcessingResultType.AWAITING_APPROVAL;
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.UNDER_PROCESSING;
 
 import com.google.gson.JsonElement;
@@ -28,6 +29,7 @@ import org.apache.fineract.batch.exception.ErrorInfo;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
 import org.apache.fineract.commands.domain.CommandWrapper;
+import org.apache.fineract.commands.exception.CommandNotAwaitingApprovalException;
 import org.apache.fineract.commands.exception.CommandNotFoundException;
 import org.apache.fineract.commands.exception.RollbackTransactionNotApprovedException;
 import org.apache.fineract.commands.handler.NewCommandSourceHandler;
@@ -111,6 +113,36 @@ public class CommandSourceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CommandSource getCommandSource(Long commandSourceId) {
         return commandSourceRepository.findById(commandSourceId).orElseThrow(() -> new CommandNotFoundException(commandSourceId));
+    }
+
+    /**
+     * Atomically moves a maker-checker command from AWAITING_APPROVAL to UNDER_PROCESSING, so that only one checker
+     * request can execute it.
+     */
+    @NonNull
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public CommandSource claimForApprovalNewTransaction(@NonNull Long commandSourceId) {
+        return claimForApproval(commandSourceId);
+    }
+
+    @NonNull
+    @Transactional(propagation = Propagation.REQUIRED)
+    public CommandSource claimForApprovalSameTransaction(@NonNull Long commandSourceId) {
+        return claimForApproval(commandSourceId);
+    }
+
+    @NonNull
+    private CommandSource claimForApproval(@NonNull Long commandSourceId) {
+        int updated = commandSourceRepository.updateStatusIfCurrent(commandSourceId, AWAITING_APPROVAL.getValue(),
+                UNDER_PROCESSING.getValue());
+        if (updated == 0) {
+            throw new CommandNotAwaitingApprovalException(commandSourceId);
+        }
+        CommandSource commandSource = commandSourceRepository.findById(commandSourceId)
+                .orElseThrow(() -> new CommandNotFoundException(commandSourceId));
+        // the bulk update bypasses the persistence context, keep a possibly cached instance in sync
+        commandSource.setStatus(UNDER_PROCESSING);
+        return commandSource;
     }
 
     @Transactional(propagation = Propagation.REQUIRED)

@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.commands.service;
 
+import static org.apache.fineract.commands.domain.CommandProcessingResultType.AWAITING_APPROVAL;
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.UNDER_PROCESSING;
 import static org.mockito.ArgumentMatchers.any;
 
@@ -28,6 +29,7 @@ import org.apache.fineract.batch.exception.ErrorInfo;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
 import org.apache.fineract.commands.domain.CommandWrapper;
+import org.apache.fineract.commands.exception.CommandNotAwaitingApprovalException;
 import org.apache.fineract.infrastructure.codes.exception.CodeNotFoundException;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
@@ -99,6 +101,30 @@ public class CommandSourceServiceTest {
 
         CommandSource actual = underTest.getCommandSource(commandId);
         Assertions.assertEquals(commandMock, actual);
+    }
+
+    @Test
+    public void claimForApprovalMovesAwaitingCommandToUnderProcessing() {
+        long commandId = 1L;
+        CommandSource commandMock = Mockito.mock(CommandSource.class);
+        Mockito.when(commandSourceRepository.updateStatusIfCurrent(commandId, AWAITING_APPROVAL.getValue(), UNDER_PROCESSING.getValue()))
+                .thenReturn(1);
+        Mockito.when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandMock));
+
+        CommandSource actual = underTest.claimForApprovalNewTransaction(commandId);
+
+        Assertions.assertEquals(commandMock, actual);
+        Mockito.verify(commandMock).setStatus(UNDER_PROCESSING);
+    }
+
+    @Test
+    public void claimForApprovalFailsWhenCommandIsNoLongerAwaitingApproval() {
+        long commandId = 1L;
+        Mockito.when(commandSourceRepository.updateStatusIfCurrent(commandId, AWAITING_APPROVAL.getValue(), UNDER_PROCESSING.getValue()))
+                .thenReturn(0);
+
+        Assertions.assertThrows(CommandNotAwaitingApprovalException.class, () -> underTest.claimForApprovalSameTransaction(commandId));
+        Mockito.verify(commandSourceRepository, Mockito.never()).findById(commandId);
     }
 
     @Test

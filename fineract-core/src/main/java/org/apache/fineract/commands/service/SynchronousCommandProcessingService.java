@@ -109,16 +109,25 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
 
             CommandSource commandSource = null;
             String idempotencyKey;
+            boolean isApprovalClaimed = false;
             if (isRetry) {
                 commandSource = commandSourceService.getCommandSource(commandId);
                 idempotencyKey = commandSource.getIdempotencyKey();
-            } else if ((commandId = command.commandId()) != null) { // action on the command itself
+            } else if ((commandId = command.commandId()) != null && isApprovedByChecker) { // checker approval
+                // the atomic claim rejects concurrent approvals and replaces the idempotency check
+                commandSource = isEnclosingTransaction ? commandSourceService.claimForApprovalSameTransaction(commandId)
+                        : commandSourceService.claimForApprovalNewTransaction(commandId);
+                idempotencyKey = commandSource.getIdempotencyKey();
+                isApprovalClaimed = true;
+            } else if (commandId != null) { // action on the command itself
                 commandSource = commandSourceService.getCommandSource(commandId);
                 idempotencyKey = commandSource.getIdempotencyKey();
             } else {
                 idempotencyKey = idempotencyKeyResolver.resolve(wrapper);
             }
-            exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry);
+            if (!isApprovalClaimed) {
+                exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry);
+            }
 
             AppUser user = context.authenticatedUser(wrapper);
             if (commandSource == null) {
