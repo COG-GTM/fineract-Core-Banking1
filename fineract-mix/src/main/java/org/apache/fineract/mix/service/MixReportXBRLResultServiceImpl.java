@@ -27,9 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.mix.data.MixReportXBRLData;
 import org.apache.fineract.mix.data.MixTaxonomyData;
@@ -43,8 +40,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class MixReportXBRLResultServiceImpl implements MixReportXBRLResultService {
-
-    private static final ScriptEngine SCRIPT_ENGINE = new ScriptEngineManager().getEngineByName("JavaScript");
 
     private final MixTaxonomyMappingReadService readTaxonomyMappingService;
     private final MixTaxonomyReadService readTaxonomyService;
@@ -140,28 +135,13 @@ public class MixReportXBRLResultServiceImpl implements MixReportXBRLResultServic
     }
 
     // Calculate Taxonomy value from expression
-    private BigDecimal processMappingString(Map<String, BigDecimal> accountBalanceMap, String mappingString) {
-        final List<String> glCodes = getGLCodes(mappingString);
-        for (final String glcode : glCodes) {
-
-            final BigDecimal balance = accountBalanceMap.get(glcode);
-            mappingString = mappingString.replaceAll("\\{" + glcode + "\\}", balance != null ? balance.toString() : "0");
-        }
-
-        // evaluate the expression
-        float eval = 0f;
+    private BigDecimal processMappingString(final Map<String, BigDecimal> accountBalanceMap, final String mappingString) {
         try {
-            // TODO: this doesn't work anymore in modern JVMs!!!!
-            final Number value = (Number) SCRIPT_ENGINE.eval(mappingString);
-            if (value != null) {
-                eval = value.floatValue();
-            }
-        } catch (final ScriptException e) {
+            return MixTaxonomyMappingFormulaEvaluator.evaluate(mappingString, accountBalanceMap);
+        } catch (final IllegalArgumentException e) {
             log.error("Problem occurred in processMappingString function", e);
-            throw new IllegalArgumentException(e.getMessage(), e);
+            throw e;
         }
-
-        return BigDecimal.valueOf(eval);
     }
 
     public List<String> getGLCodes(final String template) {
