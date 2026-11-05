@@ -52,6 +52,19 @@ public final class ExternalServicesConstants {
     public static final String NOTIFICATION_GCM_END_POINT = "gcm_end_point";
     public static final String NOTIFICATION_FCM_END_POINT = "fcm_end_point";
 
+    public static final String MASKED_SECRET_VALUE = "********";
+
+    private static final Set<String> NON_SECRET_PROPERTY_NAMES = Set.of(S3_BUCKET_NAME, SMTP_USERNAME, SMTP_HOST, SMTP_PORT, SMTP_USE_TLS,
+            SMTP_FROM_EMAIL, SMTP_FROM_NAME, SMS_HOST, SMS_PORT, SMS_END_POINT, NOTIFICATION_GCM_END_POINT, NOTIFICATION_FCM_END_POINT);
+
+    /**
+     * Any property not explicitly known to be non-secret is treated as a secret, so newly added credentials are masked
+     * by default.
+     */
+    public static boolean isSecretProperty(final String name) {
+        return name == null || !NON_SECRET_PROPERTY_NAMES.contains(name);
+    }
+
     public enum ExternalservicePropertiesJSONinputParams {
 
         EXTERNAL_SERVICE_ID("external_service_id"), //

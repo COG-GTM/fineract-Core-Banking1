@@ -30,6 +30,7 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.configuration.data.ExternalServicesPropertiesData;
+import org.apache.fineract.infrastructure.configuration.service.ExternalServicesConstants;
 import org.apache.fineract.infrastructure.configuration.service.ExternalServicesConstants.ExternalservicePropertiesJSONinputParams;
 import org.apache.fineract.infrastructure.configuration.service.ExternalServicesConstants.SMTPJSONinputParams;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
@@ -61,6 +62,10 @@ public class ExternalServicesProperties {
         final String valueParamName = ExternalservicePropertiesJSONinputParams.VALUE.getValue();
         if (command.isChangeInStringParameterNamed(paramName, this.value)) {
             final String newValue = command.stringValueOfParameterNamed(paramName);
+            if (ExternalServicesConstants.isSecretProperty(paramName) && ExternalServicesConstants.MASKED_SECRET_VALUE.equals(newValue)) {
+                // The client echoed back the masked placeholder returned by GET, so keep the stored secret.
+                return actualChanges;
+            }
             if (paramName.equals(SMTPJSONinputParams.PASSWORD.getValue()) && newValue.equals("XXXX")) {
                 // If Param Name is Password and ParamValue is XXXX that means
                 // the password has not been changed.
