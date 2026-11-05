@@ -167,12 +167,13 @@ public class ProductsApiResource {
 
     private ShareProductReadPlatformService resolveReadPlatformService(final String productType) {
         if (productType == null || !SUPPORTED_PRODUCT_TYPES.contains(productType)) {
-            throw new ResourceNotFoundException("error.msg.product.type.not.supported", "Product type `" + productType + "` is not supported",
-                    new Object[] { productType });
+            throw new ResourceNotFoundException("error.msg.product.type.not.supported",
+                    "Product type `" + productType + "` is not supported", new Object[] { productType });
         }
         this.platformSecurityContext.authenticatedUser().validateHasReadPermission(ProductsApiConstants.SHARE_PRODUCT_RESOURCE_NAME);
         try {
-            return this.applicationContext.getBean(productType + ProductsApiConstants.READPLATFORM_NAME, ShareProductReadPlatformService.class);
+            return this.applicationContext.getBean(productType + ProductsApiConstants.READPLATFORM_NAME,
+                    ShareProductReadPlatformService.class);
         } catch (BeansException e) {
             throw new ResourceNotFoundException(e);
         }
