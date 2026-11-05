@@ -71,6 +71,7 @@ import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
@@ -251,7 +252,7 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public AppUser createUser(String apiRequestBodyAsJson) {
         JsonCommand command = null;
         String username = null;
