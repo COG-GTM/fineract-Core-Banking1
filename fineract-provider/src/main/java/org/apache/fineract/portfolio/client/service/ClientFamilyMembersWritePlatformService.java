@@ -29,8 +29,8 @@ public interface ClientFamilyMembersWritePlatformService {
 
     CommandProcessingResult addClientFamilyMember(Client client, JsonCommand command);
 
-    CommandProcessingResult updateFamilyMember(Long familyMemberId, JsonCommand command);
+    CommandProcessingResult updateFamilyMember(Long clientId, Long familyMemberId, JsonCommand command);
 
-    CommandProcessingResult deleteFamilyMember(Long familyMemberId, JsonCommand command);
+    CommandProcessingResult deleteFamilyMember(Long clientId, Long familyMemberId, JsonCommand command);
 
 }

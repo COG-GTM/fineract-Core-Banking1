@@ -41,6 +41,6 @@ public class DeleteClientFamilyMemberCommandHandler implements NewCommandSourceH
     @Override
     public CommandProcessingResult processCommand(JsonCommand command) {
 
-        return this.clientFamilyMembersWritePlatformService.deleteFamilyMember(command.entityId(), command);
+        return this.clientFamilyMembersWritePlatformService.deleteFamilyMember(command.getClientId(), command.entityId(), command);
     }
 }

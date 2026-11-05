@@ -36,6 +36,7 @@ import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientFamilyMembers;
 import org.apache.fineract.portfolio.client.domain.ClientFamilyMembersRepository;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.portfolio.client.exception.ClientFamilyMemberNotFoundException;
 import org.apache.fineract.portfolio.client.serialization.ClientFamilyMemberCommandFromApiJsonDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,7 +88,7 @@ public class ClientFamilyMembersWritePlatformServiceImpl implements ClientFamily
         this.context.authenticatedUser();
         apiJsonDeserializer.validateForCreate(clientId, command.json());
 
-        Client client = clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
+        Client client = retrieveClientInOfficeScope(clientId);
         firstName = command.stringValueOfParameterNamed("firstName");
         middleName = command.stringValueOfParameterNamed("middleName");
         lastName = command.stringValueOfParameterNamed("lastName");
@@ -243,7 +244,7 @@ public class ClientFamilyMembersWritePlatformServiceImpl implements ClientFamily
     }
 
     @Override
-    public CommandProcessingResult updateFamilyMember(Long familyMemberId, JsonCommand command) {
+    public CommandProcessingResult updateFamilyMember(final Long clientId, final Long familyMemberId, final JsonCommand command) {
 
         Long relationshipId = null;
         CodeValue relationship = null;
@@ -272,7 +273,7 @@ public class ClientFamilyMembersWritePlatformServiceImpl implements ClientFamily
          * command.longValueOfParameterNamed("clientFamilyMemberId"); }
          */
 
-        ClientFamilyMembers clientFamilyMember = clientFamilyRepository.getReferenceById(familyMemberId);
+        ClientFamilyMembers clientFamilyMember = retrieveFamilyMemberInOfficeScope(clientId, familyMemberId);
 
         // Client
         // client=clientRepositoryWrapper.findOneWithNotFoundDetection(clientId);
@@ -353,16 +354,31 @@ public class ClientFamilyMembersWritePlatformServiceImpl implements ClientFamily
     }
 
     @Override
-    public CommandProcessingResult deleteFamilyMember(Long clientFamilyMemberId, JsonCommand command) {
+    public CommandProcessingResult deleteFamilyMember(final Long clientId, final Long clientFamilyMemberId, final JsonCommand command) {
         this.context.authenticatedUser();
 
         apiJsonDeserializer.validateForDelete(clientFamilyMemberId);
 
-        ClientFamilyMembers clientFamilyMember = clientFamilyRepository.getReferenceById(clientFamilyMemberId);
+        ClientFamilyMembers clientFamilyMember = retrieveFamilyMemberInOfficeScope(clientId, clientFamilyMemberId);
         clientFamilyRepository.delete(clientFamilyMember);
 
         return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(clientFamilyMember.getId()).build();
 
+    }
+
+    private Client retrieveClientInOfficeScope(final Long clientId) {
+        return clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientId, this.context.officeHierarchy() + "%");
+    }
+
+    private ClientFamilyMembers retrieveFamilyMemberInOfficeScope(final Long clientId, final Long familyMemberId) {
+        final ClientFamilyMembers familyMember = clientFamilyRepository.findById(familyMemberId)
+                .orElseThrow(() -> new ClientFamilyMemberNotFoundException(familyMemberId));
+        final Long ownerClientId = familyMember.getClient().getId();
+        if (clientId != null && !clientId.equals(ownerClientId)) {
+            throw new ClientFamilyMemberNotFoundException(familyMemberId);
+        }
+        retrieveClientInOfficeScope(ownerClientId);
+        return familyMember;
     }
 
 }

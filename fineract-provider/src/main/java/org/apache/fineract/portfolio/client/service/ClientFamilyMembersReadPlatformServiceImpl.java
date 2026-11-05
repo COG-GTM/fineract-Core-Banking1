@@ -28,7 +28,10 @@ import org.apache.fineract.infrastructure.codes.service.CodeValueReadPlatformSer
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.data.ClientFamilyMembersData;
+import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.portfolio.client.exception.ClientFamilyMemberNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -39,15 +42,19 @@ public class ClientFamilyMembersReadPlatformServiceImpl implements ClientFamilyM
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
     private final CodeValueReadPlatformService codeValueReadPlatformService;
+    private final ClientRepositoryWrapper clientRepositoryWrapper;
 
     @Autowired
     public ClientFamilyMembersReadPlatformServiceImpl(final PlatformSecurityContext context, final JdbcTemplate jdbcTemplate,
-            final CodeValueReadPlatformService codeValueReadPlatformService) {
+            final CodeValueReadPlatformService codeValueReadPlatformService, final ClientRepositoryWrapper clientRepositoryWrapper) {
         this.context = context;
         this.jdbcTemplate = jdbcTemplate;
         this.codeValueReadPlatformService = codeValueReadPlatformService;
+        this.clientRepositoryWrapper = clientRepositoryWrapper;
 
     }
+
+    private static final String OFFICE_SCOPE_CRITERIA = "(o.hierarchy like ? or tro.hierarchy like ?)";
 
     private static final class ClientFamilyMembersMapper implements RowMapper<ClientFamilyMembersData> {
 
@@ -58,7 +65,8 @@ public class ClientFamilyMembersReadPlatformServiceImpl implements ClientFamilyM
                     + "c1.code_value AS gender, fmb.gender_cv_id AS genderId, fmb.date_of_birth AS dateOfBirth, c2.code_value AS profession, fmb.profession_cv_id AS professionId"
                     + " FROM m_family_members fmb" + " LEFT JOIN m_code_value cv ON fmb.relationship_cv_id=cv.id"
                     + " LEFT JOIN m_code_value c ON fmb.marital_status_cv_id=c.id" + " LEFT JOIN m_code_value c1 ON fmb.gender_cv_id=c1.id"
-                    + " LEFT JOIN m_code_value c2 ON fmb.profession_cv_id=c2.id";
+                    + " LEFT JOIN m_code_value c2 ON fmb.profession_cv_id=c2.id" + " JOIN m_client cl ON fmb.client_id=cl.id"
+                    + " JOIN m_office o ON cl.office_id=o.id" + " LEFT JOIN m_office tro ON cl.transfer_to_office_id=tro.id";
         }
 
         @Override
@@ -90,25 +98,32 @@ public class ClientFamilyMembersReadPlatformServiceImpl implements ClientFamilyM
     }
 
     @Override
-    public List<ClientFamilyMembersData> getClientFamilyMembers(long clientId) {
-
-        this.context.authenticatedUser();
+    public List<ClientFamilyMembersData> getClientFamilyMembers(final long clientId) {
+        final String hierarchySearchString = hierarchySearchString();
+        this.clientRepositoryWrapper.getClientByClientIdAndHierarchy(clientId, hierarchySearchString);
 
         final ClientFamilyMembersMapper rm = new ClientFamilyMembersMapper();
-        final String sql = "select " + rm.schema() + " where fmb.client_id=?";
+        final String sql = "select " + rm.schema() + " where fmb.client_id=? and " + OFFICE_SCOPE_CRITERIA + " order by fmb.id";
 
-        return this.jdbcTemplate.query(sql, rm, clientId); // NOSONAR
+        return this.jdbcTemplate.query(sql, rm, clientId, hierarchySearchString, hierarchySearchString); // NOSONAR
     }
 
     @Override
-    public ClientFamilyMembersData getClientFamilyMember(long id) {
-
-        this.context.authenticatedUser();
+    public ClientFamilyMembersData getClientFamilyMember(final long clientId, final long id) {
+        final String hierarchySearchString = hierarchySearchString();
 
         final ClientFamilyMembersMapper rm = new ClientFamilyMembersMapper();
-        final String sql = "select " + rm.schema() + " where fmb.id=? ";
+        final String sql = "select " + rm.schema() + " where fmb.id=? and fmb.client_id=? and " + OFFICE_SCOPE_CRITERIA;
 
-        return this.jdbcTemplate.queryForObject(sql, rm, id); // NOSONAR
+        try {
+            return this.jdbcTemplate.queryForObject(sql, rm, id, clientId, hierarchySearchString, hierarchySearchString); // NOSONAR
+        } catch (final EmptyResultDataAccessException e) {
+            throw new ClientFamilyMemberNotFoundException(id, e);
+        }
+    }
+
+    private String hierarchySearchString() {
+        return this.context.officeHierarchy() + "%";
     }
 
     @Override
