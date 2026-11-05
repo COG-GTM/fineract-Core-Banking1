@@ -52,7 +52,8 @@ class HookProcessorFineractEndpointTest {
     private static final String CONFIGURED_BASE_URL = "https://fineract.example.com/fineract-provider/";
     private static final String POISONED_BASE_URL = "https://evil.example/fineract-provider/";
 
-    private record ReceivedRequest(String path, String endpointHeader, String body) {}
+    private record ReceivedRequest(String path, String endpointHeader, String body) {
+    }
 
     private final BlockingQueue<ReceivedRequest> received = new LinkedBlockingQueue<>();
     private HttpServer server;
