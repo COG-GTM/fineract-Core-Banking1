@@ -25,9 +25,11 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.mix.command.MixTaxonomyMappingUpdateCommand;
 import org.apache.fineract.mix.data.MixTaxonomyMappingData;
 import org.apache.fineract.mix.data.MixTaxonomyMappingUpdateRequest;
@@ -41,6 +43,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class MixTaxonomyMappingApiResource {
 
+    // TODO: "UPDATE_XBRLMAPPING" is the legacy permission name; we should rename for consistency
+    private static final List<String> READ_PERMISSIONS = List.of("ALL_FUNCTIONS_READ", "READ_MIX_MAPPING", "UPDATE_MIX_MAPPING",
+            "UPDATE_XBRLMAPPING");
+    private static final List<String> UPDATE_PERMISSIONS = List.of("ALL_FUNCTIONS_WRITE", "UPDATE_MIX_MAPPING", "UPDATE_XBRLMAPPING");
+
+    private final PlatformSecurityContext context;
     private final MixTaxonomyMappingReadService readTaxonomyMappingService;
     private final CommandPipeline commandPipeline;
 
@@ -48,6 +56,8 @@ public class MixTaxonomyMappingApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public MixTaxonomyMappingData retrieveTaxonomyMapping() {
+        context.authenticatedUser().validateHasPermissionTo("READ_MIX_MAPPING", READ_PERMISSIONS);
+
         return this.readTaxonomyMappingService.retrieveTaxonomyMapping();
     }
 
@@ -55,6 +65,8 @@ public class MixTaxonomyMappingApiResource {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces({ MediaType.APPLICATION_JSON })
     public MixTaxonomyMappingUpdateResponse updateTaxonomyMapping(final MixTaxonomyMappingUpdateRequest request) {
+        context.authenticatedUser().validateHasPermissionTo("UPDATE_XBRLMAPPING", UPDATE_PERMISSIONS);
+
         // TODO support multiple configuration file loading; this is the legacy behavior
         if (request.getId() == null) {
             request.setId(1L);
