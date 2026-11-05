@@ -37,6 +37,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
 public class SelfRegistrationConfiguration {
@@ -57,10 +58,10 @@ public class SelfRegistrationConfiguration {
             GmailBackedPlatformEmailService gmailBackedPlatformEmailService, SmsMessageRepository smsMessageRepository,
             SmsMessageScheduledJobService smsMessageScheduledJobService,
             SmsCampaignDropdownReadPlatformService smsCampaignDropdownReadPlatformService,
-            AppUserReadPlatformService appUserReadPlatformService, RoleRepository roleRepository) {
+            AppUserReadPlatformService appUserReadPlatformService, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
         return new SelfServiceRegistrationWritePlatformServiceImpl(selfServiceRegistrationRepository, fromApiJsonHelper,
                 selfServiceRegistrationReadPlatformService, clientRepository, passwordValidationPolicy, userDomainService,
                 gmailBackedPlatformEmailService, smsMessageRepository, smsMessageScheduledJobService,
-                smsCampaignDropdownReadPlatformService, appUserReadPlatformService, roleRepository);
+                smsCampaignDropdownReadPlatformService, appUserReadPlatformService, roleRepository, passwordEncoder);
     }
 }
