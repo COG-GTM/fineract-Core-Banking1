@@ -2911,6 +2911,7 @@ public class CommandWrapperBuilder {
         this.entityName = "EXTERNALSERVICES";
         this.transactionId = externalServiceName;
         this.href = "/externalservices/" + externalServiceName;
+        this.sanitizeJsonKeys = new HashSet<>(CommandJsonSanitizer.EXTERNAL_SERVICE_SECRET_KEYS);
         return this;
     }
 

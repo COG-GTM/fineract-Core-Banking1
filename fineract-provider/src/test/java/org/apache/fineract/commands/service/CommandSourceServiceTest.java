@@ -33,6 +33,7 @@ import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDoma
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.AfterEach;
@@ -45,6 +46,7 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 @SuppressFBWarnings(value = "RV_EXCEPTION_NOT_THROWN", justification = "False positive")
 public class CommandSourceServiceTest {
@@ -57,6 +59,9 @@ public class CommandSourceServiceTest {
 
     @Mock
     private ErrorHandler errorHandler;
+
+    @Spy
+    private FromJsonHelper fromApiJsonHelper = new FromJsonHelper();
 
     @InjectMocks
     private CommandSourceService underTest;
@@ -89,6 +94,32 @@ public class CommandSourceServiceTest {
         CommandSource captured = commandSourceArgumentCaptor.getValue();
         Assertions.assertEquals(idk, captured.getIdempotencyKey());
         Assertions.assertEquals(UNDER_PROCESSING.getValue(), captured.getStatus());
+    }
+
+    @Test
+    public void testExternalServiceSecretsAreMaskedBeforeStorage() {
+        String json = "{\"username\":\"mailer\",\"password\":\"smtp-pass\",\"s3_secret_key\":\"s3-secret\","
+                + "\"tenant_app_key\":\"sms-key\",\"server_key\":\"fcm-key\"}";
+        CommandWrapper wrapper = new CommandWrapperBuilder().updateExternalServiceProperties("SMTP").withJson(json).build();
+        JsonCommand jsonCommand = JsonCommand.from(json);
+        AppUser appUser = Mockito.mock(AppUser.class);
+
+        FineractPlatformTenant ft = new FineractPlatformTenant(1L, "t1", "n1", ZoneId.systemDefault().toString(), null);
+        ThreadLocalContextUtil.setTenant(ft);
+
+        underTest.saveInitialNewTransaction(wrapper, jsonCommand, appUser, "idk");
+
+        ArgumentCaptor<CommandSource> commandSourceArgumentCaptor = ArgumentCaptor.forClass(CommandSource.class);
+        Mockito.verify(commandSourceRepository).saveAndFlush(commandSourceArgumentCaptor.capture());
+
+        CommandSource captured = commandSourceArgumentCaptor.getValue();
+        String stored = captured.getCommandAsJson();
+        Assertions.assertTrue(captured.isSanitized());
+        Assertions.assertFalse(stored.contains("smtp-pass"));
+        Assertions.assertFalse(stored.contains("s3-secret"));
+        Assertions.assertFalse(stored.contains("sms-key"));
+        Assertions.assertFalse(stored.contains("fcm-key"));
+        Assertions.assertTrue(stored.contains("\"username\":\"mailer\""));
     }
 
     @Test

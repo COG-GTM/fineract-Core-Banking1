@@ -19,6 +19,7 @@
 package org.apache.fineract.integrationtests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,12 +30,14 @@ import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import org.apache.fineract.integrationtests.common.AuditHelper;
 import org.apache.fineract.integrationtests.common.ClientHelper;
+import org.apache.fineract.integrationtests.common.ExternalServicesConfigurationHelper;
 import org.apache.fineract.integrationtests.common.OfficeHelper;
 import org.apache.fineract.integrationtests.common.SchedulerJobHelper;
 import org.apache.fineract.integrationtests.common.Utils;
@@ -175,4 +178,43 @@ public class AuditIntegrationTest {
         auditHelper.verifyMultipleAuditsOnserver(auditsRecievedInitial, auditsRecieved, jobId, "EXECUTEJOB", "SCHEDULER");
     }
 
+    @Test
+    public void testAuditDoesNotExposeExternalServiceSecrets() {
+        final String secretName = "s3_secret_key";
+        final String originalValue = getExternalServiceConfigValue("S3", secretName);
+        final String plaintextSecret = "audit-secret-" + rand.nextInt(1_000_000);
+
+        ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec, "S3", secretName,
+                plaintextSecret);
+        try {
+            final String listUrl = "/fineract-provider/api/v1/audits?" + Utils.TENANT_IDENTIFIER
+                    + "&entityName=EXTERNALSERVICES&actionName=UPDATE&includeJson=true&paged=true&limit=1&orderBy=id&sortOrder=DESC";
+            final List<HashMap<String, Object>> audits = Utils.performServerGet(requestSpec, responseSpec, listUrl, "pageItems");
+            assertEquals(1, audits.size());
+            final String listedJson = (String) audits.get(0).get("commandAsJson");
+            assertNotNull(listedJson);
+            assertFalse(listedJson.contains(plaintextSecret), "Audit list leaked external service secret");
+            assertTrue(listedJson.contains("***"));
+
+            final Integer auditId = (Integer) audits.get(0).get("id");
+            final String singleUrl = "/fineract-provider/api/v1/audits/" + auditId + "?" + Utils.TENANT_IDENTIFIER;
+            final String singleJson = Utils.performServerGet(requestSpec, responseSpec, singleUrl, "commandAsJson");
+            assertNotNull(singleJson);
+            assertFalse(singleJson.contains(plaintextSecret), "Audit entry leaked external service secret");
+        } finally {
+            ExternalServicesConfigurationHelper.updateValueForExternaServicesConfiguration(requestSpec, responseSpec, "S3", secretName,
+                    originalValue == null ? "" : originalValue);
+        }
+    }
+
+    private String getExternalServiceConfigValue(final String serviceName, final String configName) {
+        final ArrayList<HashMap> configs = ExternalServicesConfigurationHelper.getExternalServicesConfigurationByServiceName(requestSpec,
+                responseSpec, serviceName);
+        for (HashMap config : configs) {
+            if (configName.equals(config.get("name"))) {
+                return (String) config.get("value");
+            }
+        }
+        return null;
+    }
 }

@@ -148,7 +148,7 @@ public class AuditReadPlatformServiceImpl implements AuditReadPlatformService {
             String commandAsJson;
             // commandAsJson might not be on the select list of columns
             try {
-                commandAsJson = rs.getString("commandAsJson");
+                commandAsJson = CommandJsonSanitizer.maskSecrets(rs.getString("commandAsJson"));
             } catch (final SQLException e) {
                 commandAsJson = null;
             }
