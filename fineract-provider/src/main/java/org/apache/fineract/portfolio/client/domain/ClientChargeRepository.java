@@ -18,9 +18,14 @@
  */
 package org.apache.fineract.portfolio.client.domain;
 
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ClientChargeRepository extends JpaRepository<ClientCharge, Long>, JpaSpecificationExecutor<ClientCharge> {
 
+    @Query("SELECT cc FROM ClientCharge cc WHERE cc.id = :id AND cc.client.id = :clientId")
+    Optional<ClientCharge> findByIdAndClientId(@Param("id") Long id, @Param("clientId") Long clientId);
 }
