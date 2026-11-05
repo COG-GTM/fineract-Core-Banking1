@@ -176,9 +176,9 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
     static String resolveSortOrder(final String sortOrder) {
         final String normalized = sortOrder.trim().toUpperCase(Locale.ROOT);
         if (!SORT_ORDER_VALUES.contains(normalized)) {
-            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
-                    "validation.msg.clients.sortOrder.value.is.not.supported", "The sortOrder value must be one of " + SORT_ORDER_VALUES,
-                    "sortOrder", sortOrder)));
+            throw new PlatformApiDataValidationException(
+                    List.of(ApiParameterError.parameterErrorWithValue("validation.msg.clients.sortOrder.value.is.not.supported",
+                            "The sortOrder value must be one of " + SORT_ORDER_VALUES, "sortOrder", sortOrder)));
         }
         return normalized;
     }

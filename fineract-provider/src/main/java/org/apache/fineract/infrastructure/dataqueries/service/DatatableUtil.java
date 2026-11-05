@@ -260,9 +260,9 @@ public class DatatableUtil {
             final boolean validDirection = parts.length == 1
                     || (parts.length == 2 && SORT_ORDER_VALUES.contains(parts[1].toUpperCase(Locale.ROOT)));
             if (column == null || !validDirection) {
-                throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
-                        "validation.msg.datatable.order.value.is.not.supported",
-                        "The order value must be a datatable column optionally followed by ASC or DESC", "order", order)));
+                throw new PlatformApiDataValidationException(
+                        List.of(ApiParameterError.parameterErrorWithValue("validation.msg.datatable.order.value.is.not.supported",
+                                "The order value must be a datatable column optionally followed by ASC or DESC", "order", order)));
             }
             resolved.add(sqlGenerator.escape(column) + (parts.length == 2 ? " " + parts[1].toUpperCase(Locale.ROOT) : ""));
         }

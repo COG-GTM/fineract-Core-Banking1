@@ -28,9 +28,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -73,9 +73,9 @@ public class ColumnValidator {
             return;
         }
         if (!SORT_ORDER_VALUES.contains(sortOrder.toUpperCase(Locale.ROOT))) {
-            throw new PlatformApiDataValidationException(List.of(ApiParameterError.parameterErrorWithValue(
-                    "validation.msg.sortOrder.value.is.not.supported", "The sortOrder value must be one of " + SORT_ORDER_VALUES,
-                    "sortOrder", sortOrder)));
+            throw new PlatformApiDataValidationException(
+                    List.of(ApiParameterError.parameterErrorWithValue("validation.msg.sortOrder.value.is.not.supported",
+                            "The sortOrder value must be one of " + SORT_ORDER_VALUES, "sortOrder", sortOrder)));
         }
     }
 
