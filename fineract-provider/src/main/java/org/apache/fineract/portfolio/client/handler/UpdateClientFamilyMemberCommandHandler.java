@@ -41,7 +41,7 @@ public class UpdateClientFamilyMemberCommandHandler implements NewCommandSourceH
     @Override
     public CommandProcessingResult processCommand(JsonCommand command) {
 
-        return this.clientFamilyMembersWritePlatformService.updateFamilyMember(command.entityId(), command);
+        return this.clientFamilyMembersWritePlatformService.updateFamilyMember(command.getClientId(), command.entityId(), command);
     }
 
 }

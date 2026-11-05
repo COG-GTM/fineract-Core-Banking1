@@ -64,7 +64,7 @@ public class ClientFamilyMembersApiResource {
 
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
 
-        return this.readPlatformService.getClientFamilyMember(familyMemberId);
+        return this.readPlatformService.getClientFamilyMember(clientId, familyMemberId);
     }
 
     @GET
@@ -91,7 +91,7 @@ public class ClientFamilyMembersApiResource {
     public CommandProcessingResult updateClientFamilyMembers(@PathParam("familyMemberId") final long familyMemberId,
             ClientFamilyMemberRequest clientFamilyMemberRequest,
             @PathParam("clientId") @Parameter(description = "clientId") final Long clientId) {
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().updateFamilyMembers(familyMemberId)
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().withClientId(clientId).updateFamilyMembers(familyMemberId)
                 .withJson(toApiJsonSerializer.serialize(clientFamilyMemberRequest)).build();
 
         return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
@@ -114,7 +114,8 @@ public class ClientFamilyMembersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public CommandProcessingResult deleteClientFamilyMembers(@PathParam("familyMemberId") final long familyMemberId,
             @PathParam("clientId") @Parameter(description = "clientId") final Long clientId) {
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteFamilyMembers(familyMemberId).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().withClientId(clientId).deleteFamilyMembers(familyMemberId)
+                .build();
 
         return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
     }
