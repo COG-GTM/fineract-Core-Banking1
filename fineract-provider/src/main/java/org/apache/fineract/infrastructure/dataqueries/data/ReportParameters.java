@@ -69,6 +69,7 @@ public final class ReportParameters {
             + "- `R_transactionId`: Transaction ID filter\n" + "- `R_centerId`: Center ID filter\n" + "- `R_branch`: Branch filter\n"
             + "- `R_ondate`: Specific date filter\n" + "- `R_cycleX`, `R_cycleY`: Cycle filters\n" + "- `R_fromX`, `R_toY`: Range filters\n"
             + "- `R_overdueX`, `R_overdueY`: Overdue filters\n" + "- `R_endDate`: End date filter\n\n"
+            + "**R_ parameter rules:** names must match `[A-Za-z0-9_]+`; `R_currentUserHierarchy`, `R_currentUserId`, `R_isSelfServiceUser` and `R_currentDate` are reserved and rejected. Values used outside quotes in the report SQL must be numbers or comma-separated numbers/'quoted' strings; values used inside quotes must not contain backslashes. Invalid parameters return 400 (error.msg.sql.validation).\n\n"
 
             + "**Other Common Parameters:**\n" + "- `OfficeId`: Office ID filter (alternative)\n"
             + "- `loanOfficerId`: Loan officer ID filter (alternative)\n" + "- `currencyId`: Currency ID filter (alternative)\n"

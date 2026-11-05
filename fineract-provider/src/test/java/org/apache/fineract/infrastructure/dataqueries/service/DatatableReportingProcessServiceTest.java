@@ -28,9 +28,11 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Map;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.dataqueries.service.export.DatatableReportExportService;
 import org.apache.fineract.infrastructure.dataqueries.service.export.ResponseHolder;
+import org.apache.fineract.infrastructure.security.exception.SqlValidationException;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.glassfish.jersey.internal.util.collection.MultivaluedStringMap;
 import org.junit.jupiter.api.Test;
@@ -82,6 +84,23 @@ class DatatableReportingProcessServiceTest {
         queryParams.put("exportS3", List.of("true"));
 
         assertDoesNotThrow(() -> datatableReportingProcessService.processRequest("clientListing", queryParams));
+    }
+
+    @Test
+    void getReportParamsRejectsInvalidAndReservedParameterNames() {
+        DatatableReportingProcessService service = new DatatableReportingProcessService(List.of(), Mockito.mock(SqlValidator.class));
+
+        for (String name : List.of("R_currentUserHierarchy", "R_currentUserId", "R_isSelfServiceUser", "R_currentDate", "R_a}b",
+                "R_a b", "R_")) {
+            MultivaluedMap<String, String> queryParams = new MultivaluedStringMap();
+            queryParams.put(name, List.of("1"));
+            assertThrows(SqlValidationException.class, () -> service.getReportParams(queryParams), name);
+        }
+
+        MultivaluedMap<String, String> queryParams = new MultivaluedStringMap();
+        queryParams.put("R_officeId", List.of("2"));
+        queryParams.put("locale", List.of("en"));
+        assertEquals(Map.of("${officeId}", "2"), service.getReportParams(queryParams));
     }
 
 }

@@ -22,9 +22,16 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.apache.fineract.infrastructure.security.exception.SqlValidationException;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 
 public abstract class AbstractReportingProcessService implements ReportingProcessService {
+
+    private static final Pattern REPORT_PARAMETER_NAME = Pattern.compile("[A-Za-z0-9_]+");
+    private static final Set<String> RESERVED_REPORT_PARAMETERS = Set.of("currentUserHierarchy", "currentUserId", "isSelfServiceUser",
+            "currentDate");
 
     private final SqlValidator sqlValidator;
 
@@ -37,7 +44,11 @@ public abstract class AbstractReportingProcessService implements ReportingProces
         final Map<String, String> reportParams = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : queryParams.entrySet()) {
             if (entry.getKey().startsWith("R_")) {
-                String pKey = "${" + entry.getKey().substring(2) + "}";
+                final String name = entry.getKey().substring(2);
+                if (!REPORT_PARAMETER_NAME.matcher(name).matches() || RESERVED_REPORT_PARAMETERS.contains(name)) {
+                    throw new SqlValidationException(String.format("invalid report parameter name '%s'", name));
+                }
+                String pKey = "${" + name + "}";
                 String pValue = entry.getValue().get(0);
                 sqlValidator.validate(pValue);
                 reportParams.put(pKey, pValue);

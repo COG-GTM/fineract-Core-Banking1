@@ -32,6 +32,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,22 +134,22 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
         String sql = getSql(name, type);
 
-        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
-            sql = this.genericDataService.replace(sql, entry.getKey(), entry.getValue());
-        }
-
-        final AppUser currentUser = this.context.authenticatedUser();
-        // Allows sql query to restrict data by office hierarchy if required
-        sql = this.genericDataService.replace(sql, "${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
-        // Allows sql query to restrict data by current user Id if required
-        // (typically used to return report lists containing only reports
-        // permitted to be run by the user
-        sql = this.genericDataService.replace(sql, "${currentUserId}", currentUser.getId().toString());
-        sql = this.genericDataService.replace(sql, "${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
-        sql = this.genericDataService.replace(sql, "${currentDate}", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "NOW()", sqlGenerator.currentTenantDateTime());
         sql = StringUtils.replaceIgnoreCase(sql, "curdate()", sqlGenerator.currentBusinessDate());
         sql = StringUtils.replaceIgnoreCase(sql, "CURRENT_DATE", sqlGenerator.currentBusinessDate());
+
+        final AppUser currentUser = this.context.authenticatedUser();
+        final Map<String, String> trustedParams = new HashMap<>();
+        // Allows sql query to restrict data by office hierarchy if required
+        trustedParams.put("${currentUserHierarchy}", currentUser.getOffice().getHierarchy());
+        // Allows sql query to restrict data by current user Id if required
+        // (typically used to return report lists containing only reports
+        // permitted to be run by the user
+        trustedParams.put("${currentUserId}", currentUser.getId().toString());
+        trustedParams.put("${isSelfServiceUser}", Boolean.toString(isSelfServiceUserReport));
+        trustedParams.put("${currentDate}", sqlGenerator.currentBusinessDate());
+
+        sql = ReportSqlParameterBinder.bind(sql, queryParams, trustedParams);
         sql = this.genericDataService.wrapSQL(sql);
 
         return sql;
