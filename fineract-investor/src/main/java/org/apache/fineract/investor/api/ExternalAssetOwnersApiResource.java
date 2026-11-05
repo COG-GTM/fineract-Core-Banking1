@@ -51,7 +51,7 @@ import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.exception.UnrecognizedQueryParamException;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.PagedRequest;
-import org.apache.fineract.infrastructure.security.service.PlatformUserRightsContext;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.investor.api.search.ExternalAssetOwnersSearchApiDelegate;
 import org.apache.fineract.investor.config.InvestorModuleIsEnabledCondition;
 import org.apache.fineract.investor.data.ExternalOwnerJournalEntryData;
@@ -73,7 +73,7 @@ import org.springframework.stereotype.Component;
 @Conditional(InvestorModuleIsEnabledCondition.class)
 public class ExternalAssetOwnersApiResource {
 
-    private final PlatformUserRightsContext platformUserRightsContext;
+    private final PlatformSecurityContext context;
     private final ExternalAssetOwnersReadService externalAssetOwnersReadService;
     private final DefaultToApiJsonSerializer<String> postApiJsonSerializerService;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
@@ -81,6 +81,8 @@ public class ExternalAssetOwnersApiResource {
     private final ExternalAssetOwnersSearchApiDelegate delegate;
 
     private static final String COMMAND_PARAM = "command";
+    private static final String EXTERNAL_ASSET_OWNER_RESOURCE = "EXTERNAL_ASSET_OWNER";
+    private static final String JOURNAL_ENTRY_RESOURCE = "JOURNALENTRY";
 
     private static final CommandHandlerRegistry<String, Long, String, CommandWrapper> COMMAND_HANDLER_REGISTRY = new CommandHandlerRegistry<>(
             Map.of(CANCEL_COMMAND_VALUE, (id, json) -> new CommandWrapperBuilder().cancelTransactionByIdToExternalAssetOwner(id).build(),
@@ -101,7 +103,7 @@ public class ExternalAssetOwnersApiResource {
     public CommandProcessingResult transferRequestWithLoanId(@PathParam("loanId") final Long loanId,
             @Parameter ExternalAssetOwnerRequest assetOwnerReq,
             @QueryParam(COMMAND_PARAM) @Parameter(description = COMMAND_PARAM) final String commandParam) {
-        platformUserRightsContext.isAuthenticated();
+        context.isAuthenticated();
         final String serializedAssetRequest = postApiJsonSerializerService.serialize(assetOwnerReq);
         final CommandWrapper commandRequest = COMMAND_HANDLER_REGISTRY.execute(commandParam, loanId, serializedAssetRequest,
                 new UnrecognizedQueryParamException(COMMAND_PARAM, commandParam));
@@ -118,7 +120,7 @@ public class ExternalAssetOwnersApiResource {
     public CommandProcessingResult transferRequestWithLoanExternalId(@PathParam("loanExternalId") final String externalLoanId,
             @Parameter ExternalAssetOwnerRequest assetOwnerReq,
             @QueryParam(COMMAND_PARAM) @Parameter(description = COMMAND_PARAM) final String commandParam) {
-        platformUserRightsContext.isAuthenticated();
+        context.isAuthenticated();
         final Long loanId = loanReadPlatformService.getLoanIdByLoanExternalId(externalLoanId);
         final String serializedAssetRequest = postApiJsonSerializerService.serialize(assetOwnerReq);
         final CommandWrapper commandRequest = COMMAND_HANDLER_REGISTRY.execute(commandParam, loanId, serializedAssetRequest,
@@ -135,7 +137,7 @@ public class ExternalAssetOwnersApiResource {
     @ApiResponse(responseCode = "403", description = "Transfer cannot be initiated")
     public CommandProcessingResult transferRequestWithId(@PathParam("id") final Long id,
             @QueryParam(COMMAND_PARAM) @Parameter(description = COMMAND_PARAM) final String commandParam) {
-        platformUserRightsContext.isAuthenticated();
+        context.isAuthenticated();
         final CommandWrapper commandRequest = COMMAND_HANDLER_REGISTRY.execute(commandParam, id, null,
                 new UnrecognizedQueryParamException(COMMAND_PARAM, commandParam));
         return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
@@ -149,7 +151,7 @@ public class ExternalAssetOwnersApiResource {
     @ApiResponse(responseCode = "403", description = "Transfer cannot be initiated")
     public CommandProcessingResult transferRequestWithId(@PathParam("externalId") final String externalId,
             @QueryParam(COMMAND_PARAM) @Parameter(description = COMMAND_PARAM) final String commandParam) {
-        platformUserRightsContext.isAuthenticated();
+        context.isAuthenticated();
         final Long id = externalAssetOwnersReadService.retrieveLastTransferIdByExternalId(new ExternalId(externalId));
         final CommandWrapper commandRequest = COMMAND_HANDLER_REGISTRY.execute(commandParam, id, null,
                 new UnrecognizedQueryParamException(COMMAND_PARAM, commandParam));
@@ -167,7 +169,7 @@ public class ExternalAssetOwnersApiResource {
             @QueryParam("loanExternalId") @Parameter(description = "loanExternalId") final String loanExternalId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
         return externalAssetOwnersReadService.retrieveTransferData(loanId, loanExternalId, transferExternalId, offset, limit);
     }
 
@@ -180,7 +182,7 @@ public class ExternalAssetOwnersApiResource {
             @QueryParam("transferExternalId") @Parameter(description = "transferExternalId") final String transferExternalId,
             @QueryParam("loanId") @Parameter(description = "loanId") final Long loanId,
             @QueryParam("loanExternalId") @Parameter(description = "loanExternalId") final String loanExternalId) {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
         return externalAssetOwnersReadService.retrieveActiveTransferData(loanId, loanExternalId, transferExternalId);
     }
 
@@ -193,7 +195,8 @@ public class ExternalAssetOwnersApiResource {
             @PathParam("transferId") @Parameter(description = "transferId") final Long transferId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
+        context.authenticatedUser().validateHasReadPermission(JOURNAL_ENTRY_RESOURCE);
         return externalAssetOwnersReadService.retrieveJournalEntriesOfTransfer(transferId, offset, limit);
     }
 
@@ -206,7 +209,8 @@ public class ExternalAssetOwnersApiResource {
             @PathParam("ownerExternalId") @Parameter(description = "ownerExternalId") final String ownerExternalId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
+        context.authenticatedUser().validateHasReadPermission(JOURNAL_ENTRY_RESOURCE);
         return externalAssetOwnersReadService.retrieveJournalEntriesOfOwner(ownerExternalId, offset, limit);
     }
 
@@ -216,7 +220,7 @@ public class ExternalAssetOwnersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Search External Asset Owner Transfers by text or date ranges to settlement or effective dates")
     public Page<ExternalTransferData> searchInvestorData(@Parameter PagedRequest<ExternalAssetOwnerSearchRequest> request) {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
         return delegate.searchInvestorData(request);
     }
 
@@ -228,7 +232,7 @@ public class ExternalAssetOwnersApiResource {
     @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = ExternalAssetOwnersApiResourceSwagger.PostExternalAssetOwnerResponse.class)))
     @ApiResponse(responseCode = "400", description = "Bad requests due invalid json data")
     public CommandProcessingResult createExternalAssetOwner(@Parameter(hidden = true) final String apiRequestBodyAsJson) {
-        platformUserRightsContext.isAuthenticated();
+        context.isAuthenticated();
         final CommandWrapper commandRequest = COMMAND_HANDLER_REGISTRY.execute(CREATE_COMMAND_VALUE, null, apiRequestBodyAsJson,
                 new UnrecognizedQueryParamException(COMMAND_PARAM, CREATE_COMMAND_VALUE));
         return this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
@@ -238,7 +242,7 @@ public class ExternalAssetOwnersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Get all External Asset Owner with details")
     public List<ExternalTransferOwnerData> retrieveExternalAssetOwners() {
-        platformUserRightsContext.isAuthenticated();
+        context.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE);
         return externalAssetOwnersReadService.retrieveAllExternalOwners();
     }
 }
