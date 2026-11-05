@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -44,6 +45,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @Component
 public class ColumnValidator {
+
+    private static final Pattern ORDER_BY_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$");
+    private static final Pattern SORT_ORDER_PATTERN = Pattern.compile("^(?i)(asc|desc)$");
+    private static final Pattern ORDER_TERM_PATTERN = Pattern
+            .compile("^(?:[A-Za-z_][A-Za-z0-9_]*|`[A-Za-z0-9_ ]+`|\"[A-Za-z0-9_ ]+\")(?:\\s+(?i:asc|desc))?$");
 
     private final SqlValidator sqlValidator;
     private final JdbcTemplate jdbcTemplate;
@@ -91,6 +97,53 @@ public class ColumnValidator {
             log.error("Problem occurred in getTableColumns function", e);
         }
         return columns;
+    }
+
+    /**
+     * Validates a user supplied ORDER BY column: only a single (optionally alias qualified) identifier is accepted.
+     */
+    public void validateOrderBy(String orderBy) {
+        if (StringUtils.isBlank(orderBy)) {
+            return;
+        }
+        if (!ORDER_BY_PATTERN.matcher(orderBy.trim()).matches()) {
+            throw new PlatformApiDataValidationException("error.msg.invalid.order.by",
+                    "Invalid orderBy value; only a single column name is allowed", "orderBy", orderBy);
+        }
+    }
+
+    /**
+     * Validates a user supplied sort direction: only {@code asc} or {@code desc} (case-insensitive) are accepted.
+     */
+    public void validateSortOrder(String sortOrder) {
+        if (StringUtils.isBlank(sortOrder)) {
+            return;
+        }
+        if (!SORT_ORDER_PATTERN.matcher(sortOrder.trim()).matches()) {
+            throw new PlatformApiDataValidationException("error.msg.invalid.sort.order",
+                    "Invalid sortOrder value; only ASC or DESC is allowed", "sortOrder", sortOrder);
+        }
+    }
+
+    public void validateOrderBy(String orderBy, String sortOrder) {
+        validateOrderBy(orderBy);
+        validateSortOrder(sortOrder);
+    }
+
+    /**
+     * Validates a free-form ORDER BY list such as {@code `Date of Birth` desc, id}: each comma separated term must be a
+     * plain or quoted column name, optionally followed by {@code asc} or {@code desc}.
+     */
+    public void validateOrderByList(String order) {
+        if (StringUtils.isBlank(order)) {
+            return;
+        }
+        for (String term : order.split(",", -1)) {
+            if (!ORDER_TERM_PATTERN.matcher(term.trim()).matches()) {
+                throw new PlatformApiDataValidationException("error.msg.invalid.order.by",
+                        "Invalid order value; only column names optionally followed by ASC or DESC are allowed", "order", order);
+            }
+        }
     }
 
     public void validateSqlInjection(String schema, String... conditions) {

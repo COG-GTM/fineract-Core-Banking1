@@ -241,7 +241,7 @@ public class DatatableUtil {
             params.add(id);
         }
         if (StringUtils.isNotBlank(order)) {
-            columnValidator.validateSqlInjection(sql, order);
+            columnValidator.validateOrderByList(order);
             sql = sql + " order by " + order;
         }
 

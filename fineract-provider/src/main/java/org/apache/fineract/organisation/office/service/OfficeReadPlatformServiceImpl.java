@@ -160,10 +160,10 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         sqlBuilder.append(" where o.hierarchy like ? ");
         if (searchParameters != null) {
             if (searchParameters.hasOrderBy()) {
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+                this.columnValidator.validateOrderBy(searchParameters.getOrderBy());
                 sqlBuilder.append("order by ").append(searchParameters.getOrderBy());
                 if (searchParameters.hasSortOrder()) {
-                    this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                    this.columnValidator.validateSortOrder(searchParameters.getSortOrder());
                     sqlBuilder.append(' ').append(searchParameters.getSortOrder());
                 }
             } else {

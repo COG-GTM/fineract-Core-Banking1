@@ -73,10 +73,10 @@ public class ReportMailingJobReadPlatformServiceImpl implements ReportMailingJob
 
         if (searchParameters.hasOrderBy()) {
             sqlStringBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), searchParameters.getOrderBy());
+            this.columnValidator.validateOrderBy(searchParameters.getOrderBy());
             if (searchParameters.hasSortOrder()) {
                 sqlStringBuilder.append(" ").append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlStringBuilder.toString(), searchParameters.getSortOrder());
+                this.columnValidator.validateSortOrder(searchParameters.getSortOrder());
             }
         } else {
             sqlStringBuilder.append(" order by rmj.name ");
