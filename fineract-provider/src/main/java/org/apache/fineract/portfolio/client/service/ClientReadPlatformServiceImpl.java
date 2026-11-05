@@ -532,8 +532,9 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
             final ClientIdentifierMapper mapper = new ClientIdentifierMapper();
 
             final String sql = "select " + mapper.clientLookupByIdentifierSchema();
+            final String hierarchySearchString = this.context.officeHierarchy() + "%";
 
-            return this.jdbcTemplate.queryForObject(sql, mapper, identifierTypeId, identifierKey); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, mapper, identifierTypeId, identifierKey, hierarchySearchString); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
             return null;
         }
@@ -545,7 +546,7 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
             return "c.id as id, c.account_no as accountNo, c.firstname as firstname, c.middlename as middlename, c.lastname as lastname, "
                     + "c.fullname as fullname, c.display_name as displayName," + "c.office_id as officeId, o.name as officeName "
                     + " from m_client c, m_office o, m_client_identifier ci " + "where o.id = c.office_id and c.id=ci.client_id "
-                    + "and ci.document_type_id= ? and ci.document_key like ?";
+                    + "and ci.document_type_id= ? and ci.document_key like ? and o.hierarchy like ?";
         }
 
         @Override

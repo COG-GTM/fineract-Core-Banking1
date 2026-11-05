@@ -20,11 +20,16 @@ package org.apache.fineract.portfolio.client.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -42,6 +47,7 @@ import org.apache.fineract.portfolio.collateralmanagement.domain.ClientCollatera
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -128,5 +134,28 @@ class ClientReadPlatformServiceImplTest {
         assertThrows(org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException.class, () -> {
             clientReadPlatformService.retrieveAll(searchParameters);
         });
+    }
+
+    @Test
+    void testRetrieveClientByIdentifier_RestrictsLookupToCallerOfficeHierarchy() {
+        when(context.officeHierarchy()).thenReturn(".2.");
+        ClientData holder = ClientData.lookup(5L, "Alice", 2L, "South");
+        when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(7L), eq("P123"), eq(".2.%"))).thenReturn(holder);
+
+        ClientData result = clientReadPlatformService.retrieveClientByIdentifier(7L, "P123");
+
+        assertSame(holder, result);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), any(RowMapper.class), eq(7L), eq("P123"), eq(".2.%"));
+        assertTrue(sql.getValue().contains("o.hierarchy like ?"));
+    }
+
+    @Test
+    void testRetrieveClientByIdentifier_ReturnsNullWhenHolderOutsideCallerHierarchy() {
+        when(context.officeHierarchy()).thenReturn(".2.");
+        when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(7L), eq("P123"), eq(".2.%")))
+                .thenThrow(new EmptyResultDataAccessException(1));
+
+        assertNull(clientReadPlatformService.retrieveClientByIdentifier(7L, "P123"));
     }
 }
