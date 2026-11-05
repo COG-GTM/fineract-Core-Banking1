@@ -170,6 +170,6 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
         requireNonNull(fileName);
         requireNonNull(delimiter);
 
-        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), FilenameUtils.getName(fileName));
+        return String.join(delimiter, prefix, entityType, String.valueOf(entityId), fileName);
     }
 }
