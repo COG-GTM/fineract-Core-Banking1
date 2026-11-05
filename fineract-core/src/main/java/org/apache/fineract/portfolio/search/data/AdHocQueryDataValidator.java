@@ -60,8 +60,6 @@ public class AdHocQueryDataValidator {
             AdHocQuerySearchConstants.maxOutstandingAmountParamName, AdHocQuerySearchConstants.outstandingAmountParamName,
             AdHocQuerySearchConstants.localeParamName, AdHocQuerySearchConstants.dateFormatParamName));
 
-    private static final Set<String> AD_HOC_SEARCH_QUERY_CONDITIONS = new HashSet<>(Arrays.asList("between", "<=", ">=", "<", ">", "="));
-
     private static final Object[] loanDateOptions = { AdHocQuerySearchConstants.approvalDateOption,
             AdHocQuerySearchConstants.createDateOption, AdHocQuerySearchConstants.disbursalDateOption };
 
@@ -130,18 +128,24 @@ public class AdHocQueryDataValidator {
         }
 
         if (this.fromApiJsonHelper.parameterExists(AdHocQuerySearchConstants.includeOutStandingAmountPercentageParamName, element)) {
-            final boolean includeOutStandingAmountPercentage = this.fromApiJsonHelper
+            final Boolean includeOutStandingAmountPercentage = this.fromApiJsonHelper
                     .extractBooleanNamed(AdHocQuerySearchConstants.includeOutStandingAmountPercentageParamName, element);
             baseDataValidator.reset().parameter(AdHocQuerySearchConstants.includeOutStandingAmountPercentageParamName)
                     .value(includeOutStandingAmountPercentage).notNull();
+            if (Boolean.TRUE.equals(includeOutStandingAmountPercentage)) {
+                baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outStandingAmountPercentageConditionParamName)
+                        .value(this.fromApiJsonHelper
+                                .extractStringNamed(AdHocQuerySearchConstants.outStandingAmountPercentageConditionParamName, element))
+                        .notNull();
+            }
         }
 
         if (this.fromApiJsonHelper.parameterExists(AdHocQuerySearchConstants.outStandingAmountPercentageConditionParamName, element)) {
             final String outStandingAmountPercentageCondition = this.fromApiJsonHelper
                     .extractStringNamed(AdHocQuerySearchConstants.outStandingAmountPercentageConditionParamName, element);
             baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outStandingAmountPercentageConditionParamName)
-                    .value(outStandingAmountPercentageCondition).isNotOneOfTheseValues(AD_HOC_SEARCH_QUERY_CONDITIONS);
-            if (outStandingAmountPercentageCondition.equals("between")) {
+                    .value(outStandingAmountPercentageCondition).isOneOfTheseValues(AdHocQueryComparisonOperator.allowedValues());
+            if (AdHocQueryComparisonOperator.BETWEEN.getValue().equals(outStandingAmountPercentageCondition)) {
                 final BigDecimal minOutStandingAmountPercentage = this.fromApiJsonHelper
                         .extractBigDecimalWithLocaleNamed(AdHocQuerySearchConstants.minOutStandingAmountPercentageParamName, element);
                 baseDataValidator.reset().parameter(AdHocQuerySearchConstants.minOutStandingAmountPercentageParamName)
@@ -167,14 +171,20 @@ public class AdHocQueryDataValidator {
                     .extractBooleanNamed(AdHocQuerySearchConstants.includeOutstandingAmountParamName, element);
             baseDataValidator.reset().parameter(AdHocQuerySearchConstants.includeOutstandingAmountParamName)
                     .value(includeOutstandingAmountParamName).notNull();
+            if (Boolean.TRUE.equals(includeOutstandingAmountParamName)) {
+                baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outstandingAmountConditionParamName)
+                        .value(this.fromApiJsonHelper.extractStringNamed(AdHocQuerySearchConstants.outstandingAmountConditionParamName,
+                                element))
+                        .notNull();
+            }
         }
 
         if (this.fromApiJsonHelper.parameterExists(AdHocQuerySearchConstants.outstandingAmountConditionParamName, element)) {
             final String outstandingAmountCondition = this.fromApiJsonHelper
                     .extractStringNamed(AdHocQuerySearchConstants.outstandingAmountConditionParamName, element);
             baseDataValidator.reset().parameter(AdHocQuerySearchConstants.outstandingAmountConditionParamName)
-                    .value(outstandingAmountCondition).isNotOneOfTheseValues(AD_HOC_SEARCH_QUERY_CONDITIONS);
-            if (outstandingAmountCondition.equals("between")) {
+                    .value(outstandingAmountCondition).isOneOfTheseValues(AdHocQueryComparisonOperator.allowedValues());
+            if (AdHocQueryComparisonOperator.BETWEEN.getValue().equals(outstandingAmountCondition)) {
                 final BigDecimal minOutstandingAmount = this.fromApiJsonHelper
                         .extractBigDecimalWithLocaleNamed(AdHocQuerySearchConstants.minOutstandingAmountParamName, element);
                 baseDataValidator.reset().parameter(AdHocQuerySearchConstants.minOutstandingAmountParamName).value(minOutstandingAmount)
