@@ -62,9 +62,10 @@ public class ClientCollateralManagementReadPlatformServiceImpl implements Client
     }
 
     @Override
-    public ClientCollateralManagementData getClientCollateralManagementData(final Long collateralId) {
+    public ClientCollateralManagementData getClientCollateralManagementData(final Long clientId, final Long collateralId) {
+        final String hierarchySearchString = this.context.officeHierarchy() + "%";
         final ClientCollateralManagement clientCollateralManagement = this.clientCollateralManagementRepositoryWrapper
-                .getCollateral(collateralId);
+                .getCollateralForClient(clientId, collateralId, hierarchySearchString);
         BigDecimal basePrice = clientCollateralManagement.getCollaterals().getBasePrice();
         BigDecimal pctToBase = clientCollateralManagement.getCollaterals().getPctToBase().divide(BigDecimal.valueOf(100));
         BigDecimal total = BigDecimal.ZERO;

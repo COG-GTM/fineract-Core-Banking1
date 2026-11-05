@@ -90,7 +90,7 @@ public class ClientCollateralManagementApiResource {
         this.context.authenticatedUser()
                 .validateHasReadPermission(CollateralManagementJsonInputParams.CLIENT_COLLATERAL_PRODUCT_READ_PERMISSION.getValue());
 
-        return this.clientCollateralManagementReadPlatformService.getClientCollateralManagementData(collateralId);
+        return this.clientCollateralManagementReadPlatformService.getClientCollateralManagementData(clientId, collateralId);
     }
 
     @GET

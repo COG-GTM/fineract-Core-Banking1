@@ -24,7 +24,7 @@ import org.apache.fineract.portfolio.collateralmanagement.data.LoanCollateralTem
 
 public interface ClientCollateralManagementReadPlatformService {
 
-    ClientCollateralManagementData getClientCollateralManagementData(Long collateralId);
+    ClientCollateralManagementData getClientCollateralManagementData(Long clientId, Long collateralId);
 
     List<ClientCollateralManagementData> getClientCollaterals(Long clientId, Long prodId);
 
