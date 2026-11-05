@@ -27,6 +27,7 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
@@ -35,6 +36,7 @@ import org.apache.fineract.infrastructure.event.external.data.ExternalEventConfi
 import org.apache.fineract.infrastructure.event.external.data.ExternalEventConfigurationUpdateRequest;
 import org.apache.fineract.infrastructure.event.external.data.ExternalEventConfigurationUpdateResponse;
 import org.apache.fineract.infrastructure.event.external.service.ExternalEventConfigurationReadPlatformService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.springframework.stereotype.Component;
 
 @RequiredArgsConstructor
@@ -43,6 +45,7 @@ import org.springframework.stereotype.Component;
 @Tag(name = "External event configuration", description = "External event configuration enables user to enable/disable event posting to downstream message channel")
 public class ExternalEventConfigurationApiResource {
 
+    private final PlatformSecurityContext context;
     private final ExternalEventConfigurationReadPlatformService readPlatformService;
     private final CommandPipeline commandPipeline;
 
@@ -51,6 +54,7 @@ public class ExternalEventConfigurationApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "List all external event configurations", description = "")
     public ExternalEventConfigurationResponse getExternalEventConfigurations() {
+        context.authenticatedUser().validateHasReadPermission("EXTERNAL_EVENT_CONFIGURATION");
         return readPlatformService.findAllExternalEventConfigurations();
     }
 
@@ -60,6 +64,8 @@ public class ExternalEventConfigurationApiResource {
     @Operation(summary = "Enable/Disable external events posting", description = "")
     public ExternalEventConfigurationUpdateResponse updateExternalEventConfigurations(
             @Valid ExternalEventConfigurationUpdateRequest request) {
+        context.authenticatedUser().validateHasPermissionTo("UPDATE_EXTERNAL_EVENT_CONFIGURATION",
+                List.of("ALL_FUNCTIONS_WRITE", "UPDATE_EXTERNAL_EVENT_CONFIGURATION"));
         final var command = new ExternalConfigurationsUpdateCommand();
 
         command.setPayload(request);

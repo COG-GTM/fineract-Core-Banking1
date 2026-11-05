@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.paymenttype.command.PaymentTypeCreateCommand;
 import org.apache.fineract.portfolio.paymenttype.command.PaymentTypeDeleteCommand;
 import org.apache.fineract.portfolio.paymenttype.command.PaymentTypeUpdateCommand;
@@ -54,6 +55,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class PaymentTypeApiResource {
 
+    private final PlatformSecurityContext context;
     private final PaymentTypeReadService readPlatformService;
     private final CommandPipeline commandPipeline;
     private final DefaultToApiJsonSerializer<PaymentTypeData> jsonSerializer;
@@ -63,6 +65,7 @@ public class PaymentTypeApiResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(summary = "Retrieve all Payment Types", description = "Retrieve list of payment types")
     public List<PaymentTypeData> getAllPaymentTypes(@QueryParam("onlyWithCode") final boolean onlyWithCode) {
+        context.authenticatedUser().validateHasReadPermission("PAYMENTTYPE");
         return onlyWithCode ? readPlatformService.retrieveAllPaymentTypesWithCode() : readPlatformService.retrieveAllPaymentTypes();
     }
 
@@ -72,6 +75,7 @@ public class PaymentTypeApiResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(summary = "Retrieve a Payment Type", description = "Retrieves a payment type")
     public PaymentTypeData retrieveOnePaymentType(@PathParam("paymentTypeId") final Long paymentTypeId) {
+        context.authenticatedUser().validateHasReadPermission("PAYMENTTYPE");
         return readPlatformService.retrieveOne(paymentTypeId);
     }
 
@@ -80,6 +84,7 @@ public class PaymentTypeApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Create a Payment Type", description = "Creates a new Payment type")
     public PaymentTypeCreateResponse createPaymentType(PaymentTypeCreateRequest request) {
+        context.authenticatedUser().validateHasPermissionTo("CREATE_PAYMENTTYPE", List.of("ALL_FUNCTIONS_WRITE", "CREATE_PAYMENTTYPE"));
         final var command = new PaymentTypeCreateCommand();
 
         command.setPayload(request);
@@ -96,6 +101,7 @@ public class PaymentTypeApiResource {
     @Operation(summary = "Update a Payment Type", description = "Updates a Payment Type")
     public PaymentTypeUpdateResponse updatePaymentType(@PathParam("paymentTypeId") final Long paymentTypeId,
             final PaymentTypeUpdateRequest request) {
+        context.authenticatedUser().validateHasPermissionTo("UPDATE_PAYMENTTYPE", List.of("ALL_FUNCTIONS_WRITE", "UPDATE_PAYMENTTYPE"));
 
         request.setId(paymentTypeId);
 
@@ -114,6 +120,7 @@ public class PaymentTypeApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Delete a Payment Type", description = "Deletes payment type")
     public PaymentTypeDeleteResponse deleteCode(@PathParam("paymentTypeId") final Long paymentTypeId) {
+        context.authenticatedUser().validateHasPermissionTo("DELETE_PAYMENTTYPE", List.of("ALL_FUNCTIONS_WRITE", "DELETE_PAYMENTTYPE"));
 
         final var command = new PaymentTypeDeleteCommand();
 
