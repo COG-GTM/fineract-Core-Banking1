@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.command.core.CommandPipeline;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.note.command.NoteCreateCommand;
 import org.apache.fineract.portfolio.note.command.NoteDeleteCommand;
 import org.apache.fineract.portfolio.note.command.NoteUpdateCommand;
@@ -59,6 +60,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class NotesApiResource {
 
+    private static final String ALL_FUNCTIONS = "ALL_FUNCTIONS";
+    private static final String ALL_FUNCTIONS_WRITE = "ALL_FUNCTIONS_WRITE";
+
+    private final PlatformSecurityContext context;
     private final NoteReadPlatformService readPlatformService;
     private final CommandPipeline commandPipeline;
 
@@ -80,6 +85,8 @@ public class NotesApiResource {
         if (noteType == null) {
             throw new NoteResourceNotSupportedException(resourceType);
         }
+
+        validateHasReadPermission(noteType);
 
         return readPlatformService.retrieveNotesByResource(resourceId, noteType.getValue());
     }
@@ -104,6 +111,8 @@ public class NotesApiResource {
             throw new NoteResourceNotSupportedException(resourceType);
         }
 
+        validateHasReadPermission(noteType);
+
         return readPlatformService.retrieveNote(noteId, resourceId, noteType.getValue());
     }
 
@@ -123,6 +132,8 @@ public class NotesApiResource {
         if (type == null) {
             throw new NoteResourceNotSupportedException(resourceType);
         }
+
+        validateHasWritePermission("CREATE", type);
 
         request.setResourceId(resourceId);
         request.setType(type);
@@ -150,6 +161,8 @@ public class NotesApiResource {
             throw new NoteResourceNotSupportedException(resourceType);
         }
 
+        validateHasWritePermission("UPDATE", type);
+
         request.setId(noteId);
         request.setResourceId(resourceId);
         request.setType(type);
@@ -176,6 +189,8 @@ public class NotesApiResource {
             throw new NoteResourceNotSupportedException(resourceType);
         }
 
+        validateHasWritePermission("DELETE", type);
+
         var request = NoteDeleteRequest.builder().id(noteId).resourceId(resourceId).type(type).build();
 
         final var command = new NoteDeleteCommand();
@@ -185,5 +200,26 @@ public class NotesApiResource {
         final Supplier<NoteDeleteResponse> response = commandPipeline.send(command);
 
         return response.get();
+    }
+
+    private void validateHasReadPermission(final NoteType type) {
+        context.authenticatedUser().validateHasReadPermission(permissionEntityName(type));
+    }
+
+    private void validateHasWritePermission(final String action, final NoteType type) {
+        final String permission = action + "_" + permissionEntityName(type);
+        context.authenticatedUser().validateHasPermissionTo(permission, List.of(ALL_FUNCTIONS, ALL_FUNCTIONS_WRITE, permission));
+    }
+
+    // Types without dedicated permissions resolve to INVALIDNOTE, which only ALL_FUNCTIONS* roles satisfy.
+    static String permissionEntityName(final NoteType type) {
+        return switch (type) {
+            case CLIENT -> "CLIENTNOTE";
+            case LOAN -> "LOANNOTE";
+            case LOAN_TRANSACTION -> "LOANTRANSACTIONNOTE";
+            case SAVING_ACCOUNT -> "SAVINGNOTE";
+            case GROUP -> "GROUPNOTE";
+            default -> "INVALIDNOTE";
+        };
     }
 }

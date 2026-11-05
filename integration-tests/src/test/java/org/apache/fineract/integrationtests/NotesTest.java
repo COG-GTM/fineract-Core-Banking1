@@ -28,6 +28,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import org.apache.fineract.client.models.PostUsersRequest;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.CollateralManagementHelper;
 import org.apache.fineract.integrationtests.common.GroupHelper;
@@ -39,6 +41,8 @@ import org.apache.fineract.integrationtests.common.loans.LoanTestLifecycleExtens
 import org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsAccountHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsProductHelper;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
+import org.apache.fineract.integrationtests.useradministration.users.UserHelper;
 import org.apache.fineract.portfolio.note.data.NoteCreateResponse;
 import org.apache.fineract.portfolio.note.data.NoteData;
 import org.junit.jupiter.api.Assertions;
@@ -53,6 +57,7 @@ public class NotesTest {
     private ResponseSpecification responseSpec;
     private RequestSpecification requestSpec;
     private ResponseSpecification responseSpec404;
+    private ResponseSpecification responseSpec403;
     private LoanTransactionHelper loanTransactionHelper;
     private SavingsProductHelper savingsProductHelper;
     private SavingsAccountHelper savingsAccountHelper;
@@ -64,6 +69,7 @@ public class NotesTest {
         this.requestSpec.header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey());
         this.responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
         this.responseSpec404 = new ResponseSpecBuilder().expectStatusCode(404).build();
+        this.responseSpec403 = new ResponseSpecBuilder().expectStatusCode(403).build();
         this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
         this.savingsProductHelper = new SavingsProductHelper();
         this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
@@ -124,6 +130,38 @@ public class NotesTest {
         NotesHelper.deleteClientNote(requestSpec, responseSpec, clientId, noteId);
 
         NotesHelper.getClientNote(requestSpec, responseSpec404, clientId, noteId);
+    }
+
+    @Test
+    public void testSingleClientNoteRequiresNotePermissions() {
+        String noteText = "this is a protected note";
+
+        Integer clientId = ClientHelper.createClient(requestSpec, responseSpec);
+        Integer noteId = NotesHelper.createClientNote(requestSpec, responseSpec, clientId, "{\"note\": \"" + noteText + "\"}");
+        Assertions.assertNotNull(noteId);
+
+        Integer roleId = RolesHelper.createRole(requestSpec, responseSpec);
+        String password = "AKleRbDhK421$";
+        String username = Utils.uniqueRandomStringGenerator("noteUser", 4);
+        UserHelper.createUser(requestSpec, responseSpec,
+                new PostUsersRequest().username(username).firstname(Utils.randomFirstNameGenerator())
+                        .lastname(Utils.randomLastNameGenerator()).email("notes@whatever.mifos.org").password(password)
+                        .repeatPassword(password).sendPasswordToEmail(false).roles(List.of(roleId.longValue())).officeId(1L));
+        RequestSpecification restrictedSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build();
+        restrictedSpec.header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(username, password));
+
+        String tamperRequest = "{\"note\": \"tampered\"}";
+        NotesHelper.getClientNote(restrictedSpec, responseSpec403, clientId, noteId);
+        NotesHelper.updateClientNote(restrictedSpec, responseSpec403, clientId, noteId, tamperRequest);
+        NotesHelper.deleteClientNote(restrictedSpec, responseSpec403, clientId, noteId);
+
+        RolesHelper.addPermissionsToRole(requestSpec, responseSpec, roleId, Map.of("READ_CLIENTNOTE", true));
+
+        Assertions.assertEquals(noteText, NotesHelper.getClientNote(restrictedSpec, responseSpec, clientId, noteId));
+        NotesHelper.updateClientNote(restrictedSpec, responseSpec403, clientId, noteId, tamperRequest);
+        NotesHelper.deleteClientNote(restrictedSpec, responseSpec403, clientId, noteId);
+
+        Assertions.assertEquals(noteText, NotesHelper.getClientNote(requestSpec, responseSpec, clientId, noteId));
     }
 
     @Test
