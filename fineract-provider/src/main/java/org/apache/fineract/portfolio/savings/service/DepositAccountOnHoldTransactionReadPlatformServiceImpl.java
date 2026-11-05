@@ -24,14 +24,19 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
-import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.portfolio.savings.data.DepositAccountOnHoldTransactionData;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -39,15 +44,27 @@ import org.springframework.jdbc.core.RowMapper;
 @RequiredArgsConstructor
 public class DepositAccountOnHoldTransactionReadPlatformServiceImpl implements DepositAccountOnHoldTransactionReadPlatformService {
 
+    private static final String RESOURCE_NAME = "savingsaccount.onholdtransactions";
+    // allowed orderBy values mapped to the SQL column used for sorting
+    private static final Map<String, String> SUPPORTED_ORDER_BY_VALUES = Map.ofEntries(Map.entry("id", "tr.id"),
+            Map.entry("transactionId", "tr.id"), Map.entry("tr.id", "tr.id"), Map.entry("transactionDate", "tr.transaction_date"),
+            Map.entry("tr.transaction_date", "tr.transaction_date"), Map.entry("amount", "tr.amount"),
+            Map.entry("transactionAmount", "tr.amount"), Map.entry("tr.amount", "tr.amount"),
+            Map.entry("transactionType", "tr.transaction_type_enum"), Map.entry("tr.transaction_type_enum", "tr.transaction_type_enum"),
+            Map.entry("reversed", "tr.is_reversed"), Map.entry("tr.is_reversed", "tr.is_reversed"));
+    private static final Set<String> SUPPORTED_SORT_ORDER_VALUES = Set.of("ASC", "DESC");
+
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-    private final ColumnValidator columnValidator;
     private final PaginationHelper paginationHelper;
     private final DepositAccountOnHoldTransactionsMapper mapper = new DepositAccountOnHoldTransactionsMapper();
 
     @Override
     public Page<DepositAccountOnHoldTransactionData> retriveAll(Long savingsId, Long guarantorFundingId,
             SearchParameters searchParameters) {
+        final String orderByColumn = resolveOrderByColumn(searchParameters);
+        final String sortOrder = resolveSortOrder(searchParameters);
+
         final StringBuilder sqlBuilder = new StringBuilder(200);
         List<Long> paramObj = new ArrayList<>(2);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
@@ -60,13 +77,10 @@ public class DepositAccountOnHoldTransactionReadPlatformServiceImpl implements D
             paramObj.add(guarantorFundingId);
         }
 
-        if (searchParameters.hasOrderBy()) {
-            sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
-            this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-
-            if (searchParameters.hasSortOrder()) {
-                sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+        if (orderByColumn != null) {
+            sqlBuilder.append(" order by ").append(orderByColumn);
+            if (sortOrder != null) {
+                sqlBuilder.append(' ').append(sortOrder);
             }
         }
 
@@ -82,6 +96,39 @@ public class DepositAccountOnHoldTransactionReadPlatformServiceImpl implements D
         final Object[] finalObjectArray = paramObj.toArray();
         return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, this.mapper);
 
+    }
+
+    private static String resolveOrderByColumn(final SearchParameters searchParameters) {
+        if (!searchParameters.hasOrderBy()) {
+            return null;
+        }
+        final String orderBy = searchParameters.getOrderBy().trim();
+        final String column = SUPPORTED_ORDER_BY_VALUES.get(orderBy);
+        if (column == null) {
+            throw validationError("orderBy", orderBy, SUPPORTED_ORDER_BY_VALUES.keySet());
+        }
+        return column;
+    }
+
+    private static String resolveSortOrder(final SearchParameters searchParameters) {
+        if (!searchParameters.hasSortOrder()) {
+            return null;
+        }
+        final String sortOrder = searchParameters.getSortOrder().trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_SORT_ORDER_VALUES.contains(sortOrder)) {
+            throw validationError("sortOrder", searchParameters.getSortOrder(), SUPPORTED_SORT_ORDER_VALUES);
+        }
+        return sortOrder;
+    }
+
+    private static PlatformApiDataValidationException validationError(final String parameter, final String value,
+            final Set<String> supportedValues) {
+        final String supported = new TreeSet<>(supportedValues).toString();
+        final String defaultUserMessage = "The " + parameter + " value '" + value + "' is not supported. The supported " + parameter
+                + " values are " + supported;
+        return new PlatformApiDataValidationException(List.of(ApiParameterError.parameterError(
+                "validation.msg." + RESOURCE_NAME + "." + parameter + ".value.is.not.supported", defaultUserMessage, parameter, value,
+                supported)));
     }
 
     private static final class DepositAccountOnHoldTransactionsMapper implements RowMapper<DepositAccountOnHoldTransactionData> {
