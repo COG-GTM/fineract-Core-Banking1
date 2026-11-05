@@ -114,7 +114,7 @@ public class DocumentWritePlatformServiceImpl implements DocumentWritePlatformSe
 
                 if (request.getStream() != null && StringUtils.isNotEmpty(path) && !Strings.CI.equals(doc.getLocation(), path)) {
                     storeService.delete(doc.getLocation());
-                    storeService.upload(path, request.getStream(), request.getType());
+                    path = storeService.upload(path, request.getStream(), request.getType());
                     doc.setLocation(path);
                     doc.setFileName(FilenameUtils.getName(path));
                 }
