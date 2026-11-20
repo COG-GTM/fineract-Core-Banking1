@@ -19,11 +19,14 @@
 package org.apache.fineract.portfolio.delinquency.domain;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface LoanDelinquencyTagHistoryRepository
         extends JpaRepository<LoanDelinquencyTagHistory, Long>, JpaSpecificationExecutor<LoanDelinquencyTagHistory> {
@@ -33,6 +36,9 @@ public interface LoanDelinquencyTagHistoryRepository
     List<LoanDelinquencyTagHistory> findByLoanOrderByAddedOnDateDesc(Loan loan);
 
     Optional<LoanDelinquencyTagHistory> findByLoanAndLiftedOnDate(Loan loan, LocalDate liftedOnDate);
+
+    @Query("select t.loan.id, r from LoanDelinquencyTagHistory t join t.delinquencyRange r where t.loan.id in :loanIds and t.liftedOnDate is null")
+    List<Object[]> findCurrentDelinquencyRangesByLoanIds(@Param("loanIds") Collection<Long> loanIds);
 
     Long countByDelinquencyRangeAndLiftedOnDate(DelinquencyRange delinquencyRange, LocalDate liftedOnDate);
 

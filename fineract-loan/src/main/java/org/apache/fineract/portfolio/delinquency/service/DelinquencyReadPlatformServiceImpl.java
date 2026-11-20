@@ -21,17 +21,21 @@ package org.apache.fineract.portfolio.delinquency.service;
 import static org.apache.fineract.portfolio.loanaccount.domain.Loan.EARLIEST_UNPAID_DATE;
 import static org.apache.fineract.portfolio.loanaccount.domain.Loan.NEXT_UNPAID_DUE_DATE;
 
+import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.MathUtil;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.organisation.monetary.domain.MoneyHelper;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyBucketData;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyRangeData;
@@ -121,6 +125,20 @@ public class DelinquencyReadPlatformServiceImpl implements DelinquencyReadPlatfo
             return mapperRange.map(optLoanDelinquencyTag.get().getDelinquencyRange());
         }
         return null;
+    }
+
+    @Override
+    public Map<Long, DelinquencyRangeData> retrieveCurrentDelinquencyTags(Collection<Long> loanIds) {
+        final Map<Long, DelinquencyRangeData> delinquencyRangesByLoanId = new HashMap<>();
+        if (loanIds == null || loanIds.isEmpty()) {
+            return delinquencyRangesByLoanId;
+        }
+        for (List<Long> partition : Lists.partition(List.copyOf(loanIds), DatabaseSpecificSQLGenerator.IN_CLAUSE_MAX_PARAMS)) {
+            for (Object[] row : this.repositoryLoanDelinquencyTagHistory.findCurrentDelinquencyRangesByLoanIds(partition)) {
+                delinquencyRangesByLoanId.put((Long) row[0], mapperRange.map((DelinquencyRange) row[1]));
+            }
+        }
+        return delinquencyRangesByLoanId;
     }
 
     @Override

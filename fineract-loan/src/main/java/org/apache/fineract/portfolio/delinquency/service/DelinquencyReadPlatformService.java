@@ -21,6 +21,7 @@ package org.apache.fineract.portfolio.delinquency.service;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyBucketData;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyRangeData;
 import org.apache.fineract.portfolio.delinquency.data.LoanDelinquencyTagHistoryData;
@@ -41,6 +42,8 @@ public interface DelinquencyReadPlatformService {
     DelinquencyBucketData retrieveDelinquencyBucket(Long delinquencyBucketId);
 
     DelinquencyRangeData retrieveCurrentDelinquencyTag(Long loanId);
+
+    Map<Long, DelinquencyRangeData> retrieveCurrentDelinquencyTags(Collection<Long> loanIds);
 
     Collection<LoanDelinquencyTagHistoryData> retrieveDelinquencyRangeHistory(Long loanId);
 
