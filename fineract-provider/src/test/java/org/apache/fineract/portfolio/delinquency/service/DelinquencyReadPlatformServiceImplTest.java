@@ -20,12 +20,22 @@ package org.apache.fineract.portfolio.delinquency.service;
 
 import static java.time.Month.JANUARY;
 import static org.apache.fineract.portfolio.delinquency.domain.DelinquencyAction.PAUSE;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.LongStream;
+import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.portfolio.delinquency.data.DelinquencyRangeData;
 import org.apache.fineract.portfolio.delinquency.domain.DelinquencyBucketRepository;
+import org.apache.fineract.portfolio.delinquency.domain.DelinquencyRange;
 import org.apache.fineract.portfolio.delinquency.domain.DelinquencyRangeRepository;
 import org.apache.fineract.portfolio.delinquency.domain.LoanDelinquencyAction;
 import org.apache.fineract.portfolio.delinquency.domain.LoanDelinquencyActionRepository;
@@ -192,4 +202,38 @@ class DelinquencyReadPlatformServiceImplTest {
         return new DelinquencyPausePeriod(active, LocalDate.parse(startDate), LocalDate.parse(endDate));
     }
 
+    @Test
+    public void testRetrieveCurrentDelinquencyTagsReturnsEmptyMapWithoutQueryForNoLoans() {
+        Assertions.assertTrue(underTest.retrieveCurrentDelinquencyTags(List.of()).isEmpty());
+        verifyNoInteractions(repositoryLoanDelinquencyTagHistory);
+    }
+
+    @Test
+    public void testRetrieveCurrentDelinquencyTagsMapsCurrentRangePerLoan() {
+        DelinquencyRange range1 = mock(DelinquencyRange.class);
+        DelinquencyRange range2 = mock(DelinquencyRange.class);
+        DelinquencyRangeData rangeData1 = DelinquencyRangeData.instance("D1", 1, 30);
+        DelinquencyRangeData rangeData2 = DelinquencyRangeData.instance("D2", 31, 60);
+        when(repositoryLoanDelinquencyTagHistory.findCurrentDelinquencyRangesByLoanIds(List.of(1L, 2L, 3L)))
+                .thenReturn(List.of(new Object[] { 1L, range1 }, new Object[] { 3L, range2 }));
+        when(mapperRange.map(range1)).thenReturn(rangeData1);
+        when(mapperRange.map(range2)).thenReturn(rangeData2);
+
+        Map<Long, DelinquencyRangeData> result = underTest.retrieveCurrentDelinquencyTags(List.of(1L, 2L, 3L));
+
+        Assertions.assertEquals(Map.of(1L, rangeData1, 3L, rangeData2), result);
+    }
+
+    @Test
+    public void testRetrieveCurrentDelinquencyTagsPartitionsLargeIdLists() {
+        List<Long> loanIds = LongStream.rangeClosed(1, DatabaseSpecificSQLGenerator.IN_CLAUSE_MAX_PARAMS + 1L).boxed().toList();
+        when(repositoryLoanDelinquencyTagHistory.findCurrentDelinquencyRangesByLoanIds(anyList())).thenReturn(List.of());
+
+        underTest.retrieveCurrentDelinquencyTags(loanIds);
+
+        verify(repositoryLoanDelinquencyTagHistory)
+                .findCurrentDelinquencyRangesByLoanIds(loanIds.subList(0, DatabaseSpecificSQLGenerator.IN_CLAUSE_MAX_PARAMS));
+        verify(repositoryLoanDelinquencyTagHistory)
+                .findCurrentDelinquencyRangesByLoanIds(loanIds.subList(DatabaseSpecificSQLGenerator.IN_CLAUSE_MAX_PARAMS, loanIds.size()));
+    }
 }

@@ -330,7 +330,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
         final AppUser currentUser = this.context.authenticatedUser();
         final String hierarchy = currentUser.getOffice().getHierarchy();
         final String hierarchySearchString = hierarchy + "%";
-        final LoanMapper loanMapper = new LoanMapper(sqlGenerator, delinquencyReadPlatformService);
+        final LoanMapper loanMapper = new LoanMapper(sqlGenerator, delinquencyReadPlatformService, false);
 
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
@@ -402,7 +402,13 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
         }
         final Object[] objectArray = extraCriterias.toArray();
         final Object[] finalObjectArray = Arrays.copyOf(objectArray, arrayPos);
-        return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray, loanMapper);
+        final Page<LoanAccountData> page = this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), finalObjectArray,
+                loanMapper);
+        final List<Long> loanIds = page.getPageItems().stream().map(LoanAccountData::getId).toList();
+        final Map<Long, DelinquencyRangeData> delinquencyRangesByLoanId = this.delinquencyReadPlatformService
+                .retrieveCurrentDelinquencyTags(loanIds);
+        page.getPageItems().forEach(loan -> loan.setDelinquencyRange(delinquencyRangesByLoanId.get(loan.getId())));
+        return page;
     }
 
     @Override
@@ -765,10 +771,17 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
 
         private final DatabaseSpecificSQLGenerator sqlGenerator;
         private final DelinquencyReadPlatformService delinquencyReadPlatformService;
+        private final boolean fetchDelinquencyRange;
 
         LoanMapper(DatabaseSpecificSQLGenerator sqlGenerator, DelinquencyReadPlatformService delinquencyReadPlatformService) {
+            this(sqlGenerator, delinquencyReadPlatformService, true);
+        }
+
+        LoanMapper(DatabaseSpecificSQLGenerator sqlGenerator, DelinquencyReadPlatformService delinquencyReadPlatformService,
+                boolean fetchDelinquencyRange) {
             this.sqlGenerator = sqlGenerator;
             this.delinquencyReadPlatformService = delinquencyReadPlatformService;
+            this.fetchDelinquencyRange = fetchDelinquencyRange;
         }
 
         public String loanSchema() {
@@ -1220,7 +1233,9 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
             final BigDecimal topupAmount = rs.getBigDecimal("topupAmount");
             final boolean disallowExpectedDisbursements = rs.getBoolean("disallowExpectedDisbursements");
             // Current Delinquency Range Data
-            DelinquencyRangeData delinquencyRange = this.delinquencyReadPlatformService.retrieveCurrentDelinquencyTag(id);
+            DelinquencyRangeData delinquencyRange = this.fetchDelinquencyRange
+                    ? this.delinquencyReadPlatformService.retrieveCurrentDelinquencyTag(id)
+                    : null;
 
             final boolean isFraud = rs.getBoolean("isFraud");
             final LocalDate lastClosedBusinessDate = JdbcSupport.getLocalDate(rs, "lastClosedBusinessDate");
